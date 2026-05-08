@@ -1,1 +1,306 @@
-name: first
+name: 🔍 Subdomain Monitor (Enhanced)
+
+on:
+  schedule:
+    - cron: '0 */4 * * *'   # كل 4 ساعات
+  workflow_dispatch:
+    inputs:
+      domain:
+        description: 'Target Domain (e.g. example.com)'
+        required: true
+        default: ''
+
+jobs:
+  subdomain-monitor:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      # ─────────────────────────────────────────────
+      # 1. Checkout
+      # ─────────────────────────────────────────────
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # ─────────────────────────────────────────────
+      # 2. Install Go tools
+      # ─────────────────────────────────────────────
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Install ProjectDiscovery Tools
+        run: |
+          go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
+          go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest
+          go install -v github.com/projectdiscovery/dnsx/cmd/dnsx@latest
+          echo "$HOME/go/bin" >> $GITHUB_PATH
+
+      - name: Install Subzy (Takeover Checker)
+        run: |
+          go install github.com/PentestPad/subzy@latest
+
+      # ─────────────────────────────────────────────
+      # 3. Determine domain
+      # ─────────────────────────────────────────────
+      - name: Set Domain
+        id: set-domain
+        run: |
+          if [ -n "${{ github.event.inputs.domain }}" ]; then
+            echo "DOMAIN=${{ github.event.inputs.domain }}" >> $GITHUB_ENV
+          else
+            echo "DOMAIN=${{ secrets.TARGET_DOMAIN }}" >> $GITHUB_ENV
+          fi
+
+      # ─────────────────────────────────────────────
+      # 4. Load previous results
+      # ─────────────────────────────────────────────
+      - name: Load previous subdomains
+        run: |
+          mkdir -p results/${{ env.DOMAIN }}
+          if [ -f "results/${{ env.DOMAIN }}/subdomains_prev.txt" ]; then
+            cp "results/${{ env.DOMAIN }}/subdomains_prev.txt" /tmp/prev_subs.txt
+          else
+            touch /tmp/prev_subs.txt
+          fi
+
+      # ─────────────────────────────────────────────
+      # 5. Run Subfinder (Multi-Source)
+      # ─────────────────────────────────────────────
+      - name: Subfinder Enumeration
+        run: |
+          subfinder \
+            -d ${{ env.DOMAIN }} \
+            -all \
+            -recursive \
+            -silent \
+            -o /tmp/subs_raw.txt \
+            -provider-config /dev/null 2>/dev/null || true
+          
+          # Remove duplicates & sort
+          sort -u /tmp/subs_raw.txt > /tmp/subs_current.txt
+          
+          echo "Total subdomains found: $(wc -l < /tmp/subs_current.txt)"
+
+      # ─────────────────────────────────────────────
+      # 6. DNS Resolution Filter
+      # ─────────────────────────────────────────────
+      - name: DNS Resolve with DNSx
+        run: |
+          cat /tmp/subs_current.txt | dnsx \
+            -silent \
+            -a -cname \
+            -o /tmp/subs_resolved.txt 2>/dev/null || cp /tmp/subs_current.txt /tmp/subs_resolved.txt
+          
+          sort -u /tmp/subs_resolved.txt -o /tmp/subs_resolved.txt
+          echo "Resolved subdomains: $(wc -l < /tmp/subs_resolved.txt)"
+
+      # ─────────────────────────────────────────────
+      # 7. Live Host Check via HTTPx
+      # ─────────────────────────────────────────────
+      - name: HTTPx Live Host Check
+        run: |
+          cat /tmp/subs_resolved.txt | httpx \
+            -silent \
+            -status-code \
+            -title \
+            -tech-detect \
+            -cdn \
+            -o /tmp/live_hosts.txt \
+            -threads 50 2>/dev/null || true
+          
+          # Extract just domains for comparison
+          cat /tmp/subs_resolved.txt > /tmp/subs_live_domains.txt
+          echo "Live hosts: $(wc -l < /tmp/live_hosts.txt)"
+
+      # ─────────────────────────────────────────────
+      # 8. Subdomain Takeover Check
+      # ─────────────────────────────────────────────
+      - name: Subzy Takeover Check
+        run: |
+          subzy run \
+            --targets /tmp/subs_resolved.txt \
+            --concurrency 20 \
+            --hide_fails \
+            --output /tmp/takeovers.txt 2>/dev/null || true
+          
+          # Filter only vulnerable
+          grep -i "VULNERABLE" /tmp/takeovers.txt > /tmp/vuln_takeovers.txt || touch /tmp/vuln_takeovers.txt
+          echo "Potential takeovers: $(wc -l < /tmp/vuln_takeovers.txt)"
+
+      # ─────────────────────────────────────────────
+      # 9. Compare with previous
+      # ─────────────────────────────────────────────
+      - name: Diff Analysis
+        id: diff
+        run: |
+          # New subdomains
+          comm -23 \
+            <(sort /tmp/subs_resolved.txt) \
+            <(sort /tmp/prev_subs.txt) \
+            > /tmp/new_subs.txt
+          
+          # Removed subdomains
+          comm -23 \
+            <(sort /tmp/prev_subs.txt) \
+            <(sort /tmp/subs_resolved.txt) \
+            > /tmp/removed_subs.txt
+          
+          NEW_COUNT=$(wc -l < /tmp/new_subs.txt)
+          REMOVED_COUNT=$(wc -l < /tmp/removed_subs.txt)
+          TOTAL=$(wc -l < /tmp/subs_resolved.txt)
+          LIVE=$(wc -l < /tmp/live_hosts.txt)
+          TAKEOVERS=$(wc -l < /tmp/vuln_takeovers.txt)
+          
+          echo "new_count=$NEW_COUNT"       >> $GITHUB_OUTPUT
+          echo "removed_count=$REMOVED_COUNT" >> $GITHUB_OUTPUT
+          echo "total=$TOTAL"              >> $GITHUB_OUTPUT
+          echo "live=$LIVE"                >> $GITHUB_OUTPUT
+          echo "takeovers=$TAKEOVERS"      >> $GITHUB_OUTPUT
+
+      # ─────────────────────────────────────────────
+      # 10. Save results
+      # ─────────────────────────────────────────────
+      - name: Save & Commit Results
+        run: |
+          DOMAIN="${{ env.DOMAIN }}"
+          TIMESTAMP=$(date -u +"%Y-%m-%d_%H-%M")
+          
+          mkdir -p "results/$DOMAIN/history"
+          
+          # Save current results
+          cp /tmp/subs_resolved.txt "results/$DOMAIN/subdomains_prev.txt"
+          cp /tmp/live_hosts.txt    "results/$DOMAIN/live_hosts.txt"
+          cp /tmp/vuln_takeovers.txt "results/$DOMAIN/takeovers.txt"
+          cp /tmp/new_subs.txt       "results/$DOMAIN/history/new_${TIMESTAMP}.txt"
+          
+          # Build summary
+          cat > "results/$DOMAIN/summary.md" <<EOF
+          # Recon Summary: $DOMAIN
+          **Last Updated:** $(date -u)
+          
+          | Metric | Count |
+          |--------|-------|
+          | Total Subdomains | ${{ steps.diff.outputs.total }} |
+          | Live Hosts | ${{ steps.diff.outputs.live }} |
+          | New (this run) | ${{ steps.diff.outputs.new_count }} |
+          | Removed | ${{ steps.diff.outputs.removed_count }} |
+          | Potential Takeovers | ${{ steps.diff.outputs.takeovers }} |
+          EOF
+          
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add results/
+          git diff --staged --quiet || git commit -m "🔄 Recon Update [$DOMAIN] $(date -u +%Y-%m-%d)"
+          git push
+
+      # ─────────────────────────────────────────────
+      # 11. Discord Notification
+      # ─────────────────────────────────────────────
+      - name: Discord Notification
+        if: always()
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          DOMAIN:  ${{ env.DOMAIN }}
+          NEW:     ${{ steps.diff.outputs.new_count }}
+          REMOVED: ${{ steps.diff.outputs.removed_count }}
+          TOTAL:   ${{ steps.diff.outputs.total }}
+          LIVE:    ${{ steps.diff.outputs.live }}
+          TAKEOVERS: ${{ steps.diff.outputs.takeovers }}
+        run: |
+          # Decide color based on findings
+          COLOR=3066993   # Green = no changes
+          [ "$NEW" -gt 0 ] && COLOR=16776960    # Yellow = new subs
+          [ "$TAKEOVERS" -gt 0 ] && COLOR=15158332  # Red = takeovers!
+          
+          # Build new subs preview (first 10)
+          NEW_PREVIEW=""
+          if [ "$NEW" -gt 0 ]; then
+            NEW_PREVIEW=$(head -10 /tmp/new_subs.txt | sed 's/^/• /' | tr '\n' '\n' || true)
+            [ "$NEW" -gt 10 ] && NEW_PREVIEW="$NEW_PREVIEW\n... و $(($NEW - 10)) أكثر"
+          else
+            NEW_PREVIEW="لا يوجد تغييرات"
+          fi
+          
+          TAKEOVER_TEXT="✅ لا يوجد"
+          [ "$TAKEOVERS" -gt 0 ] && TAKEOVER_TEXT="⚠️ $TAKEOVERS مشكلة محتملة!"
+          
+          PAYLOAD=$(jq -n \
+            --arg domain  "$DOMAIN" \
+            --arg total   "$TOTAL" \
+            --arg live    "$LIVE" \
+            --arg new     "$NEW" \
+            --arg removed "$REMOVED" \
+            --arg tkover  "$TAKEOVER_TEXT" \
+            --arg preview "$NEW_PREVIEW" \
+            --argjson color "$COLOR" \
+            '{
+              username: "🛰️ ReconBot",
+              embeds: [{
+                title: ("📊 Subdomain Report: " + $domain),
+                color: $color,
+                fields: [
+                  { name: "🌐 إجمالي Subdomains", value: $total, inline: true },
+                  { name: "✅ Live Hosts",         value: $live,  inline: true },
+                  { name: "🆕 جديد",              value: $new,   inline: true },
+                  { name: "🗑️ محذوف",             value: $removed, inline: true },
+                  { name: "💀 Takeover احتمال",    value: $tkover, inline: true },
+                  { name: "🆕 Subdomains جديدة",  value: $preview }
+                ],
+                footer: { text: "BugBountyCI • GitHub Actions" },
+                timestamp: now | todate
+              }]
+            }')
+          
+          curl -s -X POST "$WEBHOOK" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD" || true
+
+      # ─────────────────────────────────────────────
+      # 12. Telegram Notification (Optional)
+      # ─────────────────────────────────────────────
+      - name: Telegram Notification
+        if: always() && secrets.TELEGRAM_BOT_TOKEN != ''
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID:   ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          NEW="${{ steps.diff.outputs.new_count }}"
+          TOTAL="${{ steps.diff.outputs.total }}"
+          LIVE="${{ steps.diff.outputs.live }}"
+          TAKEOVERS="${{ steps.diff.outputs.takeovers }}"
+          DOMAIN="${{ env.DOMAIN }}"
+          
+          ICON="🟢"
+          [ "$NEW" -gt 0 ] && ICON="🟡"
+          [ "$TAKEOVERS" -gt 0 ] && ICON="🔴"
+          
+          MSG="$ICON *Subdomain Monitor: \`$DOMAIN\`*
+          
+          📊 Total: $TOTAL | 🌐 Live: $LIVE
+          🆕 New: $NEW | 🗑 Removed: ${{ steps.diff.outputs.removed_count }}
+          💀 Takeovers: $TAKEOVERS"
+          
+          curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" \
+            -d "chat_id=$CHAT_ID" \
+            -d "parse_mode=Markdown" \
+            -d "text=$MSG" || true
+
+      # ─────────────────────────────────────────────
+      # 13. Upload Artifacts
+      # ─────────────────────────────────────────────
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: subdomain-results-${{ env.DOMAIN }}-${{ github.run_number }}
+          path: |
+            /tmp/subs_resolved.txt
+            /tmp/live_hosts.txt
+            /tmp/new_subs.txt
+            /tmp/removed_subs.txt
+            /tmp/vuln_takeovers.txt
+          retention-days: 30
