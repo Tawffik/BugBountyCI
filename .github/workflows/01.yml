@@ -283,7 +283,7 @@ jobs:
           
           📊 Total: $TOTAL | 🌐 Live: $LIVE
           🆕 New: $NEW | 🗑 Removed: ${{ steps.diff.outputs.removed_count }}
-          💀 Takeovers: $TAKEOVERS"
+          🤬 Takeovers: $TAKEOVERS"
           
           curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" \
             -d "chat_id=$CHAT_ID" \
