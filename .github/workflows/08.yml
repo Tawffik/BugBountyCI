@@ -503,15 +503,15 @@ jobs:
               -d "username=notexist_xyz_123@$D&password=wrongpass" \
               -o /dev/null --max-time 8 2>/dev/null; } 2>&1)
 
-            python3 -c "
-t1='${T_VALID}'.replace(',','.')
-t2='${T_INVALID}'.replace(',','.')
-try:
-    diff=abs(float(t1)-float(t2))
-    if diff > 0.5:
-        print(f'[TIMING ENUM] ${LOGIN_EP} | valid:{t1}s invalid:{t2}s diff:{diff:.2f}s')
-except: pass
-" >> /tmp/ultra/$D/auth/enum.txt 2>/dev/null || true
+            python3 << 'PY' >> /tmp/ultra/$D/auth/enum.txt 2>/dev/null || true
+          t1 = float("${T_VALID}")
+          t2 = float("${T_INVALID}")
+
+          diff = abs(t1 - t2)
+
+          if diff > 0.5:
+              print(f"[TIMING ENUM] ${LOGIN_EP} | valid:{t1}s invalid:{t2}s diff:{diff}")
+          PY
           fi
 
           echo "RATE_COUNT=$(wc -l < /tmp/ultra/$D/logic/rate_limit.txt)" >> $GITHUB_ENV
