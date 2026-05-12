@@ -8,11 +8,7 @@
     "vulnerable": false
     "status": "not vulnerable",
     "vulnerable": false
-    "status": "not vulnerable",
-    "vulnerable": false
-    "status": "not vulnerable",
-    "vulnerable": false
-    "status": "not vulnerable",
+    "status": "vulnerable",
     "vulnerable": false
     "status": "not vulnerable",
     "vulnerable": false
@@ -48,14 +44,6 @@
     "vulnerable": false
     "status": "vulnerable",
     "vulnerable": false
-    "status": "vulnerable",
-    "vulnerable": false
-    "status": "not vulnerable",
-    "vulnerable": false
-    "status": "not vulnerable",
-    "vulnerable": false
-    "status": "not vulnerable",
-    "vulnerable": false
     "status": "not vulnerable",
     "vulnerable": false
     "status": "not vulnerable",
@@ -65,12 +53,6 @@
     "status": "not vulnerable",
     "vulnerable": false
     "status": "vulnerable",
-    "vulnerable": false
-    "status": "not vulnerable",
-    "vulnerable": false
-    "status": "not vulnerable",
-    "vulnerable": false
-    "status": "not vulnerable",
     "vulnerable": false
     "status": "not vulnerable",
     "vulnerable": false
@@ -90,6 +72,23 @@
     "vulnerable": false
     "status": "not vulnerable",
     "vulnerable": false
+    "status": "not vulnerable",
+    "vulnerable": false
+    "status": "not vulnerable",
+    "vulnerable": false
+    "status": "not vulnerable",
+    "vulnerable": false
+    "status": "not vulnerable",
+    "vulnerable": false
+    "status": "not vulnerable",
+    "vulnerable": false
+    "status": "not vulnerable",
+    "vulnerable": false
+    "status": "not vulnerable",
+    "vulnerable": false
+    "status": "not vulnerable",
+    "vulnerable": false
+    "status": "not vulnerable",
     "vulnerable": false
     "vulnerable": false
     "vulnerable": false
