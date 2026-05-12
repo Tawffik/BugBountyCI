@@ -1,0 +1,876 @@
+# ============================================================
+# GitHub Actions ULTIMATE Web3 + Bug Bounty Framework v5.0
+# Professional Grade - Zero Day Hunting Level
+# ============================================================
+name: "💎 ULTIMATE Web3 Bug Bounty Hunter v5.0"
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"     # كل 6 ساعات
+    - cron: "30 2 * * 0"      # كل أحد 2:30 صباحاً - فحص عميق
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "🎯 Target (domain, contract, chain, or address)"
+        required: true
+        type: string
+      scope_type:
+        description: "🔍 Scope type"
+        required: true
+        type: choice
+        options:
+          - full_web3
+          - smart_contract
+          - blockchain_api
+          - defi_protocol
+          - nft_marketplace
+          - bridge_protocol
+          - dex_protocol
+          - domain_web2
+          - full_spectrum
+        default: "full_spectrum"
+      scan_depth:
+        description: "📊 Scan depth"
+        required: true
+        type: choice
+        options:
+          - quick           # 15-30 min
+          - normal          # 1-2 hours
+          - deep           # 4-6 hours
+          - insane         # 8-12 hours
+        default: "normal"
+      web3_analysis:
+        description: "⛓️ Enable Web3 blockchain analysis"
+        type: boolean
+        default: true
+      smart_contract_audit:
+        description: "📜 Smart contract audit simulation"
+        type: boolean
+        default: true
+      defi_logic_testing:
+        description: "🏦 DeFi logic & economic attack testing"
+        type: boolean
+        default: true
+      ai_advanced_analysis:
+        description: "🧠 AI-powered advanced vulnerability detection"
+        type: boolean
+        default: true
+      ai_provider:
+        description: "🤖 AI provider"
+        type: choice
+        options:
+          - both
+          - anthropic
+          - openrouter
+          - openai
+        default: "both"
+      discord_notify:
+        description: "📢 Send Discord rich notification"
+        type: boolean
+        default: true
+
+env:
+  TARGET: ${{ github.event.inputs.target }}
+  SCOPE_TYPE: ${{ github.event.inputs.scope_type }}
+  SCAN_DEPTH: ${{ github.event.inputs.scan_depth }}
+  TIMESTAMP: ${{ github.run_id }}-${{ github.run_number }}
+  RESULTS_DIR: results/${{ github.event.inputs.target }}/${{ github.run_id }}-${{ github.run_number }}
+  DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+  OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+  OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+  ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
+  BSCSCAN_API_KEY: ${{ secrets.BSCSCAN_API_KEY }}
+  INFURA_PROJECT_ID: ${{ secrets.INFURA_PROJECT_ID }}
+  ALCHEMY_API_KEY: ${{ secrets.ALCHEMY_API_KEY }}
+  WEB3_INFURA_URL: ${{ secrets.WEB3_INFURA_URL }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+concurrency:
+  group: web3-bugbounty-${{ github.event.inputs.target }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+
+  # ============================================================
+  # STAGE 1: NUCLEAR SETUP - كل الأدوات الممكنة
+  # ============================================================
+  setup:
+    name: "☢️ NUCLEAR Setup - Ultimate Tool Arsenal"
+    runs-on: ubuntu-latest
+    outputs:
+      results_dir: ${{ steps.set_output.outputs.results_dir }}
+      target: ${{ steps.set_output.outputs.target }}
+      scope_type: ${{ steps.set_output.outputs.scope_type }}
+      scan_depth: ${{ steps.set_output.outputs.scan_depth }}
+      has_etherscan: ${{ steps.check_secrets.outputs.has_etherscan }}
+      has_infura: ${{ steps.check_secrets.outputs.has_infura }}
+      has_alchemy: ${{ steps.check_secrets.outputs.has_alchemy }}
+    steps:
+      - name: "📥 Checkout Repository"
+        uses: actions/checkout@v4
+
+      - name: "🔑 Check Web3 API Keys"
+        id: check_secrets
+        run: |
+          echo "has_etherscan=$([ -n "${{ secrets.ETHERSCAN_API_KEY }}" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "has_bscscan=$([ -n "${{ secrets.BSCSCAN_API_KEY }}" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "has_infura=$([ -n "${{ secrets.INFURA_PROJECT_ID }}" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "has_alchemy=$([ -n "${{ secrets.ALCHEMY_API_KEY }}" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "✅ Secrets checked"
+
+      - name: "📂 Create God-Tier Directory Structure"
+        run: |
+          mkdir -p "${{ env.RESULTS_DIR }}"/{ \
+            subdomains,live,urls,js,graphql,swagger,nuclei,cors,headers,admin,files,api,cloud,webhooks,fingerprint, \
+            web3/{contracts,transactions,events,tokens,nfts,defi,bridges,dex,oracles,gov}, \
+            web3/{smart_contracts/{solidity,vyper,move,rust},gas,mev,flashloans}, \
+            web3/{security/{reentrancy,overflow,access_control,oracle,flashloan,sandwich,tx_frontrun}}, \
+            web3/{chain/{ethereum,bsc,polygon,arbitrum,optimism,avalanche,solana,near,cosmos}}, \
+            web3/{defi/{lending,staking,yield_farming,liquidity,amms,cross_chain}}, \
+            web3/{nft/{marketplaces,rarity,ownership,royalties,metadata}}, \
+            web3/{zksync,starknet,linea,scroll,zkevm}, \
+            ai/{analysis,reports,predictions,suggestions,expansions}, \
+            osint/{social,github,discord,telegram,forums,leaks}, \
+            exploits/{poc,chains,payloads}, \
+            summary,logs,dashboards \
+          }
+          echo "☢️ God-tier directory structure created"
+
+      - name: "⚡ Setup Go (Latest)"
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+          cache: true
+
+      - name: "🐍 Setup Python 3.12"
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: "🔧 Setup Node.js 22"
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: "📦 Install System Nuclear Arsenal"
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            chromium-browser chromium-chromedriver \
+            git curl wget unzip jq \
+            libpcap-dev build-essential \
+            ripgrep fd-find bat \
+            python3-dev python3-pip \
+            nodejs npm \
+            postgresql-client mysql-client \
+            redis-tools \
+            tor proxychains4 \
+            masscan nmap \
+            2>&1 | tail -5
+          
+          # Install Rust
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y 2>/dev/null || true
+          source "$HOME/.cargo/env"
+          
+          echo "☢️ System nuclear arsenal deployed"
+
+      - name: "📦 Install Web3 + Blockchain Tools"
+        run: |
+          # === Node.js Web3 Tools ===
+          npm install -g \
+            ethers@6 \
+            web3@4 \
+            hardhat \
+            foundry \
+            slither \
+            echidna \
+            manticore \
+            mythril \
+            solc \
+            abi-tools \
+            web3-tools \
+            2>&1 | tail -5 || true
+
+          # === Python Web3 Tools ===
+          pip3 install -q \
+            web3 \
+            eth-brownie \
+            ape \
+            vyper \
+            slither-analyzer \
+            crytic-compile \
+            manticore \
+            mythril \
+            echidna \
+            abi-decoder \
+            eth-abi \
+            eth-account \
+            eth-hash \
+            eth-keys \
+            eth-rlp \
+            eth-tester \
+            eth-utils \
+            hexbytes \
+            py-evm \
+            py-solc \
+            web3-multicall \
+            2>&1 | tail -5 || true
+
+          echo "☢️ Web3 tools installed"
+
+      - name: "📦 Install Ultimate Go Hacking Arsenal"
+        run: |
+          # === Subdomain & Recon ===
+          go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
+          go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest
+          go install -v github.com/projectdiscovery/katana/cmd/katana@latest
+          go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
+          go install -v github.com/projectdiscovery/naabu/v2/cmd/naabu@latest
+          go install -v github.com/projectdiscovery/dnsx/cmd/dnsx@latest
+          go install -v github.com/projectdiscovery/interactsh/cmd/interactsh-client@latest
+          go install -v github.com/projectdiscovery/asnmap/cmd/asnmap@latest
+          go install -v github.com/projectdiscovery/mapcidr/cmd/mapcidr@latest
+          go install -v github.com/projectdiscovery/cdncheck/cmd/cdncheck@latest
+          go install -v github.com/projectdiscovery/chaos-client/cmd/chaos-client@latest
+          
+          # === Web2 & API Tools ===
+          go install -v github.com/tomnomnom/assetfinder@latest
+          go install -v github.com/tomnomnom/waybackurls@latest
+          go install -v github.com/tomnomnom/gf@latest
+          go install -v github.com/tomnomnom/anew@latest
+          go install -v github.com/tomnomnom/qsreplace@latest
+          go install -v github.com/tomnomnom/unfurl@latest
+          go install -v github.com/lc/gau/v2/cmd/gau@latest
+          go install -v github.com/hahwul/dalfox/v2@latest
+          go install -v github.com/ffuf/ffuf/v2@latest
+          go install -v github.com/ameenmaali/uro@latest
+          
+          # === Advanced Web3 ===
+          go install -v github.com/ethereum/go-ethereum/cmd/abigen@latest 2>/dev/null || true
+          go install -v github.com/ethereum/go-ethereum/cmd/evm@latest 2>/dev/null || true
+
+          echo "☢️ Ultimate Go arsenal deployed"
+
+      - name: "📦 Install GF Elite Patterns"
+        run: |
+          GF_DIR=~/.gf
+          mkdir -p $GF_DIR
+          
+          # Official patterns
+          git clone --depth 1 https://github.com/1ndianl33t/Gf-Patterns.git /tmp/gf-patterns 2>/dev/null || true
+          cp /tmp/gf-patterns/*.json $GF_DIR/ 2>/dev/null || true
+          
+          # Elite custom patterns for Web3
+          cat > "$GF_DIR/web3-endpoints.json" << 'EOFJSON'
+          {
+            "flags": "-iE",
+            "patterns": [
+              "(api|v[0-9]+|graphql|rest|swagger|docs|web3|ethereum|bsc|polygon|arbitrum|optimism)/[a-zA-Z0-9_/?=&%-]*",
+              "(infura|alchemy|moralis|quicknode|getblock|ankr|tatum)/[a-zA-Z0-9_/?=&%-]*",
+              "(contract|token|nft|defi|dex|amm|lending|staking|bridge)/[a-zA-Z0-9_/?=&%-]*",
+              "(swap|trade|liquidate|flashloan|borrow|lend|stake|unstake|claim)/[a-zA-Z0-9_/?=&%-]*"
+            ]
+          }
+          EOFJSON
+          
+          echo "☢️ GF Elite patterns deployed"
+
+      - name: "📦 Install Python Elite Tools"
+        run: |
+          pip3 install -q --upgrade pip
+          pip3 install -q \
+            requests aiohttp httpx \
+            colorama rich tqdm \
+            dnspython \
+            beautifulsoup4 lxml \
+            selenium playwright \
+            web3 eth-brownie eth-account \
+            slither-analyzer crytic-compile \
+            mitmproxy \
+            flask fastapi \
+            numpy pandas \
+            matplotlib seaborn \
+            2>&1 | tail -3
+          echo "☢️ Python elite tools deployed"
+
+      - name: "🔥 Update Nuclei + Custom Templates"
+        run: |
+          nuclei -update-templates 2>&1 | tail -2 || true
+          
+          # === Web3 Custom Nuclei Templates ===
+          mkdir -p ~/nuclei-templates/web3
+          
+          cat > ~/nuclei-templates/web3/infura-leak.yaml << 'YAMLEOF'
+          id: infura-key-leak
+          info:
+            name: "Infura Project ID Leak"
+            severity: critical
+            description: "Exposed Infura/Web3 endpoint"
+          requests:
+            - method: GET
+              path:
+                - "{{BaseURL}}"
+              matchers:
+                - type: word
+                  words:
+                    - "infura"
+                    - "alchemy"
+                    - "moralis"
+                    - "quicknode"
+                    - "getblock"
+                    - "ankr"
+                    - "tatum"
+                  condition: or
+                  part: body
+          YAMLEOF
+          
+          cat > ~/nuclei-templates/web3/smart-contract.yaml << 'YAMLEOF2'
+          id: smart-contract-exposure
+          info:
+            name: "Smart Contract / ABI Exposure"
+            severity: high
+            description: "Exposed smart contract ABI or source"
+          requests:
+            - method: GET
+              path:
+                - "{{BaseURL}}/abi"
+                - "{{BaseURL}}/contract"
+                - "{{BaseURL}}/contracts"
+                - "{{BaseURL}}/solidity"
+                - "{{BaseURL}}/source"
+                - "{{BaseURL}}/verification"
+              matchers:
+                - type: word
+                  words:
+                    - "pragma solidity"
+                    - "contract "
+                    - "function "
+                    - "mapping("
+                    - "address public"
+                  condition: or
+                  part: body
+          YAMLEOF2
+          
+          echo "☢️ Nuclei templates + Web3 custom templates deployed"
+
+      - name: "💎 Set Output Variables"
+        id: set_output
+        run: |
+          echo "results_dir=${{ env.RESULTS_DIR }}" >> "$GITHUB_OUTPUT"
+          echo "target=${{ env.TARGET }}" >> "$GITHUB_OUTPUT"
+          echo "scope_type=${{ env.SCOPE_TYPE }}" >> "$GITHUB_OUTPUT"
+          echo "scan_depth=${{ env.SCAN_DEPTH }}" >> "$GITHUB_OUTPUT"
+
+      - name: "📤 Upload Setup Logs"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: setup-god-logs-${{ env.TIMESTAMP }}
+          path: ${{ env.RESULTS_DIR }}/logs/
+          retention-days: 7
+
+
+  # ============================================================
+  # STAGE 2: GOD-TIER WEB3 BLOCKCHAIN RECONNAISSANCE
+  # ============================================================
+  web3_recon:
+    name: "⛓️ GOD-TIER Web3 Blockchain Recon"
+    needs: [setup]
+    runs-on: ubuntu-latest
+    if: ${{ always() && github.event.inputs.web3_analysis == 'true' }}
+    steps:
+      - name: "⛓️ Web3 Chain & RPC Discovery"
+        continue-on-error: true
+        timeout-minutes: 30
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo " ⛓️  GOD-TIER WEB3 CHAIN RECONNAISSANCE"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          
+          TARGET="${{ needs.setup.outputs.target }}"
+          R="${{ needs.setup.outputs.results_dir }}"
+          
+          # === 1. RPC Endpoint Discovery ===
+          echo "[+] Scanning for Web3 RPC endpoints..."
+          curl -sL "https://raw.githubusercontent.com/DefiLlama/chainlist/main/constants/endpoints.json" \
+            -o "$R/web3/chain/rpc_endpoints.json" 2>/dev/null || true
+          
+          # === 2. Chain Identification ===
+          CHAINS=("ethereum" "bsc" "polygon" "arbitrum" "optimism" "avalanche" "solana" "near" "cosmos" "base" "linea" "scroll" "zksync" "starknet" "blast" "mode" "mantle" "fantom" "cronos" "gnosis")
+          
+          echo "Target Chain Analysis: $TARGET" > "$R/web3/chain/chain_analysis.txt"
+          for chain in "${CHAINS[@]}"; do
+            if echo "$TARGET" | grep -qi "$chain"; then
+              echo "[+] Chain identified: $chain" | tee -a "$R/web3/chain/chain_analysis.txt"
+            fi
+          done
+          
+          # === 3. Smart Contract Detection ===
+          echo "[+] Scanning for smart contract interactions..."
+          mkdir -p "$R/web3/smart_contracts"
+          
+          # Search for contract addresses (0x format)
+          curl -s "https://$TARGET" 2>/dev/null | grep -oE '0x[a-fA-F0-9]{40}' | sort -u \
+            > "$R/web3/smart_contracts/eth_addresses.txt" 2>/dev/null || true
+          
+          echo "✅ Smart contract addresses: $(wc -l < "$R/web3/smart_contracts/eth_addresses.txt" 2>/dev/null || echo 0)"
+          
+          # === 4. ABI Discovery ===
+          echo "[+] Discovering ABI endpoints..."
+          ABI_PATHS=("/abi" "/contract/abi" "/api/abi" "/abi.json" "/contract.json" "/ABI" "/metadata" "/source")
+          
+          for path in "${ABI_PATHS[@]}"; do
+            if curl -s -o /dev/null -w "%{http_code}" --max-time 5 "https://$TARGET$path" | grep -q "200\|201\|301\|302"; then
+              echo "[FOUND] ABI endpoint: https://$TARGET$path" >> "$R/web3/contracts/abi_endpoints.txt"
+            fi
+          done
+          
+          echo "✅ Web3 Chain Reconnaissance Complete"
+
+      - name: "📜 Smart Contract Source Discovery"
+        continue-on-error: true
+        timeout-minutes: 20
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo " 📜 SMART CONTRACT SOURCE DISCOVERY"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          
+          R="${{ needs.setup.outputs.results_dir }}"
+          
+          # === Solidity Source Files ===
+          echo "[+] Scanning for Solidity contracts..."
+          PATHS=(
+            "/contracts" "/src" "/sources" "/solidity" "/vyper" "/rust"
+            "/contract" "/hardhat" "/foundry" "/truffle" "/brownie"
+            "/.sol" "/.vy" "/.rs" "/move"
+          )
+          
+          # Common contract file names
+          FILES=(
+            "contract.sol" "main.sol" "token.sol" "nft.sol" "dex.sol"
+            "factory.sol" "router.sol" "pair.sol" "pool.sol" "lending.sol"
+            "staking.sol" "bridge.sol" "oracle.sol" "multisig.sol" "governance.sol"
+            "Contract.sol" "Contract.sol" "Token.sol" "Router.sol" "Factory.sol"
+          )
+          
+          for file in "${FILES[@]}"; do
+            status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 4 "https://${{ needs.setup.outputs.target }}/$file" 2>/dev/null)
+            if [ "$status" != "000" ] && [ "$status" != "404" ]; then
+              echo "[$status] https://${{ needs.setup.outputs.target }}/$file" >> "$R/web3/smart_contracts/contract_source.txt"
+            fi
+          done
+          
+          # === Hardhat/Foundry files ===
+          BUILD_FILES=("hardhat.config.js" "hardhat.config.ts" "foundry.toml" "truffle-config.js" "brownie-config.yaml")
+          for bf in "${BUILD_FILES[@]}"; do
+            status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 4 "https://${{ needs.setup.outputs.target }}/$bf" 2>/dev/null)
+            if [ "$status" != "000" ] && [ "$status" != "404" ]; then
+              echo "[$status] https://${{ needs.setup.outputs.target }}/$bf" >> "$R/web3/smart_contracts/build_files.txt"
+            fi
+          done
+          
+          echo "✅ Smart Contract Source Discovery Complete"
+
+      - name: "🏦 DeFi Protocol Analysis"
+        continue-on-error: true
+        timeout-minutes: 20
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo " 🏦 DEFI PROTOCOL ANALYSIS"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          
+          R="${{ needs.setup.outputs.results_dir }}"
+          mkdir -p "$R/web3/defi"
+          
+          # === DeFi Endpoint Discovery ===
+          echo "[+] Scanning DeFi endpoints..."
+          DEFI_PATHS=(
+            "/swap" "/trade" "/exchange" "/pool" "/liquidity"
+            "/lend" "/borrow" "/stake" "/farm" "/yield"
+            "/bridge" "/cross-chain" "/transfer"
+            "/oracle" "/price" "/feed"
+            "/governance" "/vote" "/proposal"
+            "/airdrop" "/claim" "/distribute"
+            "/flashloan" "/liquidate" "/liquidate"
+            "/router" "/factory" "/pair"
+            "/amm" "/dex" "/orderbook"
+            "/staking" "/rewards" "/incentives"
+            "/insurance" "/cover" "/protect"
+            "/synthetic" "/asset" "/wrapped"
+          )
+          
+          for path in "${DEFI_PATHS[@]}"; do
+            status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 4 "https://${{ needs.setup.outputs.target }}$path" 2>/dev/null)
+            if [ "$status" != "000" ] && [ "$status" != "404" ] && [ "$status" != "403" ]; then
+              echo "[$status] https://${{ needs.setup.outputs.target }}$path" >> "$R/web3/defi/defi_endpoints.txt"
+            fi
+          done
+          
+          echo "✅ DeFi endpoints: $(wc -l < "$R/web3/defi/defi_endpoints.txt" 2>/dev/null || echo 0)"
+
+      - name: "🖼️ NFT Marketplaces Discovery"
+        continue-on-error: true
+        timeout-minutes: 15
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo " 🖼️  NFT MARKETPLACE DISCOVERY"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          
+          R="${{ needs.setup.outputs.results_dir }}"
+          mkdir -p "$R/web3/nft"
+          
+          NFT_PATHS=(
+            "/nft" "/nfts" "/mint" "/collection" "/token"
+            "/metadata" "/uri" "/token-uri"
+            "/marketplace" "/market" "/auction"
+            "/bids" "/offers" "/listings"
+            "/royalty" "/fees" "/creator"
+            "/ownership" "/transfer" "/approve"
+            "/rarity" "/rank" "/score"
+            "/stake-nft" "/nft-staking" "/nft-farm"
+          )
+          
+          for path in "${NFT_PATHS[@]}"; do
+            status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 4 "https://${{ needs.setup.outputs.target }}$path" 2>/dev/null)
+            if [ "$status" != "000" ] && [ "$status" != "404" ]; then
+              echo "[$status] https://${{ needs.setup.outputs.target }}$path" >> "$R/web3/nft/nft_endpoints.txt"
+            fi
+          done
+          
+          echo "✅ NFT endpoints discovered"
+
+      - name: "🌉 Bridge Protocol Discovery"
+        continue-on-error: true
+        timeout-minutes: 15
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo " 🌉 BRIDGE & CROSS-CHAIN PROTOCOL"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          
+          R="${{ needs.setup.outputs.results_dir }}"
+          mkdir -p "$R/web3/bridges"
+          
+          BRIDGE_PATHS=(
+            "/bridge" "/bridges" "/cross-chain" "/crosschain"
+            "/deposit" "/withdraw" "/relay"
+            "/message" "/messaging" "/layer-zero"
+            "/wormhole" "/axelar" "/cctp"
+            "/chainlink" "/ccip" "/cross-chain-transfer"
+            "/lock" "/burn" "/mint"
+            "/wrapper" "/wrapped" "/portal"
+          )
+          
+          for path in "${BRIDGE_PATHS[@]}"; do
+            status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 4 "https://${{ needs.setup.outputs.target }}$path" 2>/dev/null)
+            if [ "$status" != "000" ] && [ "$status" != "404" ]; then
+              echo "[$status] https://${{ needs.setup.outputs.target }}$path" >> "$R/web3/bridges/bridge_endpoints.txt"
+            fi
+          done
+          
+          echo "✅ Bridge discovery complete"
+
+      - name: "💰 DeFi Economic Attack Detection"
+        continue-on-error: true
+        timeout-minutes: 20
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo " 💰 DEFI ECONOMIC ATTACK DETECTION"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          
+          R="${{ needs.setup.outputs.results_dir }}"
+          mkdir -p "$R/web3/security"
+          
+          # === Flash Loan Detection ===
+          echo "[+] Scanning for flash loan attack vectors..."
+          FL_PATTERNS=("flashloan" "flash-loan" "flash_loan" "flashmint" "flash-mint")
+          for pat in "${FL_PATTERNS[@]}"; do
+            curl -s "https://${{ needs.setup.outputs.target }}" 2>/dev/null | grep -i "$pat" \
+              >> "$R/web3/security/flashloan_patterns.txt" 2>/dev/null || true
+          done
+          
+          # === Oracle Manipulation ===
+          echo "[+] Scanning for oracle attack vectors..."
+          ORACLE_PATTERNS=("oracle" "price-feed" "chainlink" "twap" "spot-price")
+          for pat in "${ORACLE_PATTERNS[@]}"; do
+            curl -s "https://${{ needs.setup.outputs.target }}" 2>/dev/null | grep -i "$pat" \
+              >> "$R/web3/security/oracle_patterns.txt" 2>/dev/null || true
+          done
+          
+          # === Sandwich Attack Vectors ===
+          echo "[+] Detecting MEV/sandwich attack vectors..."
+          MEV_PATTERNS=("mempool" "pending" "transaction-pool" "gas" "slippage" "min-out" "deadline")
+          for pat in "${MEV_PATTERNS[@]}"; do
+            curl -s "https://${{ needs.setup.outputs.target }}" 2>/dev/null | grep -i "$pat" \
+              >> "$R/web3/security/mev_patterns.txt" 2>/dev/null || true
+          done
+          
+          echo "✅ DeFi Economic Attack Detection Complete"
+
+      - name: "📤 Upload Web3 Reconnaissance Artifacts"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web3-recon-${{ env.TIMESTAMP }}
+          path: ${{ needs.setup.outputs.results_dir }}/web3/
+          retention-days: 30
+
+
+  # ============================================================
+  # STAGE 3: ZERO-DAY SMART CONTRACT VULNERABILITY SCANNING
+  # ============================================================
+  smart_contract_audit:
+    name: "📜 ZERO-DAY Smart Contract Audit"
+    needs: [setup, web3_recon]
+    runs-on: ubuntu-latest
+    if: ${{ always() && github.event.inputs.smart_contract_audit == 'true' }}
+    steps:
+      - name: "📥 Download Web3 Recon Artifacts"
+        uses: actions/download-artifact@v4
+        with:
+          name: web3-recon-${{ env.TIMESTAMP }}
+          path: /tmp/web3/
+        continue-on-error: true
+
+      - name: "🔬 Reentrancy Attack Detection"
+        continue-on-error: true
+        timeout-minutes: 15
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo " 🔬 REENTRANCY ATTACK DETECTION"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          
+          R="${{ needs.setup.outputs.results_dir }}"
+          mkdir -p "$R/web3/security/reentrancy"
+          
+          # === Scan for reentrancy-vulnerable patterns ===
+          echo "[+] Scanning for reentrancy vulnerabilities..."
+          
+          # Common reentrancy patterns
+          REENTRANCY_PATTERNS=(
+            "call.value" "send" "transfer" "delegatecall"
+            "call{value" "\.call(" "\.send("
+            "withdraw" "claim" "distribute"
+            "unstake" "unbond" "redeem"
+            "function.*external.*payable"
+            "\.call\{value"
+          )
+          
+          # Check source files
+          SOURCE_DIR="/tmp/web3/smart_contracts"
+          if [ -d "$SOURCE_DIR" ]; then
+            for pat in "${REENTRANCY_PATTERNS[@]}"; do
+              grep -rli "$pat" "$SOURCE_DIR" 2>/dev/null \
+                >> "$R/web3/security/reentrancy/reentrancy_findings.txt" || true
+            done
+          fi
+          
+          # Also check live endpoints
+          curl -s "https://${{ needs.setup.outputs.target }}" 2>/dev/null \
+            | grep -iE "withdraw|claim|distribute|unstake|redeem" \
+            > "$R/web3/security/reentrancy/suspicious_functions.txt" 2>/dev/null || true
+          
+          echo "✅ Reentrancy detection complete"
+
+      - name: "🔬 Access Control & Authorization Audit"
+        continue-on-error: true
+        timeout-minutes: 15
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo " 🔬 ACCESS CONTROL & AUTHORIZATION AUDIT"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          
+          R="${{ needs.setup.outputs.results_dir }}"
+          mkdir -p "$R/web3/security/access_control"
+          
+          # === Detect access control issues ===
+          echo "[+] Scanning for access control vulnerabilities..."
+          
+          ACCESS_PATTERNS=(
+            "onlyOwner" "onlyAdmin" "hasRole"
+            "onlyRole" "whenNotPaused" "whenPaused"
+            "openzeppelin" "Ownable" "AccessControl"
+            "modifier" "require\(msg.sender"
+            "tx.origin" "msg.sender"
+          )
+          
+          curl -s "https://${{ needs.setup.outputs.target }}" 2>/dev/null \
+            | grep -iE "admin|owner|governance|multisig|timelock|pause|emergency" \
+            > "$R/web3/security/access_control/admin_functions.txt" 2>/dev/null || true
+          
+          echo "✅ Access control audit complete"
+
+      - name: "🔬 Integer Overflow & Underflow Detection"
+        continue-on-error: true
+        timeout-minutes: 15
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo " 🔬 INTEGER OVERFLOW / UNDERFLOW DETECTION"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          
+          R="${{ needs.setup.outputs.results_dir }}"
+          mkdir -p "$R/web3/security/overflow"
+          
+          OVERFLOW_PATTERNS=(
+            "uint8" "uint16" "uint32" "uint64"
+            "uint128" "uint256.int"
+            "balanceOf" "totalSupply"
+            "transfer" "transferFrom"
+            "mint" "burn" "increaseAllowance"
+          )
+          
+          curl -s "https://${{ needs.setup.outputs.target }}" 2>/dev/null \
+            | grep -iE "uint|balance|supply|mint|burn" \
+            > "$R/web3/security/overflow/overflow_patterns.txt" 2>/dev/null || true
+          
+          echo "✅ Overflow detection complete"
+
+      - name: "🔬 Flash Loan Attack Vectors"
+        continue-on-error: true
+        timeout-minutes: 20
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo " 🔬 FLASH LOAN ATTACK VECTORS"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          
+          R="${{ needs.setup.outputs.results_dir }}"
+          mkdir -p "$R/web3/security/flashloan"
+          
+          FLASHLOAN_PATTERNS=(
+            "flashLoan" "flashloan" "flash-loan"
+            "IUniswapV2Callee" "uniswapV2Call"
+            "IUniswapV3Callee" "uniswapV3Call"
+            "IBalancerFlashLoan" "receiveFlashLoan"
+            "IERC3156FlashLender" "flashFee"
+            "flashMint" "flash-mint" "flashmint"
+            "IMorphoFlashLoan" "MorphoFlashLoan"
+            "IAaveFlashLoan" "executeOperation"
+            "IDyDxFlashLoan" "operate"
+            "BalancerFlashLoan" "callback"
+          )
+          
+          for pat in "${FLASHLOAN_PATTERNS[@]}"; do
+            curl -s "https://${{ needs.setup.outputs.target }}" 2>/dev/null \
+              | grep -i "$pat" \
+              >> "$R/web3/security/flashloan/flashloan_patterns.txt" 2>/dev/null || true
+          done
+          
+          echo "✅ Flash loan analysis complete"
+
+      - name: "📤 Upload Smart Contract Audit Artifacts"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smart-contract-audit-${{ env.TIMESTAMP }}
+          path: ${{ needs.setup.outputs.results_dir }}/web3/security/
+          retention-days: 30
+
+
+  # ============================================================
+  # STAGE 4: ULTIMATE WEB2 + API RECONNAISSANCE
+  # ============================================================
+  ultimate_recon:
+    name: "🌐 ULTIMATE Web2 Reconnaissance"
+    needs: [setup]
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    steps:
+      - name: "🔍 God-Tier Subdomain Enumeration"
+        continue-on-error: true
+        timeout-minutes: 45
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo " 🔍 GOD-TIER SUBDOMAIN ENUMERATION"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          
+          R="${{ needs.setup.outputs.results_dir }}"
+          TARGET="${{ needs.setup.outputs.target }}"
+          
+          # === Subfinder (All Sources) ===
+          echo "[+] Subfinder - All passive sources..."
+          subfinder -d "$TARGET" -silent -all -recursive \
+            -o "$R/subdomains/subfinder.txt" \
+            2>>"$R/logs/subfinder.log" || true
+          
+          # === Assetfinder ===
+          echo "[+] Assetfinder - Certificates & Sources..."
+          assetfinder --subs-only "$TARGET" \
+            > "$R/subdomains/assetfinder.txt" \
+            2>>"$R/logs/assetfinder.log" || true
+          
+          # === Chaos (ProjectDiscovery) ===
+          echo "[+] Chaos - ProjectDiscovery dataset..."
+          chaos-client -d "$TARGET" -silent \
+            -o "$R/subdomains/chaos.txt" \
+            2>>"$R/logs/chaos.log" || true
+          
+          # === Bruteforce with MassDNS ===
+          echo "[+] DNS Mass Bruteforce..."
+          curl -sL "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/DNS/subdomains-top1million-110000.txt" \
+            -o /tmp/subdomains_mass.txt 2>/dev/null || true
+          
+          if [ -f /tmp/subdomains_mass.txt ]; then
+            head -50000 /tmp/subdomains_mass.txt | while read -r sub; do
+              host "$sub.$TARGET" 2>/dev/null | grep -v "NXDOMAIN\|SERVFAIL\|REFUSED" \
+                | grep "has address" | awk '{print $1}' \
+                >> "$R/subdomains/bruteforce.txt" 2>/dev/null || true
+            done
+          fi
+          
+          # === Merge All ===
+          echo "[+] Merging & Deduplicating..."
+          cat "$R"/subdomains/*.txt 2>/dev/null \
+            | sort -u \
+            | grep -v '^\s*$' \
+            | grep -v '\*' \
+            > "$R/subdomains/all_subdomains.txt"
+          
+          TOTAL=$(wc -l < "$R/subdomains/all_subdomains.txt" 2>/dev/null || echo 0)
+          echo "✅ God-Tier Subdomain Count: $TOTAL"
+
+      - name: "🌐 Advanced Live Host Probing"
+        continue-on-error: true
+        timeout-minutes: 45
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo " 🌐 ADVANCED LIVE HOST PROBING"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          
+          R="${{ needs.setup.outputs.results_dir }}"
+          INPUT="$R/subdomains/all_subdomains.txt"
+          
+          if [ ! -f "$INPUT" ] || [ ! -s "$INPUT" ]; then
+            echo "${{ needs.setup.outputs.target }}" > /tmp/input_fallback.txt
+            INPUT=/tmp/input_fallback.txt
+          fi
+          
+          # === HTTPX Full ===
+          echo "[+] HTTPX - Deep probing with full metadata..."
+          httpx -l "$INPUT" \
+            -silent \
+            -status-code \
+            -content-length \
+            -content-type \
+            -title \
+            -web-server \
+            -ip \
+            -cname \
+            -location \
+            -asn \
+            -cdn \
+            -tech-detect \
+            -follow-redirects \
+            -max-redirects 10 \
+            -threads 150 \
+            -timeout 15 \
+            -retries 3 \
+            -o "$R/live/live_hosts.txt" \
+            -json \
+            -j "$R/live/live_hosts.json" \
+            -j $R/l
