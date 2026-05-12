@@ -4,34 +4,6 @@
     "vulnerable": false
     "status": "vulnerable",
     "vulnerable": false
-    "status": "vulnerable",
-    "vulnerable": false
-    "status": "not vulnerable",
-    "vulnerable": false
-    "status": "not vulnerable",
-    "vulnerable": false
-    "status": "not vulnerable",
-    "vulnerable": false
-    "status": "not vulnerable",
-    "vulnerable": false
-    "status": "not vulnerable",
-    "vulnerable": false
-    "status": "not vulnerable",
-    "vulnerable": false
-    "status": "not vulnerable",
-    "vulnerable": false
-    "status": "not vulnerable",
-    "vulnerable": false
-    "status": "not vulnerable",
-    "vulnerable": false
-    "status": "not vulnerable",
-    "vulnerable": false
-    "status": "not vulnerable",
-    "vulnerable": false
-    "status": "not vulnerable",
-    "vulnerable": false
-    "status": "not vulnerable",
-    "vulnerable": false
     "status": "not vulnerable",
     "vulnerable": false
     "status": "not vulnerable",
@@ -64,13 +36,41 @@
     "vulnerable": false
     "status": "not vulnerable",
     "vulnerable": false
-    "status": "vulnerable",
+    "status": "not vulnerable",
+    "vulnerable": false
+    "status": "not vulnerable",
+    "vulnerable": false
+    "status": "not vulnerable",
     "vulnerable": false
     "status": "vulnerable",
     "vulnerable": false
     "status": "not vulnerable",
     "vulnerable": false
     "status": "not vulnerable",
+    "vulnerable": false
+    "status": "not vulnerable",
+    "vulnerable": false
+    "status": "not vulnerable",
+    "vulnerable": false
+    "status": "not vulnerable",
+    "vulnerable": false
+    "status": "not vulnerable",
+    "vulnerable": false
+    "status": "not vulnerable",
+    "vulnerable": false
+    "status": "not vulnerable",
+    "vulnerable": false
+    "status": "vulnerable",
+    "vulnerable": false
+    "status": "not vulnerable",
+    "vulnerable": false
+    "status": "not vulnerable",
+    "vulnerable": false
+    "status": "not vulnerable",
+    "vulnerable": false
+    "status": "not vulnerable",
+    "vulnerable": false
+    "status": "vulnerable",
     "vulnerable": false
     "status": "not vulnerable",
     "vulnerable": false
