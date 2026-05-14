@@ -10,14 +10,6 @@
     "vulnerable": false
     "status": "not vulnerable",
     "vulnerable": false
-    "status": "not vulnerable",
-    "vulnerable": false
-    "status": "not vulnerable",
-    "vulnerable": false
-    "status": "vulnerable",
-    "vulnerable": false
-    "status": "not vulnerable",
-    "vulnerable": false
     "status": "vulnerable",
     "vulnerable": false
     "status": "not vulnerable",
@@ -35,24 +27,6 @@
     "status": "not vulnerable",
     "vulnerable": false
     "status": "vulnerable",
-    "vulnerable": false
-    "status": "not vulnerable",
-    "vulnerable": false
-    "status": "not vulnerable",
-    "vulnerable": false
-    "status": "vulnerable",
-    "vulnerable": false
-    "status": "not vulnerable",
-    "vulnerable": false
-    "status": "not vulnerable",
-    "vulnerable": false
-    "status": "not vulnerable",
-    "vulnerable": false
-    "status": "not vulnerable",
-    "vulnerable": false
-    "status": "not vulnerable",
-    "vulnerable": false
-    "status": "not vulnerable",
     "vulnerable": false
     "status": "not vulnerable",
     "vulnerable": false
@@ -85,6 +59,32 @@
     "status": "not vulnerable",
     "vulnerable": false
     "status": "vulnerable",
+    "vulnerable": false
+    "status": "not vulnerable",
+    "vulnerable": false
+    "status": "not vulnerable",
+    "vulnerable": false
+    "status": "vulnerable",
+    "vulnerable": false
+    "status": "not vulnerable",
+    "vulnerable": false
+    "status": "not vulnerable",
+    "vulnerable": false
+    "status": "vulnerable",
+    "vulnerable": false
+    "status": "not vulnerable",
+    "vulnerable": false
+    "status": "not vulnerable",
+    "vulnerable": false
+    "status": "not vulnerable",
+    "vulnerable": false
+    "status": "not vulnerable",
+    "vulnerable": false
+    "status": "not vulnerable",
+    "vulnerable": false
+    "status": "not vulnerable",
+    "vulnerable": false
+    "status": "not vulnerable",
     "vulnerable": false
     "status": "not vulnerable",
     "vulnerable": false
