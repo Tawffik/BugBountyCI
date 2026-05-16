@@ -1,0 +1,354 @@
+name: "BugBountyCI Recon Pipeline"
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Target domain (e.g. example.com)"
+        required: true
+        type: string
+
+      mode:
+        description: "Scan mode"
+        required: true
+        type: choice
+        options:
+          - full
+          - quick
+          - subdomains-only
+          - scanning-only
+        default: full
+
+concurrency:
+  group: bugbounty-${{ github.event.inputs.target }}
+  cancel-in-progress: false
+
+env:
+  TARGET: ${{ github.event.inputs.target }}
+  RESULTS_DIR: results/${{ github.event.inputs.target }}
+  DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+
+  setup:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Cache Go Tools
+        id: cache-go
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/bin
+            ~/go/pkg/mod
+            ~/.cache/nuclei
+          key: ${{ runner.os }}-go-tools-${{ hashFiles('.github/workflows/.tool-versions') }}
+          restore-keys: |
+            ${{ runner.os }}-go-tools-
+
+      - name: Install Core Tools
+        if: steps.cache-go.outputs.cache-hit != 'true'
+        run: |
+          export GOPATH=$HOME/go
+          export PATH=$PATH:$HOME/go/bin
+
+          go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
+          go install github.com/projectdiscovery/httpx/cmd/httpx@latest
+          go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
+          go install github.com/projectdiscovery/dnsx/cmd/dnsx@latest
+          go install github.com/projectdiscovery/katana/cmd/katana@latest
+          go install github.com/lc/gau/v2/cmd/gau@latest
+          go install github.com/tomnomnom/anew@latest
+          go install github.com/tomnomnom/gf@latest
+
+          git clone --depth 1 https://github.com/1ndianl33t/Gf-Patterns /tmp/gfp
+
+          mkdir -p ~/.gf
+          cp /tmp/gfp/*.json ~/.gf/ 2>/dev/null || true
+
+          nuclei -update-templates -silent
+
+          echo "$HOME/go/bin" >> $GITHUB_PATH
+
+      - name: Create Directories
+        run: |
+          mkdir -p ${{ env.RESULTS_DIR }}/{subdomains,live,urls,js,findings,reports}
+
+  recon:
+    needs: setup
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Subdomain Enumeration
+        run: |
+          export PATH=$HOME/go/bin:$PATH
+
+          subfinder -d ${{ env.TARGET }} -all -silent > /tmp/subs_raw.txt
+
+          dnsx -silent -a -l /tmp/subs_raw.txt > /tmp/resolved.txt
+
+          sort -u /tmp/resolved.txt > ${{ env.RESULTS_DIR }}/subdomains/all_subs.txt
+
+      - name: HTTP Probe
+        run: |
+          export PATH=$HOME/go/bin:$PATH
+
+          httpx -l ${{ env.RESULTS_DIR }}/subdomains/all_subs.txt \
+            -silent \
+            -status-code \
+            -title \
+            -tech-detect \
+            -threads 50 \
+            -timeout 10 \
+            -o ${{ env.RESULTS_DIR }}/live/live_hosts.txt
+
+          awk '{print $1}' \
+            ${{ env.RESULTS_DIR }}/live/live_hosts.txt \
+            > ${{ env.RESULTS_DIR }}/live/urls.txt
+
+      - name: URL Collection
+        run: |
+          export PATH=$HOME/go/bin:$PATH
+
+          gau --threads 5 ${{ env.TARGET }} \
+            > /tmp/gau_urls.txt 2>/dev/null || true
+
+          if [ -s "${{ env.RESULTS_DIR }}/live/urls.txt" ]; then
+            head -20 "${{ env.RESULTS_DIR }}/live/urls.txt" | \
+              katana \
+                -silent \
+                -jc \
+                -d 2 \
+                -c 20 \
+                -timeout 10 \
+                -o /tmp/katana_urls.txt \
+                2>/dev/null || true
+          fi
+
+          cat /tmp/gau_urls.txt /tmp/katana_urls.txt 2>/dev/null | \
+            sort -u \
+            > "${{ env.RESULTS_DIR }}/urls/all_urls.txt"
+
+          grep -vE '\.(png|jpg|jpeg|gif|svg|woff|css|mp4|webp|ico)$' \
+            "${{ env.RESULTS_DIR }}/urls/all_urls.txt" \
+            > "${{ env.RESULTS_DIR }}/urls/clean_urls.txt"
+
+      - name: High-Value Endpoints
+        run: |
+          grep -iE '(admin|dashboard|graphql|swagger|api/v|firebase|auth|login|oauth|jwt|token|debug|dev|test|staging|internal|\.env|\.git|config|health|metrics|jenkins|phpmyadmin|wp-admin|upload|download|redirect|proxy)' \
+            "${{ env.RESULTS_DIR }}/urls/clean_urls.txt" \
+            > "${{ env.RESULTS_DIR }}/urls/high_value.txt" || true
+
+      - name: Upload Recon Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: recon-${{ env.TARGET }}
+          path: ${{ env.RESULTS_DIR }}/
+          retention-days: 30
+          if-no-files-found: warn
+
+  nuclei-scan:
+    needs: recon
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: recon-${{ env.TARGET }}
+          path: ${{ env.RESULTS_DIR }}/
+
+      - name: Prepare Targets
+        run: |
+          export PATH=$HOME/go/bin:$PATH
+
+          cat \
+            "${{ env.RESULTS_DIR }}/live/urls.txt" \
+            "${{ env.RESULTS_DIR }}/urls/high_value.txt" \
+            2>/dev/null | sort -u > /tmp/scan_targets.txt
+
+          echo "Targets: $(wc -l < /tmp/scan_targets.txt)"
+
+      - name: Nuclei Exposure Scan
+        continue-on-error: true
+        run: |
+          export PATH=$HOME/go/bin:$PATH
+
+          if [ ! -s /tmp/scan_targets.txt ]; then
+            exit 0
+          fi
+
+          nuclei \
+            -list /tmp/scan_targets.txt \
+            -tags exposure,config,panel,debug,takeover \
+            -severity critical,high \
+            -rl 100 \
+            -c 25 \
+            -timeout 10 \
+            -retries 1 \
+            -silent \
+            -json \
+            -o "${{ env.RESULTS_DIR }}/findings/nuclei_exposures.json"
+
+      - name: Upload Findings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: findings-${{ env.TARGET }}
+          path: ${{ env.RESULTS_DIR }}/findings/
+          retention-days: 30
+          if-no-files-found: warn
+
+  js-analysis:
+    needs: recon
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: recon-${{ env.TARGET }}
+          path: ${{ env.RESULTS_DIR }}/
+
+      - name: Extract JS Files
+        run: |
+          grep -iE '\.js($|\?)' \
+            "${{ env.RESULTS_DIR }}/urls/clean_urls.txt" | \
+            sort -u > "${{ env.RESULTS_DIR }}/js/js_files.txt"
+
+          echo "JS files: $(wc -l < "${{ env.RESULTS_DIR }}/js/js_files.txt")"
+
+      - name: Scan for Secrets
+        run: |
+          while IFS= read -r js_url; do
+            [ -z "$js_url" ] && continue
+
+            curl -skL --max-time 15 "$js_url" 2>/dev/null | \
+              grep -Eoi "(AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{20,}|AIza[0-9A-Za-z\-_]{35}|sk_live_[0-9a-z]{24}|sk_test_[0-9a-z]{24}|SG\.[a-zA-Z0-9_\-]{22,})" \
+              >> "${{ env.RESULTS_DIR }}/js/secrets_raw.txt" || true
+
+          done < "${{ env.RESULTS_DIR }}/js/js_files.txt"
+
+          sort -u "${{ env.RESULTS_DIR }}/js/secrets_raw.txt" \
+            > "${{ env.RESULTS_DIR }}/js/secrets.txt" 2>/dev/null || true
+
+          echo "Secrets: $(wc -l < "${{ env.RESULTS_DIR }}/js/secrets.txt" 2>/dev/null || echo 0)"
+
+      - name: Upload JS Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: js-${{ env.TARGET }}
+          path: ${{ env.RESULTS_DIR }}/js/
+          retention-days: 30
+          if-no-files-found: warn
+
+  discord-notify:
+    needs:
+      - recon
+      - nuclei-scan
+      - js-analysis
+
+    if: ${{ always() }}
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: recon-${{ env.TARGET }}
+          path: ${{ env.RESULTS_DIR }}/
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: findings-${{ env.TARGET }}
+          path: ${{ env.RESULTS_DIR }}/findings/
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: js-${{ env.TARGET }}
+          path: ${{ env.RESULTS_DIR }}/js/
+
+      - name: Send Discord Summary
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          SUBS=$(wc -l < "${{ env.RESULTS_DIR }}/subdomains/all_subs.txt" 2>/dev/null || echo 0)
+          LIVE=$(wc -l < "${{ env.RESULTS_DIR }}/live/live_hosts.txt" 2>/dev/null || echo 0)
+          HV=$(wc -l < "${{ env.RESULTS_DIR }}/urls/high_value.txt" 2>/dev/null || echo 0)
+          SEC=$(wc -l < "${{ env.RESULTS_DIR }}/js/secrets.txt" 2>/dev/null || echo 0)
+          EXP=$(wc -l < "${{ env.RESULTS_DIR }}/findings/nuclei_exposures.json" 2>/dev/null || echo 0)
+
+          jq -n \
+            --arg t "${{ env.TARGET }}" \
+            --arg s "$SUBS" \
+            --arg l "$LIVE" \
+            --arg h "$HV" \
+            --arg sec "$SEC" \
+            --arg e "$EXP" \
+            --arg rn "${{ github.run_number }}" \
+            '{
+              username: "BugBountyCI",
+              embeds: [{
+                title: ("Recon Complete: " + $t),
+                color: 5814783,
+                fields: [
+                  {name: "Subdomains", value: $s, inline: true},
+                  {name: "Live Hosts", value: $l, inline: true},
+                  {name: "High-Value", value: $h, inline: true},
+                  {name: "Secrets", value: $sec, inline: true},
+                  {name: "Findings", value: $e, inline: true}
+                ],
+                footer: {
+                  text: ("Run #" + $rn)
+                }
+              }]
+            }' | \
+            curl -s \
+              -X POST "$WEBHOOK" \
+              -H "Content-Type: application/json" \
+              -d @- || true
