@@ -153,21 +153,21 @@ jobs:
 
       - name: "📦 Install Go Tools"
         run: |
-          go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest 2>&1 | tail -1
-          go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest 2>&1 | tail -1
-          go install -v github.com/projectdiscovery/katana/cmd/katana@latest 2>&1 | tail -1
-          go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest 2>&1 | tail -1
-          go install -v github.com/projectdiscovery/naabu/v2/cmd/naabu@latest 2>&1 | tail -1
-          go install -v github.com/projectdiscovery/dnsx/cmd/dnsx@latest 2>&1 | tail -1
-          go install -v github.com/projectdiscovery/interactsh/cmd/interactsh-client@latest 2>&1 | tail -1
-          go install -v github.com/tomnomnom/assetfinder@latest 2>&1 | tail -1
-          go install -v github.com/tomnomnom/waybackurls@latest 2>&1 | tail -1
-          go install -v github.com/lc/gau/v2/cmd/gau@latest 2>&1 | tail -1
-          go install -v github.com/hahwul/dalfox/v2@latest 2>&1 | tail -1
-          go install -v github.com/ffuf/ffuf/v2@latest 2>&1 | tail -1
-          go install -v github.com/tomnomnom/gf@latest 2>&1 | tail -1
-          go install -v github.com/tomnomnom/anew@latest 2>&1 | tail -1
-          go install -v github.com/ameenmaali/uro@latest 2>&1 | tail -1
+          go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest 2>&1 || true
+          go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest 2>&1 || true 
+          go install -v github.com/projectdiscovery/katana/cmd/katana@latest 2>&1 || true
+          go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest 2>&1 || true
+          go install -v github.com/projectdiscovery/naabu/v2/cmd/naabu@latest 2>&1 || true
+          go install -v github.com/projectdiscovery/dnsx/cmd/dnsx@latest 2>&1 || true
+          go install -v github.com/projectdiscovery/interactsh/cmd/interactsh-client@latest 2>&1 || true
+          go install -v github.com/tomnomnom/assetfinder@latest 2>&1 || true
+          go install -v github.com/tomnomnom/waybackurls@latest 2>&1 || true
+          go install -v github.com/lc/gau/v2/cmd/gau@latest 2>&1 || true
+          go install -v github.com/hahwul/dalfox/v2@latest 2>&1 || true
+          go install -v github.com/ffuf/ffuf/v2@latest 2>&1 || true
+          go install -v github.com/tomnomnom/gf@latest 2>&1 || true
+          go install -v github.com/tomnomnom/anew@latest 2>&1 || true
+          go install -v github.com/ameenmaali/uro@latest 2>&1 || true
           echo "✅ Go tools installed"
 
       - name: "📦 Install GF Patterns"
