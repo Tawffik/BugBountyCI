@@ -70,7 +70,7 @@ on:
 env:
   TARGET: ${{ github.event.inputs.target }}
   TIMESTAMP: ${{ github.run_id }}-${{ github.run_number }}
-  RESULTS_DIR: results/${{ github.event.inputs.target }}/${{ github.run_id }}-${{ github.run_number }}
+  RESULTS_DIR: results/output-${{ github.run_id }}-${{ github.run_number }}
   DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
   ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
   OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
