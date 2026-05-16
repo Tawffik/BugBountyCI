@@ -81,12 +81,9 @@ jobs:
   recon:
     needs: setup
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    timeout-minutes: 30
-
-    ريس :
-      - يستخدم : actions/checkout@v4
+    permission   contents: read
+    timeout-minutes: 3ر
+       - يستخدم : actions/checkout@v4
 
       - الاسم : تعداد النطاقات الفرعية
         تشغيل : |
@@ -133,3 +130,151 @@ jobs:
           path: ${{ env.RESULTS_DIR }}/
           retention-days: 30
           if-no-files-found: warn
+          
+  nuclei-scan:
+    needs: recon
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: recon-${{ env.TARGET }}
+          path: ${{ env.RESULTS_DIR }}/
+
+      - name: Prepare Targets
+        run: |
+          export PATH=$HOME/go/bin:$PATH
+          cat ${{ env.RESULTS_DIR }}/live/urls.txt \
+              ${{ env.RESULTS_DIR }}/urls/high_value.txt \
+              2>/dev/null | sort -u > /tmp/scan_targets.txt
+          echo "Targets: $(wc -l < /tmp/scan_targets.txt)"
+
+      - name: Nuclei Exposure Scan
+        continue-on-error: true
+        run: |
+          export PATH=$HOME/go/bin:$PATH
+          if [ ! -s /tmp/scan_targets.txt ]; then exit 0; fi
+          nuclei -list /tmp/scan_targets.txt \
+            -tags exposure,config,panel,debug,takeover \
+            -severity critical,high \
+            -rl 100 -c 25 -timeout 10 -retries 1 \
+            -silent -json \
+            -o ${{ env.RESULTS_DIR }}/findings/nuclei_exposures.json
+
+      - name: Upload Findings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: findings-${{ env.TARGET }}
+          path: ${{ env.RESULTS_DIR }}/findings/
+          retention-days: 30
+          if-no-files-found: warn
+
+  js-analysis:
+    needs: recon
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: recon-${{ env.TARGET }}
+          path: ${{ env.RESULTS_DIR }}/
+
+      - name: Extract JS Files
+        run: |
+          grep -iE '\.js($|\?)' ${{ env.RESULTS_DIR }}/urls/clean_urls.txt \
+            | sort -u > ${{ env.RESULTS_DIR }}/js/js_files.txt
+          echo "JS files: $(wc -l < ${{ env.RESULTS_DIR }}/js/js_files.txt)"
+
+      - name: Scan for Secrets
+        run: |
+          while IFS= read -r js_url; do
+            [ -z "$js_url" ] && continue
+            curl -skL --max-time 15 "$js_url" 2>/dev/null | \
+              grep -Eoi \
+                "(AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{20,}|AIza[0-9A-Za-z\\-_]{35}|sk_live_[0-9a-z]{24}|sk_test_[0-9a-z]{24}|SG\.[a-zA-Z0-9_\-]{22,})" \
+              >> ${{ env.RESULTS_DIR }}/js/secrets_raw.txt || true
+          done < ${{ env.RESULTS_DIR }}/js/js_files.txt
+          sort -u ${{ env.RESULTS_DIR }}/js/secrets_raw.txt \
+            > ${{ env.RESULTS_DIR }}/js/secrets.txt 2>/dev/null || true
+          echo "Secrets: $(wc -l < ${{ env.RESULTS_DIR }}/js/secrets.txt 2>/dev/null || echo 0)"
+
+      - name: Upload JS Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: js-${{ env.TARGET }}
+          path: ${{ env.RESULTS_DIR }}/js/
+          retention-days: 30
+          if-no-files-found: warn
+
+  discord-notify:
+    needs: [recon, nuclei-scan, js-analysis]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: recon-${{ env.TARGET }}
+          path: ${{ env.RESULTS_DIR }}/
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: findings-${{ env.TARGET }}
+          path: ${{ env.RESULTS_DIR }}/findings/
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: js-${{ env.TARGET }}
+          path: ${{ env.RESULTS_DIR }}/js/
+
+      - name: Send Discord Summary
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          SUBS=$(wc -l < ${{ env.RESULTS_DIR }}/subdomains/all_subs.txt 2>/dev/null || echo 0)
+          LIVE=$(wc -l < ${{ env.RESULTS_DIR }}/live/live_hosts.txt 2>/dev/null || echo 0)
+          HV=$(wc -l < ${{ env.RESULTS_DIR }}/urls/high_value.txt 2>/dev/null || echo 0)
+          SEC=$(wc -l < ${{ env.RESULTS_DIR }}/js/secrets.txt 2>/dev/null || echo 0)
+          EXP=$(wc -l < ${{ env.RESULTS_DIR }}/findings/nuclei_exposures.json 2>/dev/null || echo 0)
+
+          jq -n \
+            --arg t "${{ env.TARGET }}" \
+            --arg s "$SUBS" \
+            --arg l "$LIVE" \
+            --arg h "$HV" \
+            --arg sec "$SEC" \
+            --arg e "$EXP" \
+            --arg rn "${{ github.run_number }}" \
+          '{
+            username: "BugBountyCI",
+            embeds: [{
+              title: ("Recon Complete: " + $t),
+              color: 5814783,
+              fields: [
+                {name: "Subdomains", value: $s, inline: true},
+                {name: "Live Hosts", value: $l, inline: true},
+                {name: "High-Value", value: $h, inline: true},
+                {name: "Secrets", value: $sec, inline: true},
+                {name: "Findings", value: $e, inline: true}
+              ],
+              footer: {text: ("Run #" + $rn)}
+            }]
+          }' | curl -s -X POST "$WEBHOOK" \
+                 -H "Content-Type: application/json" -d @- || true
