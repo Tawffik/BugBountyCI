@@ -890,5 +890,5 @@ jobs:
         with:
           name: security-analysis-${{ env.TIMESTAMP }}
           path: |
-            ${{ needs.setup.outputs.results_dir }}/headers/
-            ${{ needs.set
+            ${{ needs.setup.outputs.results_dir }}/header/
+            
