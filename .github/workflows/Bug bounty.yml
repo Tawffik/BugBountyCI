@@ -634,46 +634,55 @@ jobs:
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo " 🔌 HIDDEN ADMIN PANEL DISCOVERY"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          curl -sL "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/admin-panels.txt" \
-            -o /tmp/admin_paths.txt 2>/dev/null || cat << 'EOF' > /tmp/admin_paths.txt
-/admin
-/administrator
-/admin/login
-/admin/dashboard
-/administrator/login
-/panel
-/cpanel
-/login
-/wp-admin
-/dashboard
-/adminpanel
-/admin_area
-/superadmin
-/backend
-/cms
-/manager
-/portal
-/controlpanel
-/management
-EOF
+
+          cat > /tmp/admin_paths.txt <<'EOF'
+          /admin
+          /administrator
+          /admin/login
+          /admin/dashboard
+          /administrator/login
+          /panel
+          /cpanel
+          /login
+          /wp-admin
+          /dashboard
+          /adminpanel
+          /admin_area
+          /superadmin
+          /backend
+          /cms
+          /manager
+          /portal
+          /controlpanel
+          /management
+          EOF
+
           INPUT_FILE="${{ needs.setup.outputs.results_dir }}/live/live_hosts.txt"
+
           if [ ! -f "$INPUT_FILE" ] || [ ! -s "$INPUT_FILE" ]; then
             echo "https://${{ needs.setup.outputs.target }}" > /tmp/live_fb3.txt
             INPUT_FILE=/tmp/live_fb3.txt
           fi
+
           head -20 "$INPUT_FILE" | while IFS= read -r host; do
             host=$(echo "$host" | tr -d '\r' | grep -v '^\s*$')
             [ -z "$host" ] && continue
+
             while IFS= read -r path; do
               path=$(echo "$path" | tr -d '\r')
               [ -z "$path" ] && continue
+
               url="${host}${path}"
+
               status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 4 -L "$url" 2>/dev/null || echo "000")
+
               if [ "$status" != "000" ] && [ "$status" != "404" ]; then
                 echo "[$status] $url" >> "${{ needs.setup.outputs.results_dir }}/admin/admin_panels.txt"
               fi
+
             done < /tmp/admin_paths.txt
           done
+
           echo "✅ Admin panels found: $(wc -l < "${{ needs.setup.outputs.results_dir }}/admin/admin_panels.txt" 2>/dev/null || echo 0)"
 
       - name: "🔌 API Version Discovery"
@@ -900,4 +909,13 @@ EOF
           name: security-analysis-${{ env.TIMESTAMP }}
           path: |
             ${{ needs.setup.outputs.results_dir }}/headers/
-            ${{ needs.set
+      - name: "📤 Upload Security Analysis Artifacts"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-analysis-${{ env.TIMESTAMP }}
+          path: |
+            ${{ needs.setup.outputs.results_dir }}/headers/
+            ${{ needs.setup.outputs.results_dir }}/cors/
+            ${{ needs.setup.outputs.results_dir }}/files/
+          retention-days: 14
