@@ -1,0 +1,109 @@
+name: "🔍 Subdomain Monitor"
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      domain:
+        description: 'Target Domain'
+        required: true
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: "⚡ Cached Tools"
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/bin
+            ~/nuclei-templates
+          key: ${{ runner.os }}-tools-${{ hashFiles('.github/workflows/01.yml') }}
+
+      - name: Install Tools
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
+          go install github.com/projectdiscovery/httpx/cmd/httpx@latest
+          go install github.com/projectdiscovery/dnsx/cmd/dnsx@latest
+          echo "$HOME/go/bin" >> $GITHUB_PATH
+
+      - name: Set Domain
+        run: |
+          DOMAIN="${{ github.event.inputs.domain || secrets.TARGET_DOMAIN }}"
+          echo "DOMAIN=$DOMAIN" >> $GITHUB_ENV
+          mkdir -p "results/$DOMAIN"
+
+      - name: Subfinder
+        run: |
+          subfinder -d ${{ env.DOMAIN }} -all -silent \
+            -o /tmp/subs.txt
+
+      - name: DNSx
+        run: |
+          dnsx -silent -a -l /tmp/subs.txt \
+            -o /tmp/resolved.txt
+
+      - name: HTTPx
+        run: |
+          httpx -l /tmp/resolved.txt \
+            -silent -status-code -title -tech-detect \
+            -threads 100 -timeout 12 \
+            -o /tmp/live.txt
+
+      - name: Diff
+        run: |
+          touch "results/${{ env.DOMAIN }}/prev.txt"
+          comm -23 \
+            <(sort /tmp/resolved.txt) \
+            <(sort "results/${{ env.DOMAIN }}/prev.txt") \
+            > /tmp/new.txt
+          cp /tmp/resolved.txt "results/${{ env.DOMAIN }}/prev.txt"
+          echo "NEW=$(wc -l < /tmp/new.txt)" >> $GITHUB_ENV
+
+      - name: Save Results
+        run: |
+          cp /tmp/resolved.txt "results/${{ env.DOMAIN }}/subdomains.txt"
+          cp /tmp/live.txt "results/${{ env.DOMAIN }}/live.txt"
+          cp /tmp/new.txt "results/${{ env.DOMAIN }}/new.txt"
+
+      - name: Discord
+        if: env.NEW != '0'
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          TOTAL=$(wc -l < /tmp/resolved.txt)
+          LIVE=$(wc -l < /tmp/live.txt)
+          NEW=$(wc -l < /tmp/new.txt)
+
+          jq -n \
+            --arg d "${{ env.DOMAIN }}" \
+            --arg t "$TOTAL" \
+            --arg l "$LIVE" \
+            --arg n "$NEW" \
+          '{
+            username: "🔍 SubMonitor",
+            embeds: [{
+              title: ("Subdomain Scan: " + $d),
+              color: 5814783,
+              fields: [
+                {name:"🌐 Total",  value:$t, inline:true},
+                {name:"✅ Live",   value:$l, inline:true},
+                {name:"🆕 New",    value:$n, inline:true}
+              ]
+            }]
+          }' | curl -s -X POST "$WEBHOOK" \
+                 -H "Content-Type: application/json" -d @- || true
