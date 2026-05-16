@@ -90,6 +90,8 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: "Subdomain Enumeration"
+
+      - name: "Subdomain Enumeration"
         run: |
           export PATH=$HOME/go/bin:$PATH
 
