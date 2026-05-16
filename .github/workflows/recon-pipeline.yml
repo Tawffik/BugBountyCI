@@ -52,7 +52,7 @@ jobs:
             ~/go/bin
             ~/go/pkg/mod
             ~/.cache/nuclei
-          key: ${{ runner.os }}-go-tools-${{ hashFiles('.github/workflows/.tool-versions') }}
+          key: ${{ runner.os }}-go-tools-${{ hashFiles('.github/.tool-versions') }}
           restore-keys: |
             ${{ runner.os }}-go-tools-
 
