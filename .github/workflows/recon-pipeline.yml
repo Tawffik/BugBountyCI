@@ -133,7 +133,8 @@ jobs:
           path: ${{ env.RESULTS_DIR }}/
           retention-days: 30
           if-no-files-found: warn
-          nuclei-scan:
+          
+  nuclei-scan:
     needs: recon
     runs-on: ubuntu-latest
     permissions:
