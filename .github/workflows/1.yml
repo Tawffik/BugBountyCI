@@ -31,7 +31,7 @@ jobs:
           path: |
             ~/go/bin
             ~/nuclei-templates
-          key: ${{ runner.os }}-tools-${{ hashFiles('.github/workflows/01.yml') }}
+          key: ${{ runner.os }}-tools-v1
 
       - name: Install Tools
         if: steps.cache.outputs.cache-hit != 'true'
