@@ -81,16 +81,35 @@ jobs:
   recon:
     needs: setup
     runs-on: ubuntu-latest
-    permission   contents: read
-    timeout-minutes: 3ر
-       - يستخدم : actions/checkout@v4
+    permissions:
+      contents: read
+    timeout-minutes: 30
+    steps:
+        - uses: actions/checkout@v4
+      steps:
+      - uses: actions/checkout@v4
 
-      - الاسم : تعداد النطاقات الفرعية
-        تشغيل : |
+      - name: "Subdomain Enumeration"
+        run: |
           export PATH=$HOME/go/bin:$PATH
+
           subfinder -d ${{ env.TARGET }} -all -silent > /tmp/subs_raw.txt
+
           dnsx -silent -a -l /tmp/subs_raw.txt > /tmp/resolved.txt
+
           sort -u /tmp/resolved.txt > ${{ env.RESULTS_DIR }}/subdomains/all_subs.txt
+
+      - name: "HTTP Probe"
+        run: |
+          export PATH=$HOME/go/bin:$PATH
+
+          httpx -l ${{ env.RESULTS_DIR }}/subdomains/all_subs.txt \
+            -silent -status-code -title -tech-detect \
+            -threads 50 -timeout 10 \
+            -o ${{ env.RESULTS_DIR }}/live/live_hosts.txt
+
+          awk '{print $1}' ${{ env.RESULTS_DIR }}/live/live_hosts.txt \
+            > ${{ env.RESULTS_DIR }}/live/urls.txt
 
       - الاسم : فحص HTTP
         تشغيل : |
