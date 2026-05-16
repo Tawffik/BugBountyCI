@@ -1,0 +1,100 @@
+name: "🧨 Vulnerability Scanner"
+
+on:
+  workflow_dispatch:
+    inputs:
+      domain:
+        description: 'Target Domain'
+        required: true
+      severity:
+        description: 'Min Severity'
+        default: 'medium'
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: "⚡ Cache"
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/bin
+            ~/nuclei-templates
+          key: ${{ runner.os }}-tools-v1
+
+      - name: Install
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
+          go install github.com/projectdiscovery/httpx/cmd/httpx@latest
+          go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
+          go install github.com/projectdiscovery/dnsx/cmd/dnsx@latest
+          echo "$HOME/go/bin" >> $GITHUB_PATH
+          nuclei -update-templates -silent
+
+      - name: Setup
+        run: |
+          DOMAIN="${{ github.event.inputs.domain || secrets.TARGET_DOMAIN }}"
+          echo "DOMAIN=$DOMAIN" >> $GITHUB_ENV
+          mkdir -p /tmp/scan/$DOMAIN
+
+      - name: Recon
+        run: |
+          subfinder -d ${{ env.DOMAIN }} -all -silent \
+            | dnsx -silent -a \
+            | httpx -silent -status-code -title -tech-detect \
+              -threads 100 -timeout 12 \
+              -o /tmp/scan/${{ env.DOMAIN }}/live.txt
+
+      - name: Nuclei Targeted
+        continue-on-error: true
+        run: |
+          awk '{print $1}' /tmp/scan/${{ env.DOMAIN }}/live.txt | \
+            nuclei \
+            -tags exposure,config,panel,debug,takeover,tech,cors \
+            -severity critical,high \
+            -rl 200 -c 40 -timeout 10 \
+            -silent -json \
+            -o /tmp/scan/${{ env.DOMAIN }}/findings.json
+
+      - name: Discord Summary
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          VULN=$(wc -l < /tmp/scan/${{ env.DOMAIN }}/findings.json 2>/dev/null || echo 0)
+          LIVE=$(wc -l < /tmp/scan/${{ env.DOMAIN }}/live.txt 2>/dev/null || echo 0)
+
+          jq -n \
+            --arg d "${{ env.DOMAIN }}" \
+            --arg v "$VULN" \
+            --arg l "$LIVE" \
+          '{
+            username: "🧨 VulnBot",
+            embeds: [{
+              title: ("Vuln Scan: " + $d),
+              color: 15158332,
+              fields: [
+                {name:"✅ Live",    value:$l, inline:true},
+                {name:"🚨 Vulns",  value:$v, inline:true}
+              ]
+            }]
+          }' | curl -s -X POST "$WEBHOOK" \
+                 -H "Content-Type: application/json" -d @- || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: scan-${{ env.DOMAIN }}-${{ github.run_number }}
+          path: /tmp/scan/${{ env.DOMAIN }}/
+          retention-days: 14
