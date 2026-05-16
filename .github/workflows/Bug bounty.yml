@@ -627,53 +627,44 @@ jobs:
           done < "$INPUT_FILE"
           echo "✅ GraphQL endpoints: $(wc -l < "${{ needs.setup.outputs.results_dir }}/graphql/graphql_endpoints.txt" 2>/dev/null || echo 0)"
 
-      - name: "🔌 Hidden Admin Panel Discovery"
+      - name: "Hidden Admin Panel Discovery"
         continue-on-error: true
         timeout-minutes: 15
         run: |
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo " 🔌 HIDDEN ADMIN PANEL DISCOVERY"
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "🔎 HIDDEN ADMIN PANEL DISCOVERY"
+
           curl -sL "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/admin-panels.txt" \
-            -o /tmp/admin_paths.txt 2>/dev/null || cat << 'EOF' > /tmp/admin_paths.txt
-/admin
-/administrator
-/admin/login
-/admin/dashboard
-/administrator/login
-/panel
-/cpanel
-/login
-/wp-admin
-/dashboard
-/adminpanel
-/admin_area
-/superadmin
-/backend
-/cms
-/manager
-/portal
-/controlpanel
-/management
-EOF
+            -o /tmp/admin_paths.txt
+
           INPUT_FILE="${{ needs.setup.outputs.results_dir }}/live/live_hosts.txt"
+
           if [ ! -f "$INPUT_FILE" ] || [ ! -s "$INPUT_FILE" ]; then
             echo "https://${{ needs.setup.outputs.target }}" > /tmp/live_fb3.txt
             INPUT_FILE=/tmp/live_fb3.txt
           fi
+
           head -20 "$INPUT_FILE" | while IFS= read -r host; do
-            host=$(echo "$host" | tr -d '\r' | grep -v '^\s*$')
+            host=$(echo "$host" | tr -d '\r')
+
             [ -z "$host" ] && continue
+
             while IFS= read -r path; do
               path=$(echo "$path" | tr -d '\r')
+
               [ -z "$path" ] && continue
+
               url="${host}${path}"
-              status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 4 -L "$url" 2>/dev/null || echo "000")
+
+              status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 4 -L "$url")
+
               if [ "$status" != "000" ] && [ "$status" != "404" ]; then
                 echo "[$status] $url" >> "${{ needs.setup.outputs.results_dir }}/admin/admin_panels.txt"
               fi
+
             done < /tmp/admin_paths.txt
+
           done
+
           echo "✅ Admin panels found: $(wc -l < "${{ needs.setup.outputs.results_dir }}/admin/admin_panels.txt" 2>/dev/null || echo 0)"
 
       - name: "🔌 API Version Discovery"
@@ -899,5 +890,5 @@ EOF
         with:
           name: security-analysis-${{ env.TIMESTAMP }}
           path: |
-            ${{ needs.setup.outputs.results_dir }}/headers/
-            ${{ needs.set
+            ${{ needs.setup.outputs.results_dir }}/header/
+            
