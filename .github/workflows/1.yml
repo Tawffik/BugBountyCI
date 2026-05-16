@@ -11,98 +11,98 @@ on:
         default: ''
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  monitor:
-    runs-on: ubuntu-latest
+  شاشة :
+    يعمل على : أحدث إصدار من أوبونتو
 
-    steps:
-      - uses: actions/checkout@v4
+    ريس :
+      - يستخدم : actions/checkout@v4
 
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.22'
+      - يستخدم : actions/setup-go@v5
+        مع :
+          إصدار Go : '1.22'
 
-      - name: "⚡ Cached Tools"
-        id: cache
-        uses: actions/cache@v4
-        with:
-          path: |
+      - الاسم : "⚡ أدوات مخزنة مؤقتًا"
+        المعرّف : ذاكرة التخزين المؤقت
+        يستخدم : actions/cache@v4
+        مع :
+          المسار : |
             ~/go/bin
             ~/nuclei-templates
-          key: ${{ runner.os }}-tools-v1
+          المفتاح : $ { { runner.os } } -tools-v1
 
-      - name: Install Tools
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: |
+      - الاسم : أدوات التثبيت
+        إذا كانت قيمة ` steps.cache.outputs.cache-hit` لا تساوي 'true'
+        تشغيل : |
           go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
           go install github.com/projectdiscovery/httpx/cmd/httpx@latest
           go install github.com/projectdiscovery/dnsx/cmd/dnsx@latest
           echo "$HOME/go/bin" >> $GITHUB_PATH
 
-      - name: Set Domain
-        run: |
+      - الاسم : تعيين النطاق
+        تشغيل : |
           DOMAIN="${{ github.event.inputs.domain || secrets.TARGET_DOMAIN }}"
           echo "DOMAIN=$DOMAIN" >> $GITHUB_ENV
           mkdir -p "results/$DOMAIN"
 
-      - name: Subfinder
-        run: |
-          subfinder -d ${{ env.DOMAIN }} -all -silent \
+      - الاسم : Subfinder
+        تشغيل : |
+          subfinder -d ${{ env.DOMAIN }} -all -silent \${{ env.DOMAIN }} -all -silent \
             -o /tmp/subs.txt
 
-      - name: DNSx
-        run: |
-          dnsx -silent -a -l /tmp/subs.txt \
+      - الاسم : DNSx
+        تشغيل : |
+          dnsx -silent -a -l /tmp/subs.txt
             -o /tmp/resolved.txt
 
-      - name: HTTPx
-        run: |
+      - الاسم : HTTPx
+        تشغيل : |
           httpx -l /tmp/resolved.txt \
-            -silent -status-code -title -tech-detect \
+            -صامت -رمز الحالة -العنوان -الكشف التقني
             -threads 100 -timeout 12 \
             -o /tmp/live.txt
 
-      - name: Diff
-        run: |
-          touch "results/${{ env.DOMAIN }}/prev.txt"
+      - الاسم : Diff
+        تشغيل : |
+          touch "results/${{ env.DOMAIN }}/prev.txt"${{ env.DOMAIN }}/prev.txt"
           comm -23 \
             <(sort /tmp/resolved.txt) \
-            <(sort "results/${{ env.DOMAIN }}/prev.txt") \
+            <(sort "results/${{ env.DOMAIN }}/prev.txt") \${{ env.DOMAIN }}/prev.txt") \
             > /tmp/new.txt
-          cp /tmp/resolved.txt "results/${{ env.DOMAIN }}/prev.txt"
-          echo "NEW=$(wc -l < /tmp/new.txt)" >> $GITHUB_ENV
+          cp /tmp/resolved.txt "results/${{ env.DOMAIN }}/prev.txt"${{ env.DOMAIN }}/prev.txt"
+          echo "NEW=$(wc -l < ​​/tmp/new.txt)" >> $GITHUB_ENV
 
-      - name: Save Results
-        run: |
-          cp /tmp/resolved.txt "results/${{ env.DOMAIN }}/subdomains.txt"
-          cp /tmp/live.txt "results/${{ env.DOMAIN }}/live.txt"
-          cp /tmp/new.txt "results/${{ env.DOMAIN }}/new.txt"
+      - الاسم : حفظ النتائج
+        تشغيل : |
+          cp /tmp/resolved.txt "results/${{ env.DOMAIN }}/subdomains.txt"${{ env.DOMAIN }}/subdomains.txt"
+          cp /tmp/live.txt "results/${{ env.DOMAIN }}/live.txt"${{ env.DOMAIN }}/live.txt"
+          cp /tmp/new.txt "results/${{ env.DOMAIN }}/new.txt"${{ env.DOMAIN }}/new.txt"
 
-      - name: Discord
-        if: env.NEW != '0'
-        env:
-          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
-        run: |
-          TOTAL=$(wc -l < /tmp/resolved.txt)
-          LIVE=$(wc -l < /tmp/live.txt)
-          NEW=$(wc -l < /tmp/new.txt)
+      - الاسم : ديسكورد
+        إذا : env.NEW != '0'
+        env :
+          رابط الويب : $ { { secrets.DISCORD_WEBHOOK } }
+        تشغيل : |
+          المجموع = $(wc -l < ​​/tmp/resolved.txt)
+          LIVE=$(wc -l < ​​/tmp/live.txt)
+          NEW=$(wc -l < ​​/tmp/new.txt)
 
           jq -n \
-            --arg d "${{ env.DOMAIN }}" \
+            --arg d "${{ env.DOMAIN }}" \${{ env.DOMAIN }}" \
             --arg t "$TOTAL" \
             --arg l "$LIVE" \
             --arg n "$NEW" \
           '{
-            username: "🔍 SubMonitor",
-            embeds: [{
-              title: ("Subdomain Scan: " + $d),
-              color: 5814783,
-              fields: [
-                {name:"🌐 Total",  value:$t, inline:true},
-                {name:"✅ Live",   value:$l, inline:true},
-                {name:"🆕 New",    value:$n, inline:true}
+            اسم المستخدم: "🔍 SubMonitor",
+            التضمينات: [{
+              العنوان: ("فحص النطاق الفرعي: " + $d)،
+              اللون: 5814783،
+              الحقول: [
+                {name:"🌐 Total", value:$t, inline:true},
+                {name:"✅ مباشر", value:$l, inline:true},
+                {name:"🆕 جديد", value:$n, inline:true}
               ]
             }]
           }' | curl -s -X POST "$WEBHOOK" \
