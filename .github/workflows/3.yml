@@ -1,0 +1,100 @@
+name: "🕵️ JS & Secrets Scanner"
+
+on:
+  workflow_dispatch:
+    inputs:
+      domain:
+        description: 'Target Domain'
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  js-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: "⚡ Cache"
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/bin
+            ~/nuclei-templates
+          key: ${{ runner.os }}-tools-v1
+
+      - name: Install
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          go install github.com/projectdiscovery/katana/cmd/katana@latest
+          go install github.com/projectdiscovery/httpx/cmd/httpx@latest
+          go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
+          go install github.com/tomnomnom/gf@latest
+          echo "$HOME/go/bin" >> $GITHUB_PATH
+
+      - name: Setup
+        run: |
+          DOMAIN="${{ github.event.inputs.domain || secrets.TARGET_DOMAIN }}"
+          echo "DOMAIN=$DOMAIN" >> $GITHUB_ENV
+          mkdir -p /tmp/js/$DOMAIN
+
+      - name: Katana JS Crawl
+        run: |
+          echo "${{ env.DOMAIN }}" | \
+            katana -silent -jc -d 2 -c 15 -timeout 10 \
+            -o /tmp/js/${{ env.DOMAIN }}/urls.txt || true
+
+      - name: High-Value Filtering
+        run: |
+          grep -Eoi \
+            '(graphql|swagger|api/v|api/1|admin|dashboard|firebase|s3\.amazonaws|\.azure|\.gcp|blob\.core|auth|login|signin|oauth|token|jwt|debug|dev|test|staging|internal|private|health|metrics|grafana|kibana|jenkins|sonar|jira|confluence|phpmyadmin|wp-admin|config|\.env|\.git)' \
+            /tmp/js/${{ env.DOMAIN }}/urls.txt \
+            > /tmp/js/${{ env.DOMAIN }}/high_value.txt || true
+
+      - name: Nuclei Exposures
+        continue-on-error: true
+        run: |
+          awk '{print $1}' /tmp/js/${{ env.DOMAIN }}/urls.txt | \
+            nuclei -tags exposure,config \
+            -severity critical,high,medium \
+            -rl 100 -c 20 -timeout 10 \
+            -silent -json \
+            -o /tmp/js/${{ env.DOMAIN }}/secrets.json || true
+
+      - name: Discord
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          HV=$(wc -l < /tmp/js/${{ env.DOMAIN }}/high_value.txt 2>/dev/null || echo 0)
+          SEC=$(wc -l < /tmp/js/${{ env.DOMAIN }}/secrets.json 2>/dev/null || echo 0)
+
+          jq -n \
+            --arg d "${{ env.DOMAIN }}" \
+            --arg hv "$HV" \
+            --arg sec "$SEC" \
+          '{
+            username: "🕵️ JSBot",
+            embeds: [{
+              title: ("JS Scan: " + $d),
+              color: 16776960,
+              fields: [
+                {name:"🎯 High-Value", value:$hv, inline:true},
+                {name:"🔑 Secrets",    value:$sec, inline:true}
+              ]
+            }]
+          }' | curl -s -X POST "$WEBHOOK" \
+                 -H "Content-Type: application/json" -d @- || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: js-${{ env.DOMAIN }}-${{ github.run_number }}
+          path: /tmp/js/${{ env.DOMAIN }}/
+          retention-days: 14
