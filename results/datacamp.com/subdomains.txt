@@ -1,6 +1,7 @@
 1www.datacamp.com
 account.collab-api.datacamp.com
 admin.compliancy.datacamp.com
+admin.datacamp.com
 ads.auth.datacamp.com
 ads.compliancy.datacamp.com
 ai-api-admin.datacamp.com
@@ -148,6 +149,7 @@ enterprise.new.datacamp.com
 es.datacamp.com
 events.datacamp.com
 evt.optima.datacamp.com
+excel-api.datacamp.com
 explorables.datacamp.com
 explore.datacamp.com
 external.ai-tutor.datacamp.com
@@ -189,6 +191,7 @@ grafana.compliancy.datacamp.com
 grafana.ops.datacamp.com
 grc.it.datacamp.com
 grc2go.datacamp.com
+groups.datacamp.com
 gsstm.datacamp.com
 h3.datacamp.com
 h4.datacamp.com
@@ -209,6 +212,7 @@ images.compliancy.datacamp.com
 images.datacamp.com
 images.learn-hub-api.datacamp.com
 images.links.datacamp.com
+imb.datacamp.com
 img.links.datacamp.com
 infolab.datacamp.com
 infra-reporter.datacamp.com
@@ -249,7 +253,6 @@ kubecost-prom-app-cluster.datacamp.com
 kubecost-prom-learn-multiplexer.datacamp.com
 kubecost-prom-ops-us-east-1.ops.datacamp.com
 kubernetes.kong.datacamp.com
-learn-api.datacamp.com
 learn-docker-proxy.datacamp.com
 learn-hub-api.datacamp.com
 learn-mux-cluster-proxy.datacamp.com
@@ -286,9 +289,7 @@ mobile-api.new.datacamp.com
 monitor.ai-api.datacamp.com
 multiplexer-paid.datacamp.com
 multiplexer-prod-2.datacamp.com
-multiplexer-prod-3.datacamp.com
 multiplexer-prod.datacamp.com
-music.datacamp.com
 mvn.datacamp.com
 mx.campus-api.datacamp.com
 mx.collab-api.datacamp.com
@@ -342,6 +343,7 @@ pop.learn-hub-api.datacamp.com
 portal.ai-api.datacamp.com
 portal.auth.datacamp.com
 poser.datacamp.com
+pp.datacamp.com
 practice-web.datacamp.com
 practice-web.new.datacamp.com
 practice.datacamp.com
@@ -534,6 +536,7 @@ www.datacamp.com
 www.dev.datacamp.com
 www.documents.datacamp.com
 www.gsstm.datacamp.com
+www.linkedin.datacamp.com
 www.links.datacamp.com
 www.maintenance.datacamp.com
 www.multiplexer-paid.new.datacamp.com

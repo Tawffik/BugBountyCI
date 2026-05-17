@@ -1,0 +1,6 @@
+admin.datacamp.com
+excel-api.datacamp.com
+groups.datacamp.com
+imb.datacamp.com
+pp.datacamp.com
+www.linkedin.datacamp.com
