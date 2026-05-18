@@ -48,6 +48,7 @@ blog.compliancy.datacamp.com
 blog.datacamp.com
 blog.kong.datacamp.com
 blog.new.datacamp.com
+blogs.datacamp.com
 bokeh-server.datacamp.com
 bookmarks.datacamp.com
 boro.datacamp.com
@@ -68,12 +69,12 @@ certification-docs.datacamp.com
 certification.datacamp.com
 certification2022-docs.datacamp.com
 challenge-frontend.new.datacamp.com
-challenges-api.new.datacamp.com
 challenges.datacamp.com
 chat.assets.datacamp.com
 chat.auth.datacamp.com
 ci.cms.datacamp.com
 ci.datacamp.com
+class.datacamp.com
 click.dcmfe.datacamp.com
 click.links.datacamp.com
 clips.datacamp.com
@@ -95,7 +96,6 @@ concoursetest.ops.datacamp.com
 confluence.datacamp.com
 content-authorization.datacamp.com
 content-n8n-hosting.datacamp.com
-content.datacamp.com
 cp.datacamp.com
 cse.datacamp.com
 dashboard.datacamp.com
@@ -136,7 +136,6 @@ documents.datacamp.com
 downloads.collab-api.datacamp.com
 downloads.links.datacamp.com
 dr-docker-sessions.datacamp.com
-e.datacamp.com
 edge.cms.datacamp.com
 edge.links.datacamp.com
 ekscluster.ops.datacamp.com
@@ -151,6 +150,7 @@ events.datacamp.com
 evt.optima.datacamp.com
 excel-api.datacamp.com
 explorables.datacamp.com
+explorables.new.datacamp.com
 explore.datacamp.com
 external.ai-tutor.datacamp.com
 external.app.datacamp.com
@@ -215,7 +215,6 @@ images.learn-hub-api.datacamp.com
 images.links.datacamp.com
 imb.datacamp.com
 img.links.datacamp.com
-infolab.datacamp.com
 infra-reporter.datacamp.com
 ingressgateway-datacamp-ops.ops.datacamp.com
 ingressgateway-ops-us-east-1.ops.datacamp.com
@@ -550,5 +549,6 @@ www4b.datacamp.com
 www5a.datacamp.com
 www5b.datacamp.com
 www5d.datacamp.com
+www7b.datacamp.com
 wwww.datacamp.com
 z28rg4x8kh99-workspace-sessions.datacamp.com

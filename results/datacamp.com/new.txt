@@ -1,8 +1,4 @@
-baidu.datacamp.com
-billing.datacamp.com
-feeds.datacamp.com
-i.datacamp.com
-rconsole.datacamp.com
-rootsweb.datacamp.com
-www.campus.new.datacamp.com
-www2u.datacamp.com
+blogs.datacamp.com
+class.datacamp.com
+explorables.new.datacamp.com
+www7b.datacamp.com
