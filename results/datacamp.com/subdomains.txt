@@ -183,7 +183,6 @@ gitlab.cms.datacamp.com
 gitlab.links.datacamp.com
 go.careerhub-api.datacamp.com
 go.cms.datacamp.com
-go2.datacamp.com
 grafana-ops-us-east-1.ops.datacamp.com
 grafana.ai-tutor.datacamp.com
 grafana.collab-api.datacamp.com
@@ -232,6 +231,7 @@ int.learn-hub-api.datacamp.com
 intranet.datacamp.com
 jupyter-static.datacamp.com
 jupyterhub.datacamp.com
+k2.datacamp.com
 k8s.ai-tutor.datacamp.com
 k8s.campus-api.datacamp.com
 k8s.links.datacamp.com
@@ -289,7 +289,6 @@ mobile-api.new.datacamp.com
 monitor.ai-api.datacamp.com
 multiplexer-paid.datacamp.com
 multiplexer-prod.datacamp.com
-mvn.datacamp.com
 mx.campus-api.datacamp.com
 mx.collab-api.datacamp.com
 mx.compliancy.datacamp.com
@@ -360,6 +359,7 @@ prof.datacamp.com
 project-frontend.new.datacamp.com
 projector.datacamp.com
 projector.new.datacamp.com
+projects-api.datacamp.com
 projects-api.new.datacamp.com
 projects.datacamp.com
 prometheus-aggregator.datacamp.com

@@ -1,4 +1,2 @@
-blogs.datacamp.com
-class.datacamp.com
-explorables.new.datacamp.com
-www7b.datacamp.com
+k2.datacamp.com
+projects-api.datacamp.com
