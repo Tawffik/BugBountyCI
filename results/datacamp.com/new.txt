@@ -1,9 +1,8 @@
-club.datacamp.com
-inst.datacamp.com
-live.datacamp.com
-prof.datacamp.com
-provincia.datacamp.com
-rconsole-backup.datacamp.com
-www.cdn.datacamp.com
-www5a.datacamp.com
-www5b.datacamp.com
+baidu.datacamp.com
+billing.datacamp.com
+feeds.datacamp.com
+i.datacamp.com
+rconsole.datacamp.com
+rootsweb.datacamp.com
+www.campus.new.datacamp.com
+www2u.datacamp.com
