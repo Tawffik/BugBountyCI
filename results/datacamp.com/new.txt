@@ -1,0 +1,10 @@
+coding-exercise-api.datacamp.com
+coding-exercise-api.new.datacamp.com
+forum.datacamp.com
+homepage1.datacamp.com
+homepage2.datacamp.com
+iimahd.datacamp.com
+multiplexer-paid-m5.new.datacamp.com
+multiplexer-paid.new.datacamp.com
+search.datacamp.com
+uni.datacamp.com
