@@ -1,11 +1,1 @@
-api.datacamp.com
-home.datacamp.com
-learn-api.datacamp.com
-math.datacamp.com
-multiplexer-prod-einstein.datacamp.com
-track.datacamp.com
-um.datacamp.com
-wenku.datacamp.com
-www.multiplexer-vinci.new.datacamp.com
-www.projector.new.datacamp.com
-www.support.datacamp.com
+teach-browser.datacamp.com
