@@ -427,6 +427,7 @@ staging.gsstm.datacamp.com
 staging.links.datacamp.com
 static.campus-api.datacamp.com
 static.images.datacamp.com
+static.new.datacamp.com
 stats.ai-tutor.datacamp.com
 stats.content-authorization.datacamp.com
 stats.datacamp.com
@@ -456,6 +457,7 @@ support.datacamp.com
 support.gamification-api.datacamp.com
 system-check.datacamp.com
 tableau-api.datacamp.com
+teach-browser.datacamp.com
 teach.datacamp.com
 tech.datacamp.com
 test.campaign-service.datacamp.com

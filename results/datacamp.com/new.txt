@@ -1,6 +1,2 @@
-bip.datacamp.com
-kk.datacamp.com
-members.datacamp.com
-users.datacamp.com
-www.styleguide-assets.datacamp.com
-xroads.datacamp.com
+static.new.datacamp.com
+teach-browser.datacamp.com
