@@ -1,0 +1,4 @@
+api.test.nuva.finance
+app.nuva.finance
+test.nuva.finance
+www.nuva.finance
