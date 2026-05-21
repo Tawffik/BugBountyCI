@@ -1,0 +1,8 @@
+https://api.oneplus.ch [404] [404 Not Found] [Cloudflare,Cloudflare Browser Insights,HSTS]
+https://www.oneplus.ch [302] [302 Found] [Cloudflare,Cloudflare Browser Insights]
+https://files.oneplus.ch [404] [404 Not Found] [Cloudflare,Cloudflare Browser Insights,HSTS]
+https://idm.oneplus.ch [404] [404 Not Found] [Cloudflare,Cloudflare Browser Insights,HSTS]
+https://help.oneplus.ch [302] [Cloudflare,Cloudflare Bot Management,Envoy,HSTS,Zendesk]
+https://click.oneplus.ch [404] [404 Not Found] [Cloudflare,Cloudflare Browser Insights,HSTS]
+https://events.oneplus.ch [404] [Cloudflare,HSTS]
+https://inhalte.oneplus.ch [200] [Oneplus Content] [Cloudflare,HSTS]
