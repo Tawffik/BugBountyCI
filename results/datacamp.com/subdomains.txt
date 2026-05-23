@@ -262,6 +262,7 @@ lms-docs.datacamp.com
 login.collab-api.datacamp.com
 m.cdn.datacamp.com
 m.compliancy.datacamp.com
+m.datacamp.com
 mail.ai-tutor.datacamp.com
 mail.kong.datacamp.com
 mail.links.datacamp.com
@@ -457,6 +458,7 @@ support.datacamp.com
 support.gamification-api.datacamp.com
 system-check.datacamp.com
 tableau-api.datacamp.com
+teach-browser.datacamp.com
 teach.datacamp.com
 tech.datacamp.com
 test.campaign-service.datacamp.com
