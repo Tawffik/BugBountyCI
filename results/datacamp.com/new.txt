@@ -1,8 +1,0 @@
-concourse-eks-test.ops.datacamp.com
-engineering-portal-new.ops.datacamp.com
-kong-ingress-test.datacamp.com
-sessions-us-east-1.datacamp.com
-sitemap-frontend.datacamp.com
-strapi.datacamp.com
-teach-browser.datacamp.com
-vpn.it.datacamp.com
