@@ -88,7 +88,6 @@ community.datacamp.com
 competitions-app.datacamp.com
 compliance.datacamp.com
 compliancy.datacamp.com
-concourse-eks-test.ops.datacamp.com
 concourse.ops.datacamp.com
 concoursetest.ops.datacamp.com
 confluence.datacamp.com
@@ -137,7 +136,6 @@ edge.cms.datacamp.com
 edge.links.datacamp.com
 ekscluster.ops.datacamp.com
 em.datacamp.com
-engineering-portal-new.ops.datacamp.com
 engineering-portal.ops.datacamp.com
 enterprise-docs.datacamp.com
 enterprise.datacamp.com
@@ -236,7 +234,6 @@ keycloak-b.ops.datacamp.com
 keycloak.ops.datacamp.com
 kiali-ops-us-east-1.ops.datacamp.com
 kiali.ops.datacamp.com
-kong-ingress-test.datacamp.com
 kong-ingress.datacamp.com
 kong-internal.datacamp.com
 kong-internal.new.datacamp.com
@@ -405,7 +402,6 @@ shiny.datacamp.com
 shop.ai-tutor.datacamp.com
 shop.compliancy.datacamp.com
 signature.datacamp.com
-sitemap-frontend.datacamp.com
 sitemap-generator.datacamp.com
 sitemap.datacamp.com
 skill-assessment-frontend-v2.new.datacamp.com
@@ -451,7 +447,6 @@ storage.links.datacamp.com
 store.compliancy.datacamp.com
 store.gamification-api.datacamp.com
 store.links.datacamp.com
-strapi.datacamp.com
 styleguide-assets.datacamp.com
 styleguide.datacamp.com
 support.auth.datacamp.com
@@ -501,7 +496,6 @@ vpn.ai-api.datacamp.com
 vpn.auth.datacamp.com
 vpn.campus-api.datacamp.com
 vpn.content-authorization.datacamp.com
-vpn.it.datacamp.com
 waffles-next.datacamp.com
 waffles.datacamp.com
 web.campus-api.datacamp.com
