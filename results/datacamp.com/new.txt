@@ -1,1 +1,6 @@
-teach-browser.datacamp.com
+concourse-eks-test.ops.datacamp.com
+engineering-portal-new.ops.datacamp.com
+kong-ingress-test.datacamp.com
+sitemap-frontend.datacamp.com
+strapi.datacamp.com
+vpn.it.datacamp.com
