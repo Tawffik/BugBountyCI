@@ -1,0 +1,3 @@
+coding-exercise-api.datacamp.com
+multiplexer-paid-m5.new.datacamp.com
+multiplexer-paid.new.datacamp.com
