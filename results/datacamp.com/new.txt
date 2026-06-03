@@ -1,1 +1,1 @@
-top100.datacamp.com
+teach-browser.datacamp.com
