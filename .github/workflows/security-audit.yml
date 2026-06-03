@@ -1,0 +1,798 @@
+name: Security Audit Framework
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  security-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+
+      # ─────────────────────────────────────────────
+      # STEP 1 — Checkout
+      # ─────────────────────────────────────────────
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # ─────────────────────────────────────────────
+      # STEP 2 — Create output directories
+      # ─────────────────────────────────────────────
+      - name: Create output directories
+        run: |
+          mkdir -p audit-results/findings
+          mkdir -p audit-results/reports
+          echo "audit-results/" >> .gitignore || true
+
+      # ─────────────────────────────────────────────
+      # PHASE 1 — Secrets Scanner (Regex)
+      # ─────────────────────────────────────────────
+      - name: Phase 1 — Secrets Scan
+        run: |
+          python3 << 'PYEOF'
+          import json, re, sys
+          from pathlib import Path
+
+          root = Path(".")
+          OUTDIR = Path("audit-results/findings")
+
+          SKIP_DIRS = {
+              ".git", "node_modules", "__pycache__", "venv", ".venv",
+              "dist", "build", "vendor", "audit-results", ".terraform",
+              ".serverless", ".next", "coverage"
+          }
+          SKIP_EXTS = {
+              ".png", ".jpg", ".jpeg", ".gif", ".ico", ".woff", ".woff2",
+              ".ttf", ".eot", ".pdf", ".zip", ".tar", ".gz", ".bz2",
+              ".7z", ".rar", ".exe", ".dll", ".so", ".dylib", ".bin",
+              ".class", ".pyc", ".map", ".lock"
+          }
+          MAX_FILE_BYTES = 800_000
+          MAX_LINE_LEN   = 2_000
+          MAX_FILES      = 50_000
+
+          PATTERNS = [
+              {"id": "aws-key",        "name": "AWS Access Key",            "sev": "CRITICAL",
+               "re": r"(?:AKIA|ASIA|ABIA|ACCA)[A-Z0-9]{16}"},
+              {"id": "aws-secret",     "name": "AWS Secret Key",            "sev": "CRITICAL",
+               "re": r"(?i)(?:aws.{0,20}(?:secret|access).{0,20})[\x27\x22][0-9a-zA-Z/+]{40}[\x27\x22]"},
+              {"id": "github-pat",     "name": "GitHub PAT",                "sev": "HIGH",
+               "re": r"ghp_[0-9a-zA-Z]{36}"},
+              {"id": "github-pat-fg",  "name": "GitHub Fine-Grained PAT",   "sev": "HIGH",
+               "re": r"github_pat_[A-Za-z0-9_]{82}"},
+              {"id": "github-app",     "name": "GitHub App Token",          "sev": "HIGH",
+               "re": r"(?:ghs|ghr|gho)_[0-9a-zA-Z]{36}"},
+              {"id": "gitlab",         "name": "GitLab Token",              "sev": "HIGH",
+               "re": r"glpat-[0-9a-zA-Z_-]{20,}"},
+              {"id": "slack-token",    "name": "Slack Token",               "sev": "HIGH",
+               "re": r"xox[baprs]-[0-9a-zA-Z-]{10,}"},
+              {"id": "slack-webhook",  "name": "Slack Webhook",             "sev": "HIGH",
+               "re": r"https://hooks\.slack\.com/services/T[A-Z0-9]+/B[A-Z0-9]+/[A-Za-z0-9]+"},
+              {"id": "discord-webhook","name": "Discord Webhook",           "sev": "HIGH",
+               "re": r"https://discord(?:app)?\.com/api/webhooks/[0-9]+/[A-Za-z0-9_-]+"},
+              {"id": "private-key",    "name": "Private Key",               "sev": "CRITICAL",
+               "re": r"-----BEGIN\s?(?:RSA|OPENSSH|EC|DSA|PGP)?\s?PRIVATE KEY-----"},
+              {"id": "jwt",            "name": "JWT Token",                 "sev": "HIGH",
+               "re": r"eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"},
+              {"id": "google-api",     "name": "Google API Key",            "sev": "HIGH",
+               "re": r"AIza[0-9A-Za-z_-]{35}"},
+              {"id": "stripe-live",    "name": "Stripe Live Key",           "sev": "CRITICAL",
+               "re": r"sk_live_[0-9a-zA-Z]{24,}"},
+              {"id": "npm-token",      "name": "npm Token",                 "sev": "HIGH",
+               "re": r"npm_[A-Za-z0-9_-]{30,}"},
+              {"id": "pypi-token",     "name": "PyPI Token",                "sev": "HIGH",
+               "re": r"pypi-[A-Za-z0-9_-]{30,}"},
+              {"id": "generic-secret", "name": "Generic Secret",            "sev": "MEDIUM",
+               "re": r"(?i)(?:secret|password|passwd|token|api.?key)\s*[:=]\s*[\x27\x22][^\x27\x22\s]{8,}[\x27\x22]"},
+              {"id": "conn-string",    "name": "Connection String",         "sev": "HIGH",
+               "re": r"(?:mongodb|postgresql|mysql|redis)://[^@\s]+@[^\s]+"},
+          ]
+
+          def redact(s, keep=4):
+              s = str(s).strip()
+              if len(s) <= keep * 2:
+                  return "*" * len(s)
+              return s[:keep] + "*" * (len(s) - keep * 2) + s[-keep:]
+
+          FALSE_POS = {
+              "example", "sample", "mock", "dummy", "test", "fixture",
+              "placeholder", "your_", "<your", "insert_", "replace_",
+              "todo", "xxxxxxxx", "00000000", "11111111", "aaaaaa"
+          }
+
+          compiled = []
+          for p in PATTERNS:
+              try:
+                  compiled.append((p, re.compile(p["re"])))
+              except re.error as e:
+                  print(f"WARN: bad regex {p['id']}: {e}", file=sys.stderr)
+
+          findings = []
+          seen = set()
+          file_count = 0
+
+          for fpath in root.rglob("*"):
+              if file_count >= MAX_FILES:
+                  break
+              if not fpath.is_file():
+                  continue
+              if any(part in SKIP_DIRS for part in fpath.parts):
+                  continue
+              if fpath.suffix.lower() in SKIP_EXTS:
+                  continue
+              try:
+                  with open(fpath, "r", errors="ignore") as f:
+                      content = f.read(MAX_FILE_BYTES)
+              except Exception:
+                  continue
+              file_count += 1
+              rel = str(fpath.relative_to(root))
+              for lineno, line in enumerate(content.splitlines(), 1):
+                  if len(line) > MAX_LINE_LEN:
+                      continue
+                  lower = line.lower()
+                  if any(fp in lower for fp in FALSE_POS):
+                      continue
+                  for p, pat in compiled:
+                      for m in pat.finditer(line):
+                          val = m.group()
+                          key = (p["id"], rel, lineno, redact(val))
+                          if key not in seen:
+                              seen.add(key)
+                              findings.append({
+                                  "id":          p["id"],
+                                  "name":        p["name"],
+                                  "severity":    p["sev"],
+                                  "file":        rel,
+                                  "line":        lineno,
+                                  "match":       redact(val),
+                                  "description": p["name"]
+                              })
+
+          with open(OUTDIR / "secrets.json", "w", encoding="utf-8") as f:
+              json.dump(findings, f, indent=2, ensure_ascii=False)
+          print(f"Phase 1 complete: {len(findings)} secrets in {file_count} files", flush=True)
+          PYEOF
+
+      # ─────────────────────────────────────────────
+      # PHASE 2 — Sensitive Files Scanner
+      # ─────────────────────────────────────────────
+      - name: Phase 2 — Sensitive Files Scan
+        run: |
+          python3 << 'PYEOF'
+          import json, re, sys
+          from pathlib import Path
+
+          root = Path(".")
+          OUTDIR = Path("audit-results/findings")
+
+          SKIP_DIRS = {
+              ".git", "node_modules", "__pycache__", "venv", ".venv",
+              "dist", "build", "vendor", "audit-results", ".terraform"
+          }
+
+          HIGH_PATTERNS = [
+              r"(^|[/\\])\.env(\.[^./\\]+)?$",
+              r"(^|[/\\])(credentials?\.json|service.account\.json)$",
+              r"(^|[/\\])(id_rsa|id_dsa|id_ecdsa|id_ed25519)$",
+              r"(^|[/\\])\.aws[/\\](credentials|config)$",
+              r"(^|[/\\])\.kube[/\\]config$",
+              r"(^|[/\\])kubeconfig$",
+              r"(^|[/\\])terraform\.tfstate$",
+              r"\.tfstate$",
+              r"\.(pem|key|p12|pfx|jks|crt|cer|cert)$",
+              r"(^|[/\\])(\.netrc|\.git-credentials)$",
+              r"(^|[/\\])\.ssh[/\\]authorized_keys$",
+              r"(^|[/\\])\.htpasswd$",
+          ]
+
+          INFO_PATTERNS = [
+              r"(package-lock\.json|yarn\.lock|Pipfile\.lock|Gemfile\.lock|Cargo\.lock)$",
+              r"(Dockerfile|docker-compose\.ya?ml)$",
+              r"\.(tfvars)$",
+          ]
+
+          compiled_h = [(re.compile(p, re.I), "HIGH")   for p in HIGH_PATTERNS]
+          compiled_i = [(re.compile(p, re.I), "INFO")   for p in INFO_PATTERNS]
+          all_compiled = compiled_h + compiled_i
+
+          findings = []
+          seen = set()
+
+          for fpath in root.rglob("*"):
+              if not fpath.is_file():
+                  continue
+              if any(part in SKIP_DIRS for part in fpath.parts):
+                  continue
+              rel = str(fpath.relative_to(root))
+              for pat, sev in all_compiled:
+                  if pat.search(rel):
+                      key = ("sensitive-file", rel)
+                      if key not in seen:
+                          seen.add(key)
+                          findings.append({
+                              "id":          "sensitive-file",
+                              "name":        "Sensitive File",
+                              "severity":    sev,
+                              "file":        rel,
+                              "line":        1,
+                              "match":       "",
+                              "description": f"Sensitive file pattern match"
+                          })
+                      break
+
+          with open(OUTDIR / "sensitive.json", "w", encoding="utf-8") as f:
+              json.dump(findings, f, indent=2)
+          print(f"Phase 2 complete: {len(findings)} sensitive files", flush=True)
+          PYEOF
+
+      # ─────────────────────────────────────────────
+      # PHASE 3 — Git History Scanner
+      # ─────────────────────────────────────────────
+      - name: Phase 3 — Git History Scan
+        run: |
+          python3 << 'PYEOF'
+          import json, subprocess, re, sys, os
+          from pathlib import Path
+
+          OUTDIR = Path("audit-results/findings")
+          MAX_COMMITS   = int(os.environ.get("MAX_COMMITS", "300"))
+          MAX_DIFF_BYTES = 200_000
+
+          def redact(s, keep=4):
+              s = str(s).strip()
+              if len(s) <= keep * 2:
+                  return "*" * len(s)
+              return s[:keep] + "*" * (len(s) - keep * 2) + s[-keep:]
+
+          SECRET_PATS = [
+              re.compile(r"(?:AKIA|ASIA)[A-Z0-9]{16}"),
+              re.compile(r"ghp_[0-9a-zA-Z]{36}"),
+              re.compile(r"github_pat_[A-Za-z0-9_]{82}"),
+              re.compile(r"glpat-[0-9a-zA-Z_-]{20,}"),
+              re.compile(r"xox[baprs]-[0-9a-zA-Z-]{10,}"),
+              re.compile(r"-----BEGIN\s?(?:RSA|OPENSSH|EC|DSA)?\s?PRIVATE KEY-----"),
+              re.compile(r"AIza[0-9A-Za-z_-]{35}"),
+              re.compile(r"sk_live_[0-9a-zA-Z]{24,}"),
+          ]
+
+          findings = []
+          seen = set()
+
+          try:
+              res = subprocess.run(
+                  ["git", "log", "--oneline", f"--max-count={MAX_COMMITS}"],
+                  capture_output=True, text=True, timeout=30
+              )
+              if res.returncode != 0:
+                  raise RuntimeError(res.stderr.strip())
+              commits = [ln.split()[0] for ln in res.stdout.strip().splitlines() if ln.strip()]
+          except Exception as e:
+              print(f"WARN: git log failed: {type(e).__name__}", file=sys.stderr)
+              commits = []
+
+          for commit in commits:
+              try:
+                  diff = subprocess.run(
+                      ["git", "show", commit, "--format=", "--diff-filter=A", "-U0"],
+                      capture_output=True, text=True, timeout=10
+                  ).stdout[:MAX_DIFF_BYTES]
+              except subprocess.TimeoutExpired:
+                  print(f"WARN: timeout on commit {commit}", file=sys.stderr)
+                  continue
+              except Exception:
+                  continue
+
+              for lineno, line in enumerate(diff.splitlines(), 1):
+                  if len(line) > 2000:
+                      continue
+                  if not line.startswith("+"):
+                      continue
+                  for pat in SECRET_PATS:
+                      for m in pat.finditer(line):
+                          val = m.group()
+                          key = ("git-secret", commit[:10], redact(val))
+                          if key not in seen:
+                              seen.add(key)
+                              findings.append({
+                                  "id":          "git-secret",
+                                  "name":        "Secret in Git History",
+                                  "severity":    "CRITICAL",
+                                  "file":        f"git:{commit[:10]}",
+                                  "line":        lineno,
+                                  "match":       redact(val),
+                                  "description": "Historical secret exposure in git commit"
+                              })
+
+          with open(OUTDIR / "git-secrets.json", "w", encoding="utf-8") as f:
+              json.dump(findings, f, indent=2)
+          print(f"Phase 3 complete: {len(findings)} git history secrets", flush=True)
+          PYEOF
+
+      # ─────────────────────────────────────────────
+      # PHASE 4 — GitHub Actions Security Scan
+      # ─────────────────────────────────────────────
+      - name: Phase 4 — GitHub Actions Security Scan
+        run: |
+          python3 << 'PYEOF'
+          import json, re, sys
+          from pathlib import Path
+
+          OUTDIR  = Path("audit-results/findings")
+          WF_DIR  = Path(".github/workflows")
+          findings = []
+
+          if not WF_DIR.is_dir():
+              with open(OUTDIR / "workflows.json", "w") as f:
+                  json.dump([], f)
+              print("Phase 4 complete: no .github/workflows directory", flush=True)
+              raise SystemExit(0)
+
+          CHECKS = [
+              ("pr-target",       re.compile(r"pull_request_target", re.I),
+               "HIGH",
+               "pull_request_target with write permissions allows malicious PRs to steal secrets"),
+              ("secrets-inherit",  re.compile(r"secrets:\s*inherit", re.I),
+               "HIGH",
+               "secrets: inherit exposes ALL secrets to called reusable workflows"),
+              ("write-all",        re.compile(r"permissions:\s*write-all", re.I),
+               "HIGH",
+               "write-all grants the highest possible GITHUB_TOKEN permissions"),
+              ("contents-write",   re.compile(r"contents:\s*write", re.I),
+               "MEDIUM",
+               "contents: write allows pushing commits and modifying repository content"),
+              ("actions-write",    re.compile(r"actions:\s*write", re.I),
+               "MEDIUM",
+               "actions: write allows modifying workflow files"),
+              ("id-token-write",   re.compile(r"id-token:\s*write", re.I),
+               "MEDIUM",
+               "id-token: write enables OIDC cloud credential requests"),
+              ("persist-creds",    re.compile(r"persist-credentials:\s*true", re.I),
+               "MEDIUM",
+               "persist-credentials: true leaves git credentials on disk after checkout"),
+              ("self-hosted",      re.compile(r"self-hosted", re.I),
+               "MEDIUM",
+               "Self-hosted runners can be compromised by malicious workflow code"),
+              ("curl-bash",        re.compile(r"curl\s.+\|\s*(?:sudo\s+)?(?:ba)?sh", re.I),
+               "CRITICAL",
+               "curl | bash executes arbitrary remote code without verification"),
+              ("wget-sh",          re.compile(r"wget\s.+\|\s*(?:sudo\s+)?(?:ba)?sh", re.I),
+               "CRITICAL",
+               "wget | sh executes arbitrary remote code without verification"),
+          ]
+
+          UNPINNED_RE = re.compile(
+              r"uses:\s*([a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+)"
+              r"@(main|master|latest|develop|HEAD|v\d+[^\s#]*)",
+              re.I
+          )
+          SHA_PIN_RE = re.compile(r"uses:\s*[^@]+@[0-9a-f]{40}", re.I)
+
+          seen = set()
+
+          wf_files = sorted(WF_DIR.rglob("*.yml")) + sorted(WF_DIR.rglob("*.yaml"))
+          for wf in wf_files:
+              try:
+                  content = wf.read_text(errors="ignore")
+                  rel = str(wf)
+              except Exception:
+                  continue
+
+              for lineno, line in enumerate(content.splitlines(), 1):
+                  stripped = line.strip()
+
+                  for check_id, pat, sev, desc in CHECKS:
+                      if pat.search(line):
+                          key = (check_id, rel, lineno)
+                          if key not in seen:
+                              seen.add(key)
+                              findings.append({
+                                  "id":          check_id,
+                                  "name":        check_id.replace("-", " ").title(),
+                                  "severity":    sev,
+                                  "file":        rel,
+                                  "line":        lineno,
+                                  "match":       stripped[:120],
+                                  "description": desc
+                              })
+
+                  m = UNPINNED_RE.search(line)
+                  if m and not SHA_PIN_RE.search(line):
+                      key = ("unpinned-action", rel, lineno)
+                      if key not in seen:
+                          seen.add(key)
+                          findings.append({
+                              "id":          "unpinned-action",
+                              "name":        "Unpinned GitHub Action",
+                              "severity":    "MEDIUM",
+                              "file":        rel,
+                              "line":        lineno,
+                              "match":       stripped[:120],
+                              "description": (
+                                  f"Action '{m.group(1)}' uses floating ref "
+                                  f"'@{m.group(2)}' instead of a pinned SHA"
+                              )
+                          })
+
+          with open(OUTDIR / "workflows.json", "w", encoding="utf-8") as f:
+              json.dump(findings, f, indent=2)
+          print(f"Phase 4 complete: {len(findings)} workflow findings", flush=True)
+          PYEOF
+
+      # ─────────────────────────────────────────────
+      # PHASE 5 — Merge & Deduplicate
+      # ─────────────────────────────────────────────
+      - name: Phase 5 — Merge and Deduplicate
+        run: |
+          python3 << 'PYEOF'
+          import json, sys
+          from pathlib import Path
+
+          OUTDIR = Path("audit-results/findings")
+          files  = ["secrets.json", "sensitive.json", "git-secrets.json", "workflows.json"]
+
+          all_findings = []
+          seen = set()
+
+          for fname in files:
+              fpath = OUTDIR / fname
+              if not fpath.exists() or fpath.stat().st_size == 0:
+                  print(f"WARN: {fname} missing or empty — skipping", file=sys.stderr)
+                  continue
+              try:
+                  data = json.loads(fpath.read_text(encoding="utf-8"))
+                  if not isinstance(data, list):
+                      continue
+                  for item in data:
+                      # Deduplicate by (id, file, line, match)
+                      key = (
+                          item.get("id", ""),
+                          item.get("file", ""),
+                          str(item.get("line", "")),
+                          item.get("match", "")
+                      )
+                      if key not in seen:
+                          seen.add(key)
+                          all_findings.append(item)
+              except Exception as e:
+                  print(f"WARN: error in {fname}: {type(e).__name__}", file=sys.stderr)
+
+          with open(OUTDIR / "findings.json", "w", encoding="utf-8") as f:
+              json.dump(all_findings, f, indent=2, ensure_ascii=False)
+          print(f"Phase 5 complete: {len(all_findings)} unique findings", flush=True)
+          PYEOF
+
+      # ─────────────────────────────────────────────
+      # PHASE 6a — Markdown Report
+      # ─────────────────────────────────────────────
+      - name: Phase 6a — Markdown Report
+        run: |
+          python3 << 'PYEOF'
+          import json, sys
+          from pathlib import Path
+          from datetime import datetime, timezone
+
+          OUTDIR_F = Path("audit-results/findings")
+          OUTDIR_R = Path("audit-results/reports")
+          OUTDIR_R.mkdir(parents=True, exist_ok=True)
+
+          fp = OUTDIR_F / "findings.json"
+          findings = json.loads(fp.read_text(encoding="utf-8")) if fp.exists() and fp.stat().st_size > 0 else []
+
+          def sev_rank(s):
+              return {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3, "INFO": 4}.get(s, 5)
+
+          findings.sort(key=lambda x: sev_rank(x.get("severity", "")))
+
+          counts = {s: sum(1 for f in findings if f.get("severity", "").upper() == s)
+                    for s in ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]}
+
+          now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+          lines = [
+              "# Security Audit Report",
+              "",
+              f"**Generated:** {now}  ",
+              f"**Total Findings:** {len(findings)}",
+              "",
+              "## Severity Summary",
+              "",
+              "| Severity | Count |",
+              "|----------|------:|",
+          ]
+          for sev in ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]:
+              lines.append(f"| {sev} | {counts[sev]} |")
+          lines += [
+              "",
+              "## Findings",
+              "",
+              "| # | Severity | ID | File | Line | Description |",
+              "|---|----------|----|------|-----:|-------------|",
+          ]
+          for i, f in enumerate(findings[:100], 1):
+              lines.append(
+                  f"| {i} | {f.get('severity','')} "
+                  f"| {f.get('id','')} "
+                  f"| `{f.get('file','')}` "
+                  f"| {f.get('line','')} "
+                  f"| {f.get('description','')} |"
+              )
+          if len(findings) > 100:
+              lines.append(f"| ... | ... | ... | ... | ... | *{len(findings)-100} more* |")
+
+          (OUTDIR_R / "report.md").write_text("\n".join(lines), encoding="utf-8")
+          print(f"Phase 6a complete: report.md ({len(findings)} findings)", flush=True)
+          PYEOF
+
+      # ─────────────────────────────────────────────
+      # PHASE 6b — HTML Report
+      # ─────────────────────────────────────────────
+      - name: Phase 6b — HTML Report
+        run: |
+          python3 << 'PYEOF'
+          import json, html as html_lib, sys
+          from pathlib import Path
+          from datetime import datetime, timezone
+
+          OUTDIR_F = Path("audit-results/findings")
+          OUTDIR_R = Path("audit-results/reports")
+
+          fp = OUTDIR_F / "findings.json"
+          findings = json.loads(fp.read_text(encoding="utf-8")) if fp.exists() and fp.stat().st_size > 0 else []
+
+          SEV_COLORS = {
+              "CRITICAL": "#e74c3c", "HIGH": "#e67e22",
+              "MEDIUM": "#f1c40f",   "LOW": "#3498db", "INFO": "#95a5a6"
+          }
+
+          def sev_rank(s):
+              return {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3, "INFO": 4}.get(s, 5)
+
+          findings.sort(key=lambda x: sev_rank(x.get("severity", "")))
+          counts = {s: sum(1 for f in findings if f.get("severity", "").upper() == s)
+                    for s in ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]}
+          now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+          he = html_lib.escape
+
+          rows = []
+          for i, f in enumerate(findings, 1):
+              sev   = f.get("severity", "")
+              color = SEV_COLORS.get(sev, "#95a5a6")
+              rows.append(
+                  f'<tr><td>{i}</td>'
+                  f'<td><span style="color:{color};font-weight:bold">{he(sev)}</span></td>'
+                  f'<td>{he(f.get("id",""))}</td>'
+                  f'<td><code>{he(f.get("file",""))}</code></td>'
+                  f'<td>{he(str(f.get("line","")))}</td>'
+                  f'<td><code>{he(f.get("match",""))}</code></td>'
+                  f'<td>{he(f.get("description",""))}</td></tr>'
+              )
+
+          card_html = "".join(
+              f'<div class="card"><div class="n" style="color:{SEV_COLORS[s]}">'
+              f'{counts[s]}</div><div class="l">{s}</div></div>'
+              for s in ["CRITICAL", "HIGH", "MEDIUM", "LOW"]
+          )
+
+          html_content = (
+              '<!DOCTYPE html>\n<html lang="en">\n<head>'
+              '<meta charset="UTF-8">'
+              '<meta name="viewport" content="width=device-width,initial-scale=1">'
+              '<title>Security Audit Report</title>'
+              '<style>'
+              'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;'
+              'background:#0d1117;color:#c9d1d9;padding:20px;margin:0}'
+              'h1{color:#58a6ff;border-bottom:1px solid #30363d;padding-bottom:10px}'
+              'h2{color:#58a6ff;margin-top:30px}'
+              'table{border-collapse:collapse;width:100%;margin:15px 0}'
+              'th,td{padding:8px 12px;border:1px solid #30363d;text-align:left;font-size:13px}'
+              'th{background:#161b22;color:#58a6ff}'
+              'tr:hover{background:#1c2128}'
+              'code{background:#1c2128;padding:2px 6px;border-radius:3px;'
+              'font-size:12px;word-break:break-all}'
+              '.warn{background:#3d2b1f;border:1px solid #f0883e;border-radius:6px;'
+              'padding:12px;color:#f0883e;margin:16px 0}'
+              '.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));'
+              'gap:12px;margin:20px 0}'
+              '.card{background:#161b22;border:1px solid #30363d;border-radius:8px;'
+              'padding:16px;text-align:center}'
+              '.card .n{font-size:2em;font-weight:bold}'
+              '.card .l{font-size:.85em;color:#8b949e;margin-top:4px}'
+              '</style></head><body>'
+              '<h1>Security Audit Report</h1>'
+              '<div class="warn">This report may contain redacted sensitive data. '
+              'Do not share publicly or commit to version control.</div>'
+              f'<p><strong>Generated:</strong> {he(now)}</p>'
+              f'<p><strong>Total Findings:</strong> {len(findings)}</p>'
+              f'<div class="cards">{card_html}</div>'
+              '<h2>All Findings</h2>'
+              '<table><thead><tr>'
+              '<th>#</th><th>Severity</th><th>ID</th>'
+              '<th>File</th><th>Line</th><th>Match (redacted)</th><th>Description</th>'
+              '</tr></thead><tbody>'
+              + "".join(rows) +
+              '</tbody></table></body></html>'
+          )
+
+          (OUTDIR_R / "report.html").write_text(html_content, encoding="utf-8")
+          print("Phase 6b complete: report.html written", flush=True)
+          PYEOF
+
+      # ─────────────────────────────────────────────
+      # PHASE 6c — SARIF Report
+      # ─────────────────────────────────────────────
+      - name: Phase 6c — SARIF Report
+        run: |
+          python3 << 'PYEOF'
+          import json, sys
+          from pathlib import Path
+          from datetime import datetime, timezone
+
+          OUTDIR_F = Path("audit-results/findings")
+          OUTDIR_R = Path("audit-results/reports")
+
+          fp = OUTDIR_F / "findings.json"
+          findings = json.loads(fp.read_text(encoding="utf-8")) if fp.exists() and fp.stat().st_size > 0 else []
+
+          SEV_MAP = {
+              "CRITICAL": "error",   "HIGH": "error",
+              "MEDIUM":   "warning", "LOW":  "note", "INFO": "none"
+          }
+          SEC_SCORE = {
+              "CRITICAL": "9.5", "HIGH": "7.5",
+              "MEDIUM": "5.0",   "LOW": "2.0", "INFO": "0.0"
+          }
+
+          rules   = {}
+          results = []
+
+          for f in findings:
+              rid = f.get("id", "unknown")
+              sev = f.get("severity", "LOW").upper()
+
+              if rid not in rules:
+                  rules[rid] = {
+                      "id":   rid,
+                      "name": f.get("name", rid),
+                      "shortDescription": {"text": f.get("description", rid)},
+                      "fullDescription":  {"text": f.get("description", rid)},
+                      "defaultConfiguration": {
+                          "level": SEV_MAP.get(sev, "warning")
+                      },
+                      "properties": {
+                          "tags":              ["security"],
+                          "security-severity": SEC_SCORE.get(sev, "5.0")
+                      }
+                  }
+
+              file_uri = f.get("file", "unknown")
+              if file_uri.startswith("git:"):
+                  file_uri = "unknown"
+              else:
+                  file_uri = file_uri.lstrip("./")
+              if not file_uri:
+                  file_uri = "unknown"
+
+              try:
+                  start_line = max(1, int(f.get("line") or 1))
+              except (TypeError, ValueError):
+                  start_line = 1
+
+              results.append({
+                  "ruleId":  rid,
+                  "level":   SEV_MAP.get(sev, "warning"),
+                  "message": {
+                      "text": f.get("description", "") +
+                              (" | redacted: " + f.get("match", "") if f.get("match") else "")
+                  },
+                  "locations": [{
+                      "physicalLocation": {
+                          "artifactLocation": {
+                              "uri":       file_uri,
+                              "uriBaseId": "%SRCROOT%"
+                          },
+                          "region": {"startLine": start_line}
+                      }
+                  }]
+              })
+
+          sarif = {
+              "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+              "version": "2.1.0",
+              "runs": [{
+                  "tool": {
+                      "driver": {
+                          "name":            "Security-Audit-Framework",
+                          "version":         "3.5",
+                          "informationUri":  "https://github.com/security-audit",
+                          "rules":           list(rules.values())
+                      }
+                  },
+                  "results": results,
+                  "invocations": [{
+                      "executionSuccessful": True,
+                      "startTimeUtc": datetime.now(timezone.utc).isoformat()
+                  }]
+              }]
+          }
+
+          (OUTDIR_R / "report.sarif").write_text(
+              json.dumps(sarif, indent=2, ensure_ascii=False), encoding="utf-8"
+          )
+          print(f"Phase 6c complete: report.sarif ({len(results)} results)", flush=True)
+          PYEOF
+
+      # ─────────────────────────────────────────────
+      # STEP — Checksums
+      # ─────────────────────────────────────────────
+      - name: Generate checksums
+        run: |
+          cd audit-results/reports
+          sha256sum report.md report.html report.sarif > checksums.txt 2>/dev/null || true
+          echo "Checksums:"
+          cat checksums.txt
+
+      # ─────────────────────────────────────────────
+      # STEP — Summary
+      # ─────────────────────────────────────────────
+      - name: Print audit summary
+        run: |
+          python3 << 'PYEOF'
+          import json
+          from pathlib import Path
+
+          fp = Path("audit-results/findings/findings.json")
+          if not fp.exists() or fp.stat().st_size == 0:
+              print("No findings.json found")
+              raise SystemExit(0)
+
+          findings = json.loads(fp.read_text(encoding="utf-8"))
+          counts = {}
+          for f in findings:
+              sev = f.get("severity","UNKNOWN").upper()
+              counts[sev] = counts.get(sev, 0) + 1
+
+          print("=" * 50)
+          print("SECURITY AUDIT COMPLETE")
+          print("=" * 50)
+          print(f"Total findings: {len(findings)}")
+          for sev in ["CRITICAL","HIGH","MEDIUM","LOW","INFO"]:
+              if counts.get(sev, 0) > 0:
+                  print(f"  {sev}: {counts[sev]}")
+          print("=" * 50)
+
+          if counts.get("CRITICAL", 0) > 0 or counts.get("HIGH", 0) > 0:
+              print("ACTION REQUIRED: Critical/High findings detected")
+          PYEOF
+
+      # ─────────────────────────────────────────────
+      # STEP — Upload Artifacts
+      # ─────────────────────────────────────────────
+      - name: Upload Audit Reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-audit-results
+          المسار : ./audit-results/
+          أيام الاحتفاظ : 30
+
+      # ─────────────────────────────────────────────
+      # الخطوة — تحميل ملف SARIF إلى علامة تبويب الأمان في GitHub
+      # ─────────────────────────────────────────────
+      - الاسم : تحميل ملف SARIF إلى GitHub Security
+        يستخدم : github/codeql-action/upload-sarif@v3
+        إذا : دائماً()
+        مع :
+          sarif_file : ./audit-results/reports/report.sarif
+          التصنيف : إطار عمل التدقيق الأمني
