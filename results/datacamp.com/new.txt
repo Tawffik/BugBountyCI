@@ -1,2 +1,1 @@
-cn.datacamp.com
-teach-browser.datacamp.com
+top100.datacamp.com

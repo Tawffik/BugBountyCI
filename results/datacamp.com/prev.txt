@@ -48,7 +48,6 @@ blog.datacamp.com
 blog.kong.datacamp.com
 blog.new.datacamp.com
 bokeh-server.datacamp.com
-bookmarks.datacamp.com
 boro.datacamp.com
 bounce.datacamp.com
 campaign-service.datacamp.com
@@ -182,12 +181,10 @@ grafana.collab-api.datacamp.com
 grafana.compliancy.datacamp.com
 grafana.ops.datacamp.com
 grc.it.datacamp.com
-grc2go.datacamp.com
 gsstm.datacamp.com
 h4.datacamp.com
 help.campus-api.datacamp.com
 help.compliancy.datacamp.com
-help.datacamp.com
 home-hub.datacamp.com
 home.datacamp.com
 home.it.datacamp.com
@@ -274,7 +271,6 @@ media.content-authorization.datacamp.com
 media.datacamp.com
 media.links.datacamp.com
 members.datacamp.com
-metamask.datacamp.com
 mfe-import-maps.datacamp.com
 mobile-api.datacamp.com
 mobile-api.new.datacamp.com
@@ -371,7 +367,6 @@ public.auth.datacamp.com
 public.compliancy.datacamp.com
 public.content-authorization.datacamp.com
 public.learn-hub-api.datacamp.com
-pup.datacamp.com
 purchase.datacamp.com
 pusher.datacamp.com
 resources.new.datacamp.com
@@ -388,7 +383,6 @@ secure.campus.datacamp.com
 secure.content-authorization.datacamp.com
 secure.datacamp.com
 secure.kong.datacamp.com
-server.datacamp.com
 sessions-eu-central-1.datacamp.com
 sessions-us-east-1.datacamp.com
 sessions.datacamp.com
@@ -455,7 +449,6 @@ support.datacamp.com
 support.gamification-api.datacamp.com
 system-check.datacamp.com
 tableau-api.datacamp.com
-teach-browser.datacamp.com
 teach.datacamp.com
 tech.datacamp.com
 test.campaign-service.datacamp.com
@@ -467,6 +460,7 @@ test.ops.datacamp.com
 testhelm.ops.datacamp.com
 timetracker.datacamp.com
 timetracker.new.datacamp.com
+top100.datacamp.com
 tracing-ops-us-east-1.ops.datacamp.com
 tracing.ops.datacamp.com
 track.campaign-service.datacamp.com
@@ -526,7 +520,6 @@ www.campus.datacamp.com
 www.collab-api.datacamp.com
 www.compliancy.datacamp.com
 www.datacamp.com
-www.dev.datacamp.com
 www.gsstm.datacamp.com
 www.links.datacamp.com
 www.multiplexer-paid.new.datacamp.com
@@ -536,7 +529,6 @@ www.projector.new.datacamp.com
 www.styleguide-assets.datacamp.com
 www.support.datacamp.com
 www2.datacamp.com
-www5d.datacamp.com
 wwww.datacamp.com
 xroads.datacamp.com
 z28rg4x8kh99-workspace-sessions.datacamp.com
