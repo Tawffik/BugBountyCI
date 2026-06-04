@@ -13,13 +13,11 @@ alpha.content-authorization.datacamp.com
 alpha.images.datacamp.com
 analytics.links.datacamp.com
 api.ai-tutor.datacamp.com
-api.datacamp.com
 app.datacamp.com
 app.links.datacamp.com
 artifactory-proxy-public.ops.datacamp.com
 artifactory-proxy.ops.datacamp.com
 assessment-api.datacamp.com
-assessment-api.new.datacamp.com
 assessment-v2.datacamp.com
 assets-azure.datacamp.com
 assets.auth.datacamp.com
@@ -262,7 +260,6 @@ mail1.careerhub-api.datacamp.com
 mail2.campus-api.datacamp.com
 mail2.compliancy.datacamp.com
 mail2.dcmfe.datacamp.com
-math.datacamp.com
 mb.datacamp.com
 mcp-docs.datacamp.com
 media.auth.datacamp.com
@@ -366,6 +363,7 @@ public.compliancy.datacamp.com
 public.content-authorization.datacamp.com
 public.learn-hub-api.datacamp.com
 purchase.datacamp.com
+quantinsti.datacamp.com
 resources.new.datacamp.com
 rstudio-server.datacamp.com
 s3.assets.datacamp.com
@@ -447,7 +445,6 @@ support.datacamp.com
 support.gamification-api.datacamp.com
 system-check.datacamp.com
 tableau-api.datacamp.com
-teach-browser.datacamp.com
 teach.datacamp.com
 tech.datacamp.com
 test.campaign-service.datacamp.com
@@ -469,7 +466,6 @@ track.pro.datacamp.com
 tracking-ads.datacamp.com
 trust.datacamp.com
 uc.datacamp.com
-um.datacamp.com
 uni.datacamp.com
 upload.content-authorization.datacamp.com
 upload.gamification-api.datacamp.com
@@ -523,7 +519,6 @@ www.gsstm.datacamp.com
 www.links.datacamp.com
 www.multiplexer-vinci.new.datacamp.com
 www.new.datacamp.com
-www.projector.new.datacamp.com
 www.styleguide-assets.datacamp.com
 www.support.datacamp.com
 www2.datacamp.com
