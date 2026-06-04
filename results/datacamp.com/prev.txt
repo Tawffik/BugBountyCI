@@ -444,6 +444,7 @@ support.datacamp.com
 support.gamification-api.datacamp.com
 system-check.datacamp.com
 tableau-api.datacamp.com
+teach-browser.datacamp.com
 teach.datacamp.com
 tech.datacamp.com
 test.campaign-service.datacamp.com
@@ -490,7 +491,6 @@ web.collab-api.datacamp.com
 web.links.datacamp.com
 webmail.careerhub-api.datacamp.com
 webmail.kong.datacamp.com
-wenku.datacamp.com
 wiki.campus-api.datacamp.com
 wiki.cdn.datacamp.com
 wiki.cms.datacamp.com
@@ -516,7 +516,6 @@ www.compliancy.datacamp.com
 www.datacamp.com
 www.gsstm.datacamp.com
 www.links.datacamp.com
-www.multiplexer-vinci.new.datacamp.com
 www.new.datacamp.com
 www.styleguide-assets.datacamp.com
 www.support.datacamp.com
