@@ -236,7 +236,6 @@ kubecost-prom-app-cluster.datacamp.com
 kubecost-prom-learn-multiplexer.datacamp.com
 kubecost-prom-ops-us-east-1.ops.datacamp.com
 kubernetes.kong.datacamp.com
-learn-api.datacamp.com
 learn-docker-proxy.datacamp.com
 learn-hub-api.datacamp.com
 learn-mux-cluster-proxy.datacamp.com
