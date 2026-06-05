@@ -1,8 +1,4 @@
-ac.datacamp.com
-acp.datacamp.com
-assessment-api.new.datacamp.com
-dd.datacamp.com
-host.datacamp.com
-people.datacamp.com
-univ.datacamp.com
-www.assets.datacamp.com
+cs.datacamp.com
+digilander.datacamp.com
+k4.datacamp.com
+regione.datacamp.com
