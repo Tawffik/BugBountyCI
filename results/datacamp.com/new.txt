@@ -1,1 +1,4 @@
-projects-api.new.datacamp.com
+forums.datacamp.com
+light.datacamp.com
+up.datacamp.com
+ww5.datacamp.com
