@@ -1,4 +1,1 @@
-cs.datacamp.com
-digilander.datacamp.com
-k4.datacamp.com
-regione.datacamp.com
+projects-api.new.datacamp.com
