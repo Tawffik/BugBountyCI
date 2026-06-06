@@ -29,6 +29,7 @@ assets.collab-api.datacamp.com
 assets.datacamp.com
 assets.images.datacamp.com
 ast-viewer.datacamp.com
+ast-viewer.new.datacamp.com
 auth.datacamp.com
 authoring.datacamp.com
 autoconfig.collab-api.datacamp.com
@@ -76,7 +77,6 @@ cloud.ai-api.datacamp.com
 cloud.cms.datacamp.com
 cloud.collab-api.datacamp.com
 cms.datacamp.com
-cn.datacamp.com
 collab-api.datacamp.com
 collab-cdn.datacamp.com
 collab-sessions-blue.datacamp.com
@@ -186,6 +186,7 @@ help.compliancy.datacamp.com
 home-hub.datacamp.com
 home.it.datacamp.com
 homepage2.datacamp.com
+homepage3.datacamp.com
 host.datacamp.com
 hub.auth.datacamp.com
 hub.compliancy.datacamp.com
@@ -228,6 +229,7 @@ kong-internal.datacamp.com
 kong-internal.new.datacamp.com
 kong.datacamp.com
 kong.new.datacamp.com
+ku1720.datacamp.com
 kubecost-app-cluster.datacamp.com
 kubecost-learn-multiplexer.datacamp.com
 kubecost-ops-us-east-1.ops.datacamp.com
@@ -242,6 +244,7 @@ learn.datacamp.com
 learner-hub-static.datacamp.com
 learnpython-ads.datacamp.com
 light.datacamp.com
+linkedin.datacamp.com
 links.datacamp.com
 live.careerhub-api.datacamp.com
 live.compliancy.datacamp.com
@@ -284,6 +287,7 @@ new.datacamp.com
 news.ai-tutor.datacamp.com
 news.auth.datacamp.com
 news.collab-api.datacamp.com
+news.datacamp.com
 news.links.datacamp.com
 next-marketing.datacamp.com
 notifications-api.datacamp.com
@@ -372,7 +376,6 @@ secure.app.datacamp.com
 secure.assets.datacamp.com
 secure.campus.datacamp.com
 secure.content-authorization.datacamp.com
-secure.datacamp.com
 secure.kong.datacamp.com
 sessions-eu-central-1.datacamp.com
 sessions-us-east-1.datacamp.com
@@ -458,6 +461,7 @@ track.collab-api.datacamp.com
 track.images.datacamp.com
 track.pro.datacamp.com
 tracking-ads.datacamp.com
+tribunale.datacamp.com
 trust.datacamp.com
 uc.datacamp.com
 univ.datacamp.com

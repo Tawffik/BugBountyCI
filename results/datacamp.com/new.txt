@@ -1,4 +1,6 @@
-forums.datacamp.com
-light.datacamp.com
-up.datacamp.com
-ww5.datacamp.com
+ast-viewer.new.datacamp.com
+homepage3.datacamp.com
+ku1720.datacamp.com
+linkedin.datacamp.com
+news.datacamp.com
+tribunale.datacamp.com
