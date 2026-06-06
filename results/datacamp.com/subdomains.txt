@@ -376,6 +376,7 @@ secure.app.datacamp.com
 secure.assets.datacamp.com
 secure.campus.datacamp.com
 secure.content-authorization.datacamp.com
+secure.datacamp.com
 secure.kong.datacamp.com
 sessions-eu-central-1.datacamp.com
 sessions-us-east-1.datacamp.com
@@ -407,6 +408,7 @@ sql.ai-tutor.datacamp.com
 sql.app.datacamp.com
 sql.compliancy.datacamp.com
 sql.links.datacamp.com
+ss.datacamp.com
 staging.collab-api.datacamp.com
 staging.datacamp.com
 staging.gsstm.datacamp.com

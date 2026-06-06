@@ -1,1 +1,2 @@
-teach-browser.datacamp.com
+secure.datacamp.com
+ss.datacamp.com
