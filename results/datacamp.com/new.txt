@@ -1,9 +1,5 @@
-concourse-eks-test.ops.datacamp.com
-en.datacamp.com
-games.datacamp.com
-grc2go.datacamp.com
-provincia.datacamp.com
-upsell-dialogs.datacamp.com
-webmail.datacamp.com
-www.styleguide-assets.datacamp.com
-www7b.datacamp.com
+mpk.datacamp.com
+projects-api.datacamp.com
+rfiddleapi.datacamp.com
+teach-browser.datacamp.com
+www.quantinsti.datacamp.com
