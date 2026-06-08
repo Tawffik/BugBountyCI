@@ -87,6 +87,7 @@ competitions-app.datacamp.com
 compliance.datacamp.com
 compliancy.datacamp.com
 comune.datacamp.com
+concourse-eks-test.ops.datacamp.com
 concourse.ops.datacamp.com
 concoursetest.ops.datacamp.com
 confluence.datacamp.com
@@ -139,6 +140,7 @@ edge.cms.datacamp.com
 edge.links.datacamp.com
 ekscluster.ops.datacamp.com
 em.datacamp.com
+en.datacamp.com
 engineering-portal.ops.datacamp.com
 enterprise-docs.datacamp.com
 enterprise.datacamp.com
@@ -164,6 +166,7 @@ forums.datacamp.com
 fr.datacamp.com
 ftp.auth.datacamp.com
 ftp.campus.datacamp.com
+games.datacamp.com
 gamification-api.datacamp.com
 gateway.gamification-api.datacamp.com
 gcp.careerhub-api.datacamp.com
@@ -188,6 +191,7 @@ grafana.collab-api.datacamp.com
 grafana.compliancy.datacamp.com
 grafana.ops.datacamp.com
 grc.it.datacamp.com
+grc2go.datacamp.com
 gsstm.datacamp.com
 h2.datacamp.com
 help.campus-api.datacamp.com
@@ -368,8 +372,8 @@ prometheus.content-authorization.datacamp.com
 prometheus.ops.datacamp.com
 promo.datacamp.com
 promo.new.datacamp.com
+provincia.datacamp.com
 pt.datacamp.com
-public-ingressgateway-learn-multiplexer.datacamp.com
 public-ingressgateway-ops.ops.datacamp.com
 public-ingressgateway-workspace-multiplexer.datacamp.com
 public-ingressgateway-workspace.datacamp.com
@@ -470,7 +474,6 @@ test.ops.datacamp.com
 testhelm.ops.datacamp.com
 timetracker.datacamp.com
 timetracker.new.datacamp.com
-top100.datacamp.com
 tracing-ops-us-east-1.ops.datacamp.com
 tracing.ops.datacamp.com
 track.campaign-service.datacamp.com
@@ -485,6 +488,7 @@ univ.datacamp.com
 up.datacamp.com
 upload.content-authorization.datacamp.com
 upload.gamification-api.datacamp.com
+upsell-dialogs.datacamp.com
 upsell.datacamp.com
 user.datacamp.com
 v1.app.datacamp.com
@@ -506,6 +510,7 @@ web.campus-api.datacamp.com
 web.collab-api.datacamp.com
 web.links.datacamp.com
 webmail.careerhub-api.datacamp.com
+webmail.datacamp.com
 webmail.kong.datacamp.com
 wenku.datacamp.com
 wiki.campus-api.datacamp.com
@@ -538,7 +543,9 @@ www.gsstm.datacamp.com
 www.links.datacamp.com
 www.multiplexer-paid.new.datacamp.com
 www.new.datacamp.com
+www.styleguide-assets.datacamp.com
 www2.datacamp.com
 www7a.datacamp.com
+www7b.datacamp.com
 wwww.datacamp.com
 z28rg4x8kh99-workspace-sessions.datacamp.com
