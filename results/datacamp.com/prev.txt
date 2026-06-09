@@ -1,3 +1,4 @@
+1www.datacamp.com
 22www.datacamp.com
 account.collab-api.datacamp.com
 admin.compliancy.datacamp.com
@@ -93,6 +94,7 @@ confluence.datacamp.com
 content-authorization.datacamp.com
 content-n8n-hosting.datacamp.com
 cs.datacamp.com
+cse.datacamp.com
 dashboard.datacamp.com
 dashboards-external.datacamp.com
 dashboards.datacamp.com
@@ -136,7 +138,6 @@ edge.cms.datacamp.com
 edge.links.datacamp.com
 ekscluster.ops.datacamp.com
 em.datacamp.com
-en.datacamp.com
 engineering-portal.ops.datacamp.com
 enterprise-docs.datacamp.com
 enterprise.datacamp.com
@@ -431,7 +432,6 @@ staging.datacamp.com
 staging.gsstm.datacamp.com
 staging.links.datacamp.com
 static.campus-api.datacamp.com
-static.datacamp.com
 static.images.datacamp.com
 static.new.datacamp.com
 stats.ai-tutor.datacamp.com
@@ -546,7 +546,6 @@ www.quantinsti.datacamp.com
 www.videos.datacamp.com
 www2.datacamp.com
 www2u.datacamp.com
-www7b.datacamp.com
 wwww.datacamp.com
 xroads.datacamp.com
 z28rg4x8kh99-workspace-sessions.datacamp.com

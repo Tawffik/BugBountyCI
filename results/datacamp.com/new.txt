@@ -1,5 +1,2 @@
-dd.datacamp.com
-feeds.datacamp.com
-ku1720.datacamp.com
-local.datacamp.com
-univ.datacamp.com
+1www.datacamp.com
+cse.datacamp.com
