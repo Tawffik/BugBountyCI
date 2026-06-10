@@ -1,2 +1,14 @@
-1www.datacamp.com
-cse.datacamp.com
+a.datacamp.com
+admin.datacamp.com
+bip.datacamp.com
+groups.datacamp.com
+informatik.datacamp.com
+k2.datacamp.com
+manager.datacamp.com
+maven.datacamp.com
+multiplexer-prod-einstein.datacamp.com
+people.datacamp.com
+u.datacamp.com
+www.linkedin.datacamp.com
+www.projector.new.datacamp.com
+www5f.datacamp.com
