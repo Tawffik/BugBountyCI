@@ -1,13 +1,4 @@
-h7.datacamp.com
-homepage1.datacamp.com
-info.datacamp.com
-inst.datacamp.com
-k3.datacamp.com
-linkedin.datacamp.com
-metamask.datacamp.com
-projector-video-pdf-converter.datacamp.com
-search.datacamp.com
-terraform-apply.datacamp.com
-webmail.datacamp.com
-www.campus.new.datacamp.com
-www5b.datacamp.com
+coding-exercise-api.datacamp.com
+coding-exercise-api.new.datacamp.com
+rconsole-backup.datacamp.com
+www.support.datacamp.com
