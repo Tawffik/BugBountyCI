@@ -1,4 +1,2 @@
-coding-exercise-api.datacamp.com
-coding-exercise-api.new.datacamp.com
-rconsole-backup.datacamp.com
-www.support.datacamp.com
+www.maintenance.datacamp.com
+www.multiplexer-vinci.new.datacamp.com

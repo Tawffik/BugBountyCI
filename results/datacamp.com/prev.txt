@@ -21,7 +21,6 @@ app.links.datacamp.com
 artifactory-proxy-public.ops.datacamp.com
 artifactory-proxy.ops.datacamp.com
 assessment-api.datacamp.com
-assessment-api.new.datacamp.com
 assessment-v2.datacamp.com
 assets-azure.datacamp.com
 assets.auth.datacamp.com
@@ -93,7 +92,6 @@ concoursetest.ops.datacamp.com
 confluence.datacamp.com
 content-authorization.datacamp.com
 content-n8n-hosting.datacamp.com
-cs.datacamp.com
 dashboard.datacamp.com
 dashboards-external.datacamp.com
 dashboards.datacamp.com
@@ -293,7 +291,6 @@ mx.home-hub.datacamp.com
 my-service-a.ops.datacamp.com
 my-service-b.ops.datacamp.com
 my-service.ops.datacamp.com
-my.datacamp.com
 my.learn-hub-api.datacamp.com
 netbox.ops.datacamp.com
 new.datacamp.com
@@ -375,9 +372,7 @@ public.content-authorization.datacamp.com
 public.learn-hub-api.datacamp.com
 purchase.datacamp.com
 rconsole-backup.datacamp.com
-rconsole.datacamp.com
 resources.new.datacamp.com
-resume.datacamp.com
 rootsweb.datacamp.com
 rstudio-server.datacamp.com
 s3.assets.datacamp.com
@@ -479,11 +474,9 @@ tracking-ads.datacamp.com
 trust.datacamp.com
 u.datacamp.com
 uc.datacamp.com
-uni.datacamp.com
 upload.content-authorization.datacamp.com
 upload.gamification-api.datacamp.com
 upsell.datacamp.com
-users.datacamp.com
 v1.app.datacamp.com
 v1.auth.datacamp.com
 v1.collab-api.datacamp.com
@@ -535,6 +528,8 @@ www.dev.datacamp.com
 www.gsstm.datacamp.com
 www.linkedin.datacamp.com
 www.links.datacamp.com
+www.maintenance.datacamp.com
+www.multiplexer-vinci.new.datacamp.com
 www.new.datacamp.com
 www.projector.new.datacamp.com
 www.support.datacamp.com
