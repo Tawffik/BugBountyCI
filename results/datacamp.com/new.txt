@@ -1,2 +1,9 @@
-www.maintenance.datacamp.com
-www.multiplexer-vinci.new.datacamp.com
+amatanet.datacamp.com
+com.datacamp.com
+cp.datacamp.com
+news.datacamp.com
+order.datacamp.com
+pay.datacamp.com
+regione.datacamp.com
+track.datacamp.com
+www4b.datacamp.com
