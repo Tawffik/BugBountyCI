@@ -1,12 +1,1 @@
-billing.datacamp.com
-class.datacamp.com
-excel-api.datacamp.com
-forum.datacamp.com
-homepage3.datacamp.com
-k4.datacamp.com
-k5.datacamp.com
-remote-desktop-guacamole.datacamp.com
-um.datacamp.com
-ww5.datacamp.com
-www2s.datacamp.com
-www5c.datacamp.com
+s.datacamp.com

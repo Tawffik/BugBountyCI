@@ -376,6 +376,7 @@ remote-desktop-guacamole.datacamp.com
 resources.new.datacamp.com
 rootsweb.datacamp.com
 rstudio-server.datacamp.com
+s.datacamp.com
 s3.assets.datacamp.com
 s3.collab-api.datacamp.com
 sandbox.auth.datacamp.com
