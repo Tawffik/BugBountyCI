@@ -1,1 +1,7 @@
-s.datacamp.com
+a.datacamp.com
+challenges-api.new.datacamp.com
+cn.datacamp.com
+public-ingressgateway-learn-multiplexer.datacamp.com
+top100.datacamp.com
+union.datacamp.com
+www5f.datacamp.com
