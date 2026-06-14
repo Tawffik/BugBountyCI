@@ -1,4 +1,6 @@
-en.datacamp.com
-maven.datacamp.com
-symposium.datacamp.com
-teach-browser.datacamp.com
+challenges-api.datacamp.com
+maintenance.datacamp.com
+multiplexer-prod-3.datacamp.com
+resume.datacamp.com
+www.multiplexer-paid-m5.new.datacamp.com
+www7a.datacamp.com
