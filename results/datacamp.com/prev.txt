@@ -136,6 +136,7 @@ edge.cms.datacamp.com
 edge.links.datacamp.com
 ekscluster.ops.datacamp.com
 em.datacamp.com
+en.datacamp.com
 engineering-portal.ops.datacamp.com
 enterprise-docs.datacamp.com
 enterprise.datacamp.com
@@ -189,7 +190,6 @@ help.campus-api.datacamp.com
 help.compliancy.datacamp.com
 home-hub.datacamp.com
 home.it.datacamp.com
-homepage1.datacamp.com
 homepage3.datacamp.com
 hub.auth.datacamp.com
 hub.compliancy.datacamp.com
@@ -202,7 +202,6 @@ images.datacamp.com
 images.learn-hub-api.datacamp.com
 images.links.datacamp.com
 img.links.datacamp.com
-info.datacamp.com
 infra-reporter.datacamp.com
 ingressgateway-datacamp-ops.ops.datacamp.com
 ingressgateway-ops-us-east-1.ops.datacamp.com
@@ -266,13 +265,13 @@ mail1.careerhub-api.datacamp.com
 mail2.campus-api.datacamp.com
 mail2.compliancy.datacamp.com
 mail2.dcmfe.datacamp.com
+maven.datacamp.com
 mb.datacamp.com
 mcp-docs.datacamp.com
 media.auth.datacamp.com
 media.content-authorization.datacamp.com
 media.datacamp.com
 media.links.datacamp.com
-metamask.datacamp.com
 mfe-import-maps.datacamp.com
 mobile-api.datacamp.com
 mobile-api.new.datacamp.com
@@ -348,7 +347,6 @@ prod.cms.datacamp.com
 prod.gsstm.datacamp.com
 prod.links.datacamp.com
 project-frontend.new.datacamp.com
-projector-video-pdf-converter.datacamp.com
 projector.datacamp.com
 projector.new.datacamp.com
 projects.datacamp.com
@@ -449,8 +447,10 @@ support.cms.datacamp.com
 support.collab-api.datacamp.com
 support.datacamp.com
 support.gamification-api.datacamp.com
+symposium.datacamp.com
 system-check.datacamp.com
 tableau-api.datacamp.com
+teach-browser.datacamp.com
 teach.datacamp.com
 tech.datacamp.com
 terraform-apply.datacamp.com
@@ -521,7 +521,6 @@ ww2.cdn.datacamp.com
 ww5.datacamp.com
 www.ai-tutor.datacamp.com
 www.campus.datacamp.com
-www.campus.new.datacamp.com
 www.collab-api.datacamp.com
 www.compliancy.datacamp.com
 www.datacamp.com
