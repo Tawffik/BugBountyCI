@@ -1,7 +1,6 @@
-comune.datacamp.com
-ff.datacamp.com
-h2.datacamp.com
-k3.datacamp.com
-multiplexer.datacamp.com
-my.datacamp.com
-u.datacamp.com
+games.datacamp.com
+music.datacamp.com
+nn.datacamp.com
+passport.datacamp.com
+web.datacamp.com
+www.blog.datacamp.com
