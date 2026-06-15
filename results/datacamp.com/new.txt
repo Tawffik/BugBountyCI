@@ -1,6 +1,0 @@
-games.datacamp.com
-music.datacamp.com
-nn.datacamp.com
-passport.datacamp.com
-web.datacamp.com
-www.blog.datacamp.com
