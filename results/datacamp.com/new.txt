@@ -1,7 +1,7 @@
-challenges-api.datacamp.com
-en.datacamp.com
-maintenance.datacamp.com
-multiplexer-prod-3.datacamp.com
-resume.datacamp.com
-www.multiplexer-paid-m5.new.datacamp.com
-www7a.datacamp.com
+concourse-eks-test.ops.datacamp.com
+engineering-portal-new.ops.datacamp.com
+kong-ingress-test.datacamp.com
+sitemap-frontend.datacamp.com
+strapi.datacamp.com
+teach-browser.datacamp.com
+vpn.it.datacamp.com
