@@ -460,6 +460,7 @@ support.gamification-api.datacamp.com
 symposium.datacamp.com
 system-check.datacamp.com
 tableau-api.datacamp.com
+teach-browser.datacamp.com
 teach.datacamp.com
 tech.datacamp.com
 terraform-apply.datacamp.com
