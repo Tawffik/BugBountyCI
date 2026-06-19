@@ -79,6 +79,7 @@ cloud.ai-api.datacamp.com
 cloud.cms.datacamp.com
 cloud.collab-api.datacamp.com
 cms.datacamp.com
+cn.datacamp.com
 coding-exercise-api.datacamp.com
 coding-exercise-api.new.datacamp.com
 collab-api.datacamp.com
@@ -94,7 +95,6 @@ concoursetest.ops.datacamp.com
 confluence.datacamp.com
 content-authorization.datacamp.com
 content-n8n-hosting.datacamp.com
-cp.datacamp.com
 dashboard.datacamp.com
 dashboards-external.datacamp.com
 dashboards.datacamp.com
@@ -268,6 +268,7 @@ mail2.campus-api.datacamp.com
 mail2.compliancy.datacamp.com
 mail2.dcmfe.datacamp.com
 maintenance.datacamp.com
+maven.datacamp.com
 mb.datacamp.com
 mcp-docs.datacamp.com
 media.auth.datacamp.com
@@ -298,7 +299,6 @@ new.datacamp.com
 news.ai-tutor.datacamp.com
 news.auth.datacamp.com
 news.collab-api.datacamp.com
-news.datacamp.com
 news.links.datacamp.com
 next-marketing.datacamp.com
 nn.datacamp.com
@@ -323,7 +323,6 @@ okta.datacamp.com
 old-waffles.datacamp.com
 onboarding.datacamp.com
 optima.datacamp.com
-order.datacamp.com
 origin.ai-tutor.datacamp.com
 origin.content-authorization.datacamp.com
 origin.links.datacamp.com
@@ -462,7 +461,6 @@ support.gamification-api.datacamp.com
 symposium.datacamp.com
 system-check.datacamp.com
 tableau-api.datacamp.com
-teach-browser.datacamp.com
 teach.datacamp.com
 tech.datacamp.com
 terraform-apply.datacamp.com
@@ -544,7 +542,6 @@ www.new.datacamp.com
 www.support.datacamp.com
 www2.datacamp.com
 www2s.datacamp.com
-www4b.datacamp.com
 www5b.datacamp.com
 www5c.datacamp.com
 www5f.datacamp.com
