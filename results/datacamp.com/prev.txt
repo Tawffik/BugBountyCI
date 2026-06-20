@@ -46,6 +46,7 @@ blog.compliancy.datacamp.com
 blog.datacamp.com
 blog.kong.datacamp.com
 blog.new.datacamp.com
+blogs.datacamp.com
 bokeh-server.datacamp.com
 boro.datacamp.com
 bounce.datacamp.com
@@ -65,7 +66,6 @@ certification-docs.datacamp.com
 certification.datacamp.com
 certification2022-docs.datacamp.com
 challenge-frontend.new.datacamp.com
-challenges-api.datacamp.com
 challenges-api.new.datacamp.com
 challenges.datacamp.com
 chat.assets.datacamp.com
@@ -135,7 +135,6 @@ edge.cms.datacamp.com
 edge.links.datacamp.com
 ekscluster.ops.datacamp.com
 em.datacamp.com
-en.datacamp.com
 engineering-portal.ops.datacamp.com
 enterprise-docs.datacamp.com
 enterprise.datacamp.com
@@ -144,6 +143,7 @@ es.datacamp.com
 events.datacamp.com
 evt.optima.datacamp.com
 explorables.datacamp.com
+explorables.new.datacamp.com
 explore.datacamp.com
 external.ai-tutor.datacamp.com
 external.app.datacamp.com
@@ -328,7 +328,6 @@ owa.campus-api.datacamp.com
 owa.content-authorization.datacamp.com
 owa.gsstm.datacamp.com
 passport.datacamp.com
-pay.datacamp.com
 pieter.ops.datacamp.com
 poc-next-marketing-app.datacamp.com
 pop.auth.datacamp.com
@@ -353,6 +352,8 @@ prod.links.datacamp.com
 project-frontend.new.datacamp.com
 projector.datacamp.com
 projector.new.datacamp.com
+projects-api.datacamp.com
+projects-api.new.datacamp.com
 projects.datacamp.com
 prometheus-aggregator.datacamp.com
 prometheus-aggregator.new.datacamp.com
@@ -372,11 +373,8 @@ public.compliancy.datacamp.com
 public.content-authorization.datacamp.com
 public.learn-hub-api.datacamp.com
 purchase.datacamp.com
-pusher.datacamp.com
-rconsole-backup.datacamp.com
 rconsole.datacamp.com
 resources.new.datacamp.com
-resume.datacamp.com
 rootsweb.datacamp.com
 rstudio-server.datacamp.com
 s.datacamp.com
@@ -455,9 +453,9 @@ support.cms.datacamp.com
 support.collab-api.datacamp.com
 support.datacamp.com
 support.gamification-api.datacamp.com
-symposium.datacamp.com
 system-check.datacamp.com
 tableau-api.datacamp.com
+teach-browser.datacamp.com
 teach.datacamp.com
 tech.datacamp.com
 terraform-apply.datacamp.com
@@ -538,6 +536,6 @@ www2.datacamp.com
 www2u.datacamp.com
 www5c.datacamp.com
 www5f.datacamp.com
-www7a.datacamp.com
+www7b.datacamp.com
 wwww.datacamp.com
 z28rg4x8kh99-workspace-sessions.datacamp.com
