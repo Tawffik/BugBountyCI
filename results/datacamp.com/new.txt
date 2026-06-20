@@ -1,4 +1,0 @@
-rconsole.datacamp.com
-rootsweb.datacamp.com
-teach-browser.datacamp.com
-www2u.datacamp.com
