@@ -219,7 +219,6 @@ intranet.datacamp.com
 jupyter-static.datacamp.com
 jupyterhub.datacamp.com
 k3.datacamp.com
-k5.datacamp.com
 k8s.ai-tutor.datacamp.com
 k8s.campus-api.datacamp.com
 k8s.links.datacamp.com
@@ -246,7 +245,6 @@ learn-mux-cluster-proxy.datacamp.com
 learn.datacamp.com
 learner-hub-static.datacamp.com
 learnpython-ads.datacamp.com
-linkedin.datacamp.com
 links.datacamp.com
 live.careerhub-api.datacamp.com
 live.compliancy.datacamp.com
@@ -271,7 +269,6 @@ media.auth.datacamp.com
 media.content-authorization.datacamp.com
 media.datacamp.com
 media.links.datacamp.com
-metamask.datacamp.com
 mfe-import-maps.datacamp.com
 mobile-api.datacamp.com
 mobile-api.new.datacamp.com
@@ -375,8 +372,10 @@ public.learn-hub-api.datacamp.com
 purchase.datacamp.com
 pusher.datacamp.com
 rconsole-backup.datacamp.com
+rconsole.datacamp.com
 resources.new.datacamp.com
 resume.datacamp.com
+rootsweb.datacamp.com
 rstudio-server.datacamp.com
 s.datacamp.com
 s3.assets.datacamp.com
@@ -458,6 +457,7 @@ support.gamification-api.datacamp.com
 symposium.datacamp.com
 system-check.datacamp.com
 tableau-api.datacamp.com
+teach-browser.datacamp.com
 teach.datacamp.com
 tech.datacamp.com
 terraform-apply.datacamp.com
@@ -525,7 +525,6 @@ workspace-sessions.datacamp.com
 workspace.datacamp.com
 ww1.dcmfe.datacamp.com
 ww2.cdn.datacamp.com
-ww5.datacamp.com
 www.ai-tutor.datacamp.com
 www.campus.datacamp.com
 www.campus.new.datacamp.com
@@ -538,6 +537,7 @@ www.multiplexer-paid-m5.new.datacamp.com
 www.new.datacamp.com
 www.support.datacamp.com
 www2.datacamp.com
+www2u.datacamp.com
 www5b.datacamp.com
 www5c.datacamp.com
 www5f.datacamp.com

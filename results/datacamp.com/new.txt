@@ -1,7 +1,4 @@
-comune.datacamp.com
-ff.datacamp.com
-h2.datacamp.com
-multiplexer.datacamp.com
-my.datacamp.com
-slack-global.datacamp.comslack-global.datacamp.com
-u.datacamp.com
+rconsole.datacamp.com
+rootsweb.datacamp.com
+teach-browser.datacamp.com
+www2u.datacamp.com
