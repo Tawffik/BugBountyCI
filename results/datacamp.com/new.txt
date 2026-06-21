@@ -1,1 +1,4 @@
-k2.datacamp.com
+admin.datacamp.com
+ast-viewer.new.datacamp.com
+excel-api.datacamp.com
+pp.datacamp.com
