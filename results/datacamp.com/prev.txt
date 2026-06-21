@@ -163,7 +163,6 @@ forum.learn-hub-api.datacamp.com
 fr.datacamp.com
 ftp.auth.datacamp.com
 ftp.campus.datacamp.com
-games.datacamp.com
 gamification-api.datacamp.com
 gateway.gamification-api.datacamp.com
 gcp.careerhub-api.datacamp.com
@@ -187,8 +186,10 @@ grafana.collab-api.datacamp.com
 grafana.compliancy.datacamp.com
 grafana.ops.datacamp.com
 grc.it.datacamp.com
+groups.datacamp.com
 gsstm.datacamp.com
 h2.datacamp.com
+h3.datacamp.com
 h6.datacamp.com
 h7.datacamp.com
 help.campus-api.datacamp.com
@@ -206,6 +207,7 @@ images.compliancy.datacamp.com
 images.datacamp.com
 images.learn-hub-api.datacamp.com
 images.links.datacamp.com
+imb.datacamp.com
 img.links.datacamp.com
 infra-reporter.datacamp.com
 ingressgateway-datacamp-ops.ops.datacamp.com
@@ -281,7 +283,6 @@ monitor.ai-api.datacamp.com
 multiplexer-paid.datacamp.com
 multiplexer-prod.datacamp.com
 multiplexer.datacamp.com
-music.datacamp.com
 mx.campus-api.datacamp.com
 mx.collab-api.datacamp.com
 mx.compliancy.datacamp.com
@@ -328,7 +329,6 @@ owa.auth.datacamp.com
 owa.campus-api.datacamp.com
 owa.content-authorization.datacamp.com
 owa.gsstm.datacamp.com
-passport.datacamp.com
 pieter.ops.datacamp.com
 poc-next-marketing-app.datacamp.com
 pop.auth.datacamp.com
@@ -457,6 +457,7 @@ support.datacamp.com
 support.gamification-api.datacamp.com
 system-check.datacamp.com
 tableau-api.datacamp.com
+teach-browser.datacamp.com
 teach.datacamp.com
 tech.datacamp.com
 terraform-apply.datacamp.com
@@ -529,6 +530,7 @@ www.collab-api.datacamp.com
 www.compliancy.datacamp.com
 www.datacamp.com
 www.gsstm.datacamp.com
+www.linkedin.datacamp.com
 www.links.datacamp.com
 www.new.datacamp.com
 www2.datacamp.com

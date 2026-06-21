@@ -1,4 +1,5 @@
-admin.datacamp.com
-ast-viewer.new.datacamp.com
-excel-api.datacamp.com
-pp.datacamp.com
+groups.datacamp.com
+h3.datacamp.com
+imb.datacamp.com
+teach-browser.datacamp.com
+www.linkedin.datacamp.com
