@@ -1,6 +1,1 @@
-blogs.datacamp.com
-explorables.new.datacamp.com
-projects-api.datacamp.com
-projects-api.new.datacamp.com
-teach-browser.datacamp.com
-www7b.datacamp.com
+k2.datacamp.com
