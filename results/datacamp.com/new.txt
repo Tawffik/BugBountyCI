@@ -1,7 +1,6 @@
-coding-exercise-api.new.datacamp.com
-corona88.datacamp.com
-multiplexer-prod-2.datacamp.com
-remote-desktop-guacamole.datacamp.com
-unsafe_user_id2217771learn.datacamp.com
-varnish.datacamp.com
-www.documents.datacamp.com
+content.datacamp.com
+e.datacamp.com
+infolab.datacamp.com
+informatik.datacamp.com
+secure.datacamp.com
+teach-browser.datacamp.com
