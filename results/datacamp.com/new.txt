@@ -1,6 +1,0 @@
-coding-exercise-api.datacamp.com
-coding-exercise-api.new.datacamp.com
-rconsole-backup.datacamp.com
-webmail.datacamp.com
-www.multiplexer-vinci.new.datacamp.com
-www.support.datacamp.com
