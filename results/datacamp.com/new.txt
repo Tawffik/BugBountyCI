@@ -1,14 +1,1 @@
-billing.datacamp.com
-class.datacamp.com
-coding-exercise-api.datacamp.com
-hh.datacamp.com
-home.datacamp.com
-homepage3.datacamp.com
-k4.datacamp.com
-k5.datacamp.com
-rconsole-backup.datacamp.com
-s.datacamp.com
-um.datacamp.com
-ww5.datacamp.com
-www.campus.new.datacamp.com
-www5c.datacamp.com
+teach-browser.datacamp.com
