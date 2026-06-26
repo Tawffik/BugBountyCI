@@ -1,0 +1,14 @@
+amatanet.datacamp.com
+homepage1.datacamp.com
+info.datacamp.com
+k4.datacamp.com
+k5.datacamp.com
+news.datacamp.com
+pay.datacamp.com
+remote-desktop-guacamole.datacamp.com
+rootsweb.datacamp.com
+search.datacamp.com
+symposium.datacamp.com
+teach-browser.datacamp.com
+web.datacamp.com
+ww5.datacamp.com
