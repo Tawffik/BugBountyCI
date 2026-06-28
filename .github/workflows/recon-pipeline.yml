@@ -52,8 +52,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/go/bin
-          key: go-tools-${{ runner.os }}-v2
-          restore-keys: go-tools-${{ runner.os }}-
+          key: go-tools-${{ runner.os }}-v3
+          restore-keys: go-tools-${{ runner.os }}-v3
 
       - name: Install Tools (if cache miss)
         if: steps.cache.outputs.cache-hit != 'true'
@@ -207,13 +207,17 @@ jobs:
           go-version: "1.22"
           cache: false
 
+      - name: Get Cache Week Key
+        id: date
+        run: echo "week=$(date +%Y-%V)" >> $GITHUB_OUTPUT
+
       # FIXED: Nuclei template cache
       - name: Restore Nuclei Templates
         uses: actions/cache@v4
         with:
           path: ~/.local/nuclei-templates
-          key: nuclei-templates-weekly-${{ github.run_id }}
-          restore-keys: nuclei-templates-weekly-
+          key: nuclei-templates-${{ runner.os }}-weekly-${{ steps.date.outputs.week }}
+          restore-keys: nuclei-templates-${{ runner.os }}-weekly-
 
       # FIXED: Go tools cache restored HERE
       - name: Restore Go Tool Cache
@@ -221,7 +225,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/go/bin
-          key: go-tools-${{ runner.os }}-v2
+          key: go-tools-${{ runner.os }}-v3
 
       - name: Install Nuclei (if cache miss)
         if: steps.cache.outputs.cache-hit != 'true'
