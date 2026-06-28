@@ -651,9 +651,12 @@ jobs:
             [ -z "$host" ] && continue
             for path in "${SWAGGER_PATHS[@]}"; do
               url="${host}${path}"
-              status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "$url" 2>/dev/null || echo "000")
-              if [ "$status" != "000" ] && [ "$status" != "404" ]; then
-                echo "[$status] $url" >> "${{ needs.setup.outputs.results_dir }}/swagger/swagger_endpoints.txt"
+              status=$(curl -sk -o /tmp/sw_body.txt -w "%{http_code}" --max-time 5 "$url" 2>/dev/null || echo "000")
+              if [ "$status" = "200" ]; then
+                sw_content=$(head -c 500 /tmp/sw_body.txt 2>/dev/null || echo "")
+                if echo "$sw_content" | grep -qiE '(swagger|openapi|"paths"|"info":|/swagger-ui)'; then
+                  echo "[$status] $url" >> "${{ needs.setup.outputs.results_dir }}/swagger/swagger_endpoints.txt"
+                fi
               fi
             done
           done < "$INPUT_FILE"
@@ -688,15 +691,22 @@ jobs:
             [ -z "$host" ] && continue
             for path in "${GRAPHQL_PATHS[@]}"; do
               url="${host}${path}"
-              status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "$url" 2>/dev/null || echo "000")
-              if [ "$status" != "000" ] && [ "$status" != "404" ]; then
-                echo "[$status] $url" >> "${{ needs.setup.outputs.results_dir }}/graphql/graphql_endpoints.txt"
+              status=$(curl -sk -o /tmp/gql_body.txt -w "%{http_code}" --max-time 5 "$url" 2>/dev/null || echo "000")
+              if [ "$status" = "200" ]; then
+                gql_content=$(head -c 500 /tmp/gql_body.txt 2>/dev/null || echo "")
+                if echo "$gql_content" | grep -qiE '(graphql|__schema|__typename|"data"|"errors")'; then
+                  echo "[$status] $url" >> "${{ needs.setup.outputs.results_dir }}/graphql/graphql_endpoints.txt"
+                fi
               fi
-              post_status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 \
+              post_status=$(curl -sk -o /tmp/gql_post.txt -w "%{http_code}" --max-time 5 \
                 -X POST -H "Content-Type: application/json" \
                 -d '{"query":"{__typename}"}' "$url" 2>/dev/null || echo "000")
-              if [ "$post_status" != "000" ] && [ "$post_status" != "404" ]; then
-                echo "[POST:$post_status] $url" >> "${{ needs.setup.outputs.results_dir }}/graphql/graphql_active.txt"
+              # GraphQL active = POST returns 200 AND response contains data/errors JSON
+              if [ "$post_status" = "200" ]; then
+                post_content=$(head -c 300 /tmp/gql_post.txt 2>/dev/null || echo "")
+                if echo "$post_content" | grep -qiE '("data"|"errors"|"__typename")'; then
+                  echo "[POST:$post_status] $url" >> "${{ needs.setup.outputs.results_dir }}/graphql/graphql_active.txt"
+                fi
               fi
             done
           done < "$INPUT_FILE"
@@ -749,9 +759,9 @@ jobs:
 
               url="${host}${path}"
 
-              status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 4 -L "$url" 2>/dev/null || echo "000")
+              status=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 4 -L "$url" 2>/dev/null || echo "000")
 
-              if [ "$status" != "000" ] && [ "$status" != "404" ]; then
+              if [ "$status" = "200" ] || [ "$status" = "301" ] || [ "$status" = "302" ]; then
                 echo "[$status] $url" >> "${{ needs.setup.outputs.results_dir }}/admin/admin_panels.txt"
               fi
 
@@ -922,10 +932,17 @@ jobs:
               acah=$(echo "$resp" | grep -i 'access-control-allow-headers' | head -1 | sed 's/.*://' | xargs || echo "N/A")
               acma=$(echo "$resp" | grep -i 'access-control-max-age' | head -1 | sed 's/.*://' | xargs || echo "N/A")
               vulnerable="NO"
-              if [ "$acao" = "*" ] || [ "$acao" = "$origin" ] || { [ "$acao" != "N/A" ] && [ "$acac" = "true" ]; }; then
-                vulnerable="YES - $origin"
-                echo "⚠️  CORS issue: $host with origin $origin => ACAO: $acao, ACAC: $acac" \
+              # Only flag when evil origin is reflected AND credentials are allowed
+              # ACAO=* alone is informational, not exploitable without ACAC=true
+              if { [ "$acao" = "$origin" ] && [ "$acac" = "true" ]; } || \
+                 { [ "$acao" = "null" ]   && [ "$acac" = "true" ]; }; then
+                vulnerable="CRITICAL"
+                echo "[CORS-CRITICAL] $host origin=$origin ACAO=$acao ACAC=$acac" \
                   >> "${{ needs.setup.outputs.results_dir }}/cors/cors_vulnerable.txt"
+              elif [ "$acao" = "$origin" ]; then
+                vulnerable="LOW-no-credentials"
+              elif [ "$acao" = "*" ]; then
+                vulnerable="INFO-wildcard"
               fi
               echo "\"$host\",\"$origin\",\"$acao\",\"$acac\",\"$acam\",\"$acah\",\"$acma\",\"$vulnerable\"" \
                 >> "${{ needs.setup.outputs.results_dir }}/cors/cors_results.csv"
@@ -972,10 +989,17 @@ jobs:
             [ -z "$host" ] && continue
             for path in "${SENSITIVE_PATHS[@]}"; do
               url="${host}${path}"
-              code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 4 -L "$url" 2>/dev/null || echo "000")
-              if [ "$code" != "000" ] && [ "$code" != "404" ]; then
-                size=$(curl -s -o /dev/null -w "%{size_download}" --max-time 4 -L "$url" 2>/dev/null || echo "0")
-                echo "[$code] [$size bytes] $url" >> "${{ needs.setup.outputs.results_dir }}/files/sensitive_files.txt"
+              resp=$(curl -sk -o /tmp/sf_body.txt \
+                -w "%{http_code}|%{size_download}" \
+                --max-time 6 -L "$url" 2>/dev/null || echo "000|0")
+              code=$(echo "$resp" | cut -d"|" -f1)
+              size=$(echo "$resp" | cut -d"|" -f2)
+              if [ "$code" = "200" ] && [ "${size:-0}" -gt 20 ] 2>/dev/null; then
+                snippet=$(head -c 300 /tmp/sf_body.txt 2>/dev/null || echo "")
+                if ! echo "$snippet" | grep -qiE "(<!DOCTYPE|<html|<head|<body)"; then
+                  echo "[$code][$size B] $url" \
+                    >> "${{ needs.setup.outputs.results_dir }}/files/sensitive_files.txt"
+                fi
               fi
             done
           done
