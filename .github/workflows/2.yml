@@ -1,4 +1,4 @@
-name: "🧨 Vulnerability Scanner"
+name: "Vulnerability Scanner"
 
 on:
   workflow_dispatch:
@@ -9,6 +9,8 @@ on:
       severity:
         description: 'Min Severity'
         default: 'medium'
+        type: choice
+        options: [critical, high, medium]
 
 permissions:
   contents: read
@@ -23,25 +25,28 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: '1.22'
+          cache: false
 
-      - name: "⚡ Cache"
+      - name: Cache Tools
         id: cache
         uses: actions/cache@v4
         with:
           path: |
             ~/go/bin
-            ~/nuclei-templates
-          key: ${{ runner.os }}-tools-v1
+            ~/.local/nuclei-templates
+          key: go-tools-${{ runner.os }}-v3
 
-      - name: Install
+      - name: Install Tools
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
           go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
           go install github.com/projectdiscovery/httpx/cmd/httpx@latest
           go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
           go install github.com/projectdiscovery/dnsx/cmd/dnsx@latest
-          echo "$HOME/go/bin" >> $GITHUB_PATH
-          nuclei -update-templates -silent
+          nuclei -update-templates -ud ~/.local/nuclei-templates -silent
+
+      - name: Update PATH
+        run: echo "$HOME/go/bin" >> $GITHUB_PATH
 
       - name: Setup
         run: |
@@ -50,43 +55,67 @@ jobs:
           mkdir -p /tmp/scan/$DOMAIN
 
       - name: Recon
-        run: |
-          subfinder -d ${{ env.DOMAIN }} -all -silent \
-            | dnsx -silent -a \
-            | httpx -silent -status-code -title -tech-detect \
-              -threads 100 -timeout 12 \
-              -o /tmp/scan/${{ env.DOMAIN }}/live.txt
-
-      - name: Nuclei Targeted
         continue-on-error: true
         run: |
-          awk '{print $1}' /tmp/scan/${{ env.DOMAIN }}/live.txt | \
-            nuclei \
-            -tags exposure,config,panel,debug,takeover,tech,cors \
-            -severity critical,high \
-            -rl 200 -c 40 -timeout 10 \
+          D="${{ env.DOMAIN }}"
+
+          subfinder -d $D -all -silent \
+            | dnsx -silent -a \
+            | httpx -silent \
+                -status-code -title -tech-detect \
+                -threads 100 -timeout 12 \
+                -json \
+                -o /tmp/scan/$D/live.json 2>/dev/null || true
+
+          # Extract clean URLs from JSON — not raw text
+          jq -r '.url' /tmp/scan/$D/live.json 2>/dev/null \
+            | sort -u > /tmp/scan/$D/live_urls.txt || true
+
+          echo "Live hosts: $(wc -l < /tmp/scan/$D/live_urls.txt)"
+
+      - name: Nuclei Scan
+        continue-on-error: true
+        run: |
+          D="${{ env.DOMAIN }}"
+          [ ! -s /tmp/scan/$D/live_urls.txt ] && echo "https://$D" > /tmp/scan/$D/live_urls.txt
+
+          nuclei \
+            -list /tmp/scan/$D/live_urls.txt \
+            -ud ~/.local/nuclei-templates \
+            -tags exposure,config,panel,debug,takeover,cors,disclosure,secret \
+            -severity critical,high,${{ github.event.inputs.severity }} \
+            -rl 30 -c 10 \
+            -timeout 10 -retries 1 \
             -silent -json \
-            -o /tmp/scan/${{ env.DOMAIN }}/findings.json
+            -o /tmp/scan/$D/findings.json 2>/dev/null || true
+
+          echo "Findings: $(wc -l < /tmp/scan/$D/findings.json)"
 
       - name: Discord Summary
+        if: always()
         env:
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
-          VULN=$(wc -l < /tmp/scan/${{ env.DOMAIN }}/findings.json 2>/dev/null || echo 0)
-          LIVE=$(wc -l < /tmp/scan/${{ env.DOMAIN }}/live.txt 2>/dev/null || echo 0)
+          D="${{ env.DOMAIN }}"
+          VULN=$(wc -l < /tmp/scan/$D/findings.json  2>/dev/null || echo 0)
+          LIVE=$(wc -l < /tmp/scan/$D/live_urls.txt  2>/dev/null || echo 0)
+
+          COLOR=5814783
+          [ "$VULN" -gt 0 ] && COLOR=15158332
 
           jq -n \
-            --arg d "${{ env.DOMAIN }}" \
-            --arg v "$VULN" \
-            --arg l "$LIVE" \
+            --arg d    "$D" \
+            --arg v    "$VULN" \
+            --arg l    "$LIVE" \
+            --argjson color "$COLOR" \
           '{
-            username: "🧨 VulnBot",
+            username: "VulnBot",
             embeds: [{
               title: ("Vuln Scan: " + $d),
-              color: 15158332,
+              color: $color,
               fields: [
-                {name:"✅ Live",    value:$l, inline:true},
-                {name:"🚨 Vulns",  value:$v, inline:true}
+                {name:"Live",     value:$l, inline:true},
+                {name:"Findings", value:$v, inline:true}
               ]
             }]
           }' | curl -s -X POST "$WEBHOOK" \
