@@ -1015,3 +1015,487 @@ jobs:
             ${{ needs.setup.outputs.results_dir }}/cors/
             ${{ needs.setup.outputs.results_dir }}/files/
           retention-days: 14
+
+  # ============================================================
+  # STAGE 8: AI-Powered Triage & Analysis
+  # ============================================================
+
+  ai_triage:
+    name: "🤖 AI Triage & Analysis"
+    needs: [setup, security_analysis]
+    runs-on: ubuntu-latest
+    if: ${{ always() && github.event.inputs.ai_analysis == 'true' }}
+    timeout-minutes: 20
+
+    steps:
+      - name: "📥 Download All Artifacts"
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "*-${{ env.TIMESTAMP }}"
+          merge-multiple: true
+          path: ${{ needs.setup.outputs.results_dir }}/
+        continue-on-error: true
+
+      - name: "📂 Create AI Output Directory"
+        run: mkdir -p "${{ needs.setup.outputs.results_dir }}/ai"
+
+      - name: "🤖 Claude AI Triage"
+        if: ${{ needs.setup.outputs.anthropic_key_set == 'true' && (github.event.inputs.ai_provider == 'anthropic' || github.event.inputs.ai_provider == 'both') }}
+        continue-on-error: true
+        run: |
+          TARGET="${{ needs.setup.outputs.target }}"
+          RD="${{ needs.setup.outputs.results_dir }}"
+
+          # Collect all findings into one context
+          NUCLEI=$(cat "$RD/nuclei/"*.json "$RD/nuclei/"*.txt 2>/dev/null \
+            | head -c 8000 || echo "No nuclei findings")
+
+          SENSITIVE=$(cat "$RD/files/sensitive_files.txt" 2>/dev/null \
+            | head -c 3000 || echo "No sensitive files found")
+
+          CORS=$(cat "$RD/cors/cors_vulnerable.txt" 2>/dev/null \
+            | head -c 2000 || echo "No CORS vulns")
+
+          JS_SECRETS=$(cat "$RD/js/"*secret* "$RD/js/"*key* 2>/dev/null \
+            | head -c 3000 || echo "No JS secrets")
+
+          SWAGGER=$(cat "$RD/swagger/swagger_endpoints.txt" 2>/dev/null \
+            | head -c 2000 || echo "No swagger endpoints")
+
+          GRAPHQL=$(cat "$RD/graphql/graphql_active.txt" 2>/dev/null \
+            | head -c 2000 || echo "No GraphQL endpoints")
+
+          ADMIN=$(cat "$RD/admin/admin_panels.txt" 2>/dev/null \
+            | head -c 2000 || echo "No admin panels")
+
+          LIVE=$(wc -l < "$RD/live/live_hosts.txt" 2>/dev/null || echo 0)
+          SUBS=$(wc -l < "$RD/subdomains/all_subdomains.txt" 2>/dev/null || echo 0)
+
+          # Build prompt
+          PROMPT="You are a senior bug bounty hunter and penetration tester analyzing scan results for: $TARGET
+
+SCAN RESULTS:
+=== Live Hosts: $LIVE | Subdomains: $SUBS ===
+
+=== NUCLEI FINDINGS ===
+$NUCLEI
+
+=== SENSITIVE FILES FOUND ===
+$SENSITIVE
+
+=== CORS VULNERABILITIES ===
+$CORS
+
+=== JS SECRETS/API KEYS ===
+$JS_SECRETS
+
+=== SWAGGER/API DOCS ===
+$SWAGGER
+
+=== GRAPHQL ENDPOINTS ===
+$GRAPHQL
+
+=== ADMIN PANELS ===
+$ADMIN
+
+TASK: Analyze these results and provide:
+
+1. TRIAGE (for each real finding):
+   - Severity: CRITICAL/HIGH/MEDIUM/LOW/INFO
+   - Confidence: HIGH/MEDIUM/LOW (is this a real vuln or FP?)
+   - Why it matters
+   - Quick verification step (exact curl command)
+
+2. TOP 3 PRIORITY TARGETS: What to attack first and why
+
+3. FALSE POSITIVE FILTER: Which findings are likely FP and why
+
+4. EXPLOITATION PATH: For each CRITICAL/HIGH finding, provide:
+   - Impact: What data/access can be gained
+   - PoC: Exact steps to verify exploitability
+   - Payload: Specific command/request
+
+5. MISSING CHECKS: What else should be tested based on tech stack discovered
+
+Format as structured markdown. Be specific, actionable, and concise."
+
+          # Call Claude API
+          python3 << PYEOF
+import json, urllib.request, os, sys
+
+api_key = "${{ secrets.ANTHROPIC_API_KEY }}"
+prompt = """$PROMPT"""
+
+data = json.dumps({
+    "model": "claude-opus-4-5",
+    "max_tokens": 4096,
+    "messages": [{"role": "user", "content": prompt}]
+}).encode()
+
+req = urllib.request.Request(
+    "https://api.anthropic.com/v1/messages",
+    data=data,
+    headers={
+        "x-api-key": api_key,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json"
+    },
+    method="POST"
+)
+
+try:
+    with urllib.request.urlopen(req, timeout=60) as r:
+        result = json.loads(r.read())
+        analysis = result["content"][0]["text"]
+        with open("$RD/ai/claude_triage.md", "w") as f:
+            f.write("# 🤖 Claude AI Triage Report\n")
+            f.write(f"**Target:** $TARGET\n")
+            f.write(f"**Model:** claude-opus-4-5\n\n")
+            f.write(analysis)
+        print("✅ Claude triage complete")
+        print(analysis[:500])
+except Exception as e:
+    print(f"❌ Claude API error: {e}", file=sys.stderr)
+    sys.exit(1)
+PYEOF
+
+      - name: "🤖 OpenRouter AI Triage (Fallback)"
+        if: ${{ needs.setup.outputs.openrouter_key_set == 'true' && (github.event.inputs.ai_provider == 'openrouter' || github.event.inputs.ai_provider == 'both') && needs.setup.outputs.anthropic_key_set != 'true' }}
+        continue-on-error: true
+        run: |
+          TARGET="${{ needs.setup.outputs.target }}"
+          RD="${{ needs.setup.outputs.results_dir }}"
+
+          NUCLEI=$(cat "$RD/nuclei/"*.json "$RD/nuclei/"*.txt 2>/dev/null | head -c 8000 || echo "No findings")
+          SENSITIVE=$(cat "$RD/files/sensitive_files.txt" 2>/dev/null | head -c 3000 || echo "None")
+          CORS=$(cat "$RD/cors/cors_vulnerable.txt" 2>/dev/null | head -c 2000 || echo "None")
+          JS_SECRETS=$(cat "$RD/js/"*secret* 2>/dev/null | head -c 3000 || echo "None")
+
+          python3 << PYEOF
+import json, urllib.request, sys
+
+api_key = "${{ secrets.OPENROUTER_API_KEY }}"
+
+prompt = f"""You are a senior bug bounty hunter analyzing results for: $TARGET
+
+NUCLEI: {"""$NUCLEI"""[:4000]}
+SENSITIVE FILES: {"""$SENSITIVE"""[:2000]}
+CORS VULNS: {"""$CORS"""[:1000]}
+JS SECRETS: {"""$JS_SECRETS"""[:2000]}
+
+Analyze and provide:
+1. Real vulnerabilities vs false positives
+2. Top 3 findings to report
+3. Exact PoC for each critical/high finding
+4. Verification curl commands
+Format as markdown."""
+
+data = json.dumps({
+    "model": "anthropic/claude-opus-4-5",
+    "max_tokens": 4096,
+    "messages": [{"role": "user", "content": prompt}]
+}).encode()
+
+req = urllib.request.Request(
+    "https://openrouter.ai/api/v1/chat/completions",
+    data=data,
+    headers={
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://github.com/${{ github.repository }}",
+        "X-Title": "BugBountyCI"
+    },
+    method="POST"
+)
+try:
+    with urllib.request.urlopen(req, timeout=60) as r:
+        result = json.loads(r.read())
+        analysis = result["choices"][0]["message"]["content"]
+        with open("$RD/ai/openrouter_triage.md", "w") as f:
+            f.write("# 🤖 OpenRouter AI Triage Report\n\n")
+            f.write(analysis)
+        print("✅ OpenRouter triage complete")
+except Exception as e:
+    print(f"❌ OpenRouter error: {e}", file=sys.stderr)
+    sys.exit(1)
+PYEOF
+
+      - name: "📤 Upload AI Triage Artifacts"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-triage-${{ env.TIMESTAMP }}
+          path: ${{ needs.setup.outputs.results_dir }}/ai/
+          retention-days: 30
+
+  # ============================================================
+  # STAGE 9: AI-Powered Full Security Report
+  # ============================================================
+
+  ai_report:
+    name: "📋 AI Security Report"
+    needs: [setup, ai_triage]
+    runs-on: ubuntu-latest
+    if: ${{ always() && github.event.inputs.ai_report == 'true' }}
+    timeout-minutes: 20
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "📥 Download AI Triage"
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "*-${{ env.TIMESTAMP }}"
+          merge-multiple: true
+          path: ${{ needs.setup.outputs.results_dir }}/
+        continue-on-error: true
+
+      - name: "📋 Generate Full Bug Report"
+        if: ${{ needs.setup.outputs.anthropic_key_set == 'true' }}
+        continue-on-error: true
+        run: |
+          TARGET="${{ needs.setup.outputs.target }}"
+          RD="${{ needs.setup.outputs.results_dir }}"
+
+          # Read the triage output as input
+          TRIAGE=$(cat "$RD/ai/claude_triage.md" "$RD/ai/openrouter_triage.md" 2>/dev/null \
+            | head -c 6000 || echo "No triage available")
+
+          # Collect raw findings for report
+          NUCLEI_JSON=$(cat "$RD/nuclei/"*.json 2>/dev/null | head -c 5000 || echo "")
+          SENSITIVE=$(cat "$RD/files/sensitive_files.txt" 2>/dev/null | head -c 2000 || echo "")
+          LIVE=$(wc -l < "$RD/live/live_hosts.txt" 2>/dev/null || echo 0)
+          SUBS=$(wc -l < "$RD/subdomains/all_subdomains.txt" 2>/dev/null || echo 0)
+
+          python3 << PYEOF
+import json, urllib.request, sys, datetime
+
+api_key = "${{ secrets.ANTHROPIC_API_KEY }}"
+
+triage = """$TRIAGE"""
+nuclei = """$NUCLEI_JSON"""
+sensitive = """$SENSITIVE"""
+
+prompt = f"""You are writing a professional bug bounty report for: $TARGET
+Scan date: {datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}
+Live hosts: $LIVE | Subdomains: $SUBS
+
+Based on this AI triage:
+{triage[:4000]}
+
+And these raw findings:
+Nuclei: {nuclei[:2000]}
+Sensitive files: {sensitive[:1000]}
+
+Write a COMPLETE professional bug bounty report with:
+
+# Executive Summary
+- 2-3 sentence overview of findings
+
+# Scope & Methodology
+- Target, tools used, scan approach
+
+# Findings
+
+For each REAL vulnerability found:
+
+## [SEVERITY] Finding Title
+**Vulnerability Type:** (e.g., Information Disclosure, CORS Misconfiguration)
+**Affected URL:** (exact URL)
+**Severity:** CRITICAL/HIGH/MEDIUM/LOW
+**CVSS Score:** (estimate)
+
+### Description
+Clear explanation of the vulnerability
+
+### Impact
+What an attacker can do with this
+
+### Proof of Concept
+```
+Exact curl command or steps to reproduce
+```
+
+### Evidence
+What the scanner found
+
+### Remediation
+Specific fix recommendation
+
+---
+
+# Statistics
+| Metric | Count |
+|--------|-------|
+| Total Subdomains | $SUBS |
+| Live Hosts | $LIVE |
+| Critical Findings | X |
+| High Findings | X |
+| Medium Findings | X |
+
+# Recommendations
+Top 5 immediate actions
+
+Write only real findings with HIGH confidence. Mark any uncertain findings as 'Requires Manual Verification'."""
+
+data = json.dumps({
+    "model": "claude-opus-4-5",
+    "max_tokens": 8192,
+    "messages": [{"role": "user", "content": prompt}]
+}).encode()
+
+req = urllib.request.Request(
+    "https://api.anthropic.com/v1/messages",
+    data=data,
+    headers={
+        "x-api-key": api_key,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json"
+    },
+    method="POST"
+)
+
+try:
+    with urllib.request.urlopen(req, timeout=90) as r:
+        result = json.loads(r.read())
+        report = result["content"][0]["text"]
+        
+        # Save full report
+        report_path = "$RD/ai/security_report.md"
+        with open(report_path, "w") as f:
+            f.write(report)
+        
+        print("✅ Security report generated")
+        print(f"Length: {len(report)} chars")
+        
+except Exception as e:
+    print(f"❌ Report generation failed: {e}", file=sys.stderr)
+    sys.exit(1)
+PYEOF
+
+      - name: "💾 Commit AI Report to Results"
+        continue-on-error: true
+        run: |
+          RD="${{ needs.setup.outputs.results_dir }}"
+          TARGET="${{ needs.setup.outputs.target }}"
+
+          if [ -f "$RD/ai/security_report.md" ]; then
+            mkdir -p "results/$TARGET"
+            cp "$RD/ai/security_report.md" \
+              "results/$TARGET/ai_report_$(date +%Y%m%d_%H%M).md"
+            cp "$RD/ai/claude_triage.md" \
+              "results/$TARGET/ai_triage_$(date +%Y%m%d_%H%M).md" 2>/dev/null || true
+
+            git config user.name  "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add "results/$TARGET/"
+            git diff --staged --quiet || \
+              git commit -m "AI Report [$TARGET] $(date -u +'%Y-%m-%d %H:%M')"
+            git push || true
+            echo "✅ AI report committed to repo"
+          fi
+
+      - name: "📤 Upload Report Artifacts"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-report-${{ env.TIMESTAMP }}
+          path: ${{ needs.setup.outputs.results_dir }}/ai/
+          retention-days: 30
+
+  # ============================================================
+  # STAGE 10: Discord Final Report
+  # ============================================================
+
+  discord_notify:
+    name: "📣 Discord Notification"
+    needs: [setup, security_analysis, ai_triage, ai_report]
+    runs-on: ubuntu-latest
+    if: ${{ always() && github.event.inputs.discord_notify == 'true' }}
+    timeout-minutes: 5
+
+    steps:
+      - name: "📥 Download All Artifacts"
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "*-${{ env.TIMESTAMP }}"
+          merge-multiple: true
+          path: ${{ needs.setup.outputs.results_dir }}/
+        continue-on-error: true
+
+      - name: "📣 Send Discord Report"
+        run: |
+          TARGET="${{ needs.setup.outputs.target }}"
+          RD="${{ needs.setup.outputs.results_dir }}"
+
+          SUBS=$(wc -l < "$RD/subdomains/all_subdomains.txt"  2>/dev/null || echo 0)
+          LIVE=$(wc -l < "$RD/live/live_hosts.txt"            2>/dev/null || echo 0)
+          NUCLEI=$(wc -l < "$RD/nuclei/nuclei_findings.json"  2>/dev/null || echo 0)
+          SENS=$(wc -l  < "$RD/files/sensitive_files.txt"     2>/dev/null || echo 0)
+          CORS=$(wc -l  < "$RD/cors/cors_vulnerable.txt"      2>/dev/null || echo 0)
+          JS=$(wc -l    < "$RD/js/js_secrets.txt"             2>/dev/null || echo 0)
+          ADMIN=$(wc -l < "$RD/admin/admin_panels.txt"        2>/dev/null || echo 0)
+          GQL=$(wc -l   < "$RD/graphql/graphql_active.txt"    2>/dev/null || echo 0)
+          AI_DONE=$([ -f "$RD/ai/security_report.md" ] && echo "✅ Done" || echo "⏭️ Skipped")
+
+          # Extract top 3 lines from AI triage
+          AI_SUMMARY=$(head -15 "$RD/ai/claude_triage.md" 2>/dev/null \
+            | grep -v "^#" | grep -v "^$" | head -5 \
+            | sed 's/^/> /' || echo "No AI summary available")
+          [ -z "$AI_SUMMARY" ] && AI_SUMMARY="No AI summary available"
+
+          # Color: red if critical, orange if high, blue if info
+          COLOR=5814783
+          [ "$SENS" -gt 0 ] || [ "$JS" -gt 0 ] && COLOR=16744192
+          [ "$CORS" -gt 0 ] || [ "$NUCLEI" -gt 5 ]  && COLOR=15158332
+
+          jq -n \
+            --arg t       "$TARGET" \
+            --arg subs    "$SUBS" \
+            --arg live    "$LIVE" \
+            --arg nuclei  "$NUCLEI" \
+            --arg sens    "$SENS" \
+            --arg cors    "$CORS" \
+            --arg js      "$JS" \
+            --arg admin   "$ADMIN" \
+            --arg gql     "$GQL" \
+            --arg ai      "$AI_DONE" \
+            --arg aisum   "$AI_SUMMARY" \
+            --arg run     "${{ github.run_number }}" \
+            --arg url     "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --argjson color "$COLOR" \
+          '{
+            username: "🤖 BugBountyCI",
+            embeds: [{
+              title: ("🎯 Scan Complete: " + $t),
+              color: $color,
+              url: $url,
+              fields: [
+                {name:"🌐 Recon",
+                 value:("Subs: **"+$subs+"** | Live: **"+$live+"**"),
+                 inline:false},
+                {name:"🔓 Findings",
+                 value:("Nuclei: **"+$nuclei+"** | Sensitive: **"+$sens+"** | CORS: **"+$cors+"** | JS Secrets: **"+$js+"**"),
+                 inline:false},
+                {name:"🎯 Targets",
+                 value:("Admin Panels: **"+$admin+"** | GraphQL: **"+$gql+"**"),
+                 inline:false},
+                {name:"🤖 AI Report",
+                 value:$ai,
+                 inline:true},
+                {name:"🔗 Full Results",
+                 value:("[View Run]("+$url+")"),
+                 inline:true},
+                {name:"🧠 AI Summary",
+                 value:$aisum,
+                 inline:false}
+              ],
+              footer: {text: ("Run #"+$run+" | BugBountyCI")}
+            }]
+          }' | curl -s -X POST "${{ secrets.DISCORD_WEBHOOK }}" \
+                 -H "Content-Type: application/json" \
+                 -d @- || true
