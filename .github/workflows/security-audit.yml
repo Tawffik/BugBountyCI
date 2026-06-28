@@ -107,10 +107,33 @@ jobs:
               return s[:keep] + "*" * (len(s) - keep * 2) + s[-keep:]
 
           FALSE_POS = {
+              # Common placeholders
               "example", "sample", "mock", "dummy", "test", "fixture",
               "placeholder", "your_", "<your", "insert_", "replace_",
-              "todo", "xxxxxxxx", "00000000", "11111111", "aaaaaa"
+              "todo", "xxxxxxxx", "00000000", "11111111", "aaaaaa",
+              # Common weak/default values
+              "changeme", "password", "secret", "hunter2", "admin123",
+              "1234567890", "qwerty", "letmein", "welcome", "default",
+              "null", "none", "undefined", "empty", "blank", "n/a",
+              # Template markers
+              "enter_here", "paste_here", "put_here", "add_here",
+              "my_secret", "my_token", "my_key", "my_password",
+              "your_token", "your_key", "your_secret", "your_password",
+              # Env variable references (not actual values)
+              "process.env", "os.environ", "env.", "config.",
+              "getenv", "environ[", "settings.",
           }
+
+          def shannon_entropy(s):
+              """Calculate Shannon entropy of string. Low entropy = likely placeholder."""
+              import math
+              s = str(s).strip()
+              if len(s) < 8:
+                  return 0.0
+              freq = {}
+              for c in s:
+                  freq[c] = freq.get(c, 0) + 1
+              return -sum((f/len(s)) * math.log2(f/len(s)) for f in freq.values())
 
           compiled = []
           for p in PATTERNS:
@@ -143,11 +166,20 @@ jobs:
                   if len(line) > MAX_LINE_LEN:
                       continue
                   lower = line.lower()
+                  # Check both the full line AND skip lines that are just variable declarations
                   if any(fp in lower for fp in FALSE_POS):
+                      continue
+                  # Skip lines that look like commented code or documentation
+                  stripped = line.lstrip()
+                  if stripped.startswith(("#", "//", "*", "<!--", "/*")):
                       continue
                   for p, pat in compiled:
                       for m in pat.finditer(line):
                           val = m.group()
+                          # Skip low-entropy matches — likely placeholders or env var names
+                          # Generic patterns need entropy >= 3.5; specific patterns (AKIA etc) skip check
+                          if p["id"] in ("generic-secret", "generic-token") and shannon_entropy(val) < 3.5:
+                              continue
                           key = (p["id"], rel, lineno, redact(val))
                           if key not in seen:
                               seen.add(key)
