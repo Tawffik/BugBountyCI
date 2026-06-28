@@ -1,4 +1,4 @@
-name: "🕵️ JS & Secrets Scanner"
+name: "JS & Secrets Scanner"
 
 on:
   workflow_dispatch:
@@ -20,73 +20,142 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: '1.22'
+          cache: false
 
-      - name: "⚡ Cache"
+      - name: Cache Tools
         id: cache
         uses: actions/cache@v4
         with:
-          path: |
-            ~/go/bin
-            ~/nuclei-templates
-          key: ${{ runner.os }}-tools-v1
+          path: ~/go/bin
+          key: go-tools-${{ runner.os }}-v3
 
-      - name: Install
+      - name: Install Tools
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
           go install github.com/projectdiscovery/katana/cmd/katana@latest
           go install github.com/projectdiscovery/httpx/cmd/httpx@latest
-          go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
+          go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
           go install github.com/tomnomnom/gf@latest
-          echo "$HOME/go/bin" >> $GITHUB_PATH
+          go install github.com/lc/gau/v2/cmd/gau@latest
+          git clone --depth 1 https://github.com/1ndianl33t/Gf-Patterns /tmp/gfp 2>/dev/null || true
+          mkdir -p ~/.gf && cp /tmp/gfp/*.json ~/.gf/ 2>/dev/null || true
+
+      - name: Update PATH
+        run: echo "$HOME/go/bin" >> $GITHUB_PATH
 
       - name: Setup
         run: |
           DOMAIN="${{ github.event.inputs.domain || secrets.TARGET_DOMAIN }}"
           echo "DOMAIN=$DOMAIN" >> $GITHUB_ENV
-          mkdir -p /tmp/js/$DOMAIN
+          mkdir -p /tmp/js/$DOMAIN/{content,findings}
 
-      - name: Katana JS Crawl
-        run: |
-          echo "${{ env.DOMAIN }}" | \
-            katana -silent -jc -d 2 -c 15 -timeout 10 \
-            -o /tmp/js/${{ env.DOMAIN }}/urls.txt || true
-
-      - name: High-Value Filtering
-        run: |
-          grep -Eoi \
-            '(graphql|swagger|api/v|api/1|admin|dashboard|firebase|s3\.amazonaws|\.azure|\.gcp|blob\.core|auth|login|signin|oauth|token|jwt|debug|dev|test|staging|internal|private|health|metrics|grafana|kibana|jenkins|sonar|jira|confluence|phpmyadmin|wp-admin|config|\.env|\.git)' \
-            /tmp/js/${{ env.DOMAIN }}/urls.txt \
-            > /tmp/js/${{ env.DOMAIN }}/high_value.txt || true
-
-      - name: Nuclei Exposures
+      - name: Get Live Hosts
         continue-on-error: true
         run: |
-          awk '{print $1}' /tmp/js/${{ env.DOMAIN }}/urls.txt | \
-            nuclei -tags exposure,config \
-            -severity critical,high,medium \
-            -rl 100 -c 20 -timeout 10 \
-            -silent -json \
-            -o /tmp/js/${{ env.DOMAIN }}/secrets.json || true
+          D="${{ env.DOMAIN }}"
+          subfinder -d $D -all -silent \
+            | httpx -silent -threads 50 -timeout 8 -json \
+            -o /tmp/js/$D/live.json 2>/dev/null || true
+          jq -r '.url' /tmp/js/$D/live.json 2>/dev/null \
+            | sort -u > /tmp/js/$D/live_urls.txt || true
+          [ ! -s /tmp/js/$D/live_urls.txt ] && echo "https://$D" > /tmp/js/$D/live_urls.txt
+
+      - name: Katana JS Crawl
+        continue-on-error: true
+        run: |
+          D="${{ env.DOMAIN }}"
+          # Feed full URLs to katana, not just domain name
+          katana \
+            -list /tmp/js/$D/live_urls.txt \
+            -silent -jc -d 3 -c 15 -timeout 10 \
+            -ef css,svg,png,jpg,gif,ico,woff,ttf \
+            -o /tmp/js/$D/crawled.txt 2>/dev/null || true
+
+          gau $D \
+            --blacklist png,jpg,jpeg,gif,svg,woff,css,mp4,ico \
+            >> /tmp/js/$D/crawled.txt 2>/dev/null || true
+
+          sort -u /tmp/js/$D/crawled.txt -o /tmp/js/$D/crawled.txt
+          echo "URLs crawled: $(wc -l < /tmp/js/$D/crawled.txt)"
+
+      - name: Extract & Download JS Files
+        continue-on-error: true
+        run: |
+          D="${{ env.DOMAIN }}"
+          # Extract JS URLs
+          grep -iE '\.js($|\?)' /tmp/js/$D/crawled.txt 2>/dev/null \
+            | grep -v '\.min\.js' \
+            | sort -u | head -200 > /tmp/js/$D/js_urls.txt || true
+
+          echo "JS files: $(wc -l < /tmp/js/$D/js_urls.txt)"
+
+          # Download actual content — secrets scanning must be on content, not URLs
+          while IFS= read -r url; do
+            [ -z "$url" ] && continue
+            fname=$(echo "$url" | md5sum | cut -d' ' -f1)
+            curl -skL --max-time 10 "$url" \
+              -o "/tmp/js/$D/content/${fname}.js" 2>/dev/null || true
+          done < /tmp/js/$D/js_urls.txt
+
+          cat /tmp/js/$D/content/*.js 2>/dev/null \
+            > /tmp/js/$D/all_content.txt || touch /tmp/js/$D/all_content.txt
+
+          echo "Content: $(wc -c < /tmp/js/$D/all_content.txt) bytes"
+
+      - name: Secret Detection (Content-Based)
+        run: |
+          D="${{ env.DOMAIN }}"
+
+          # Scan actual JS content — high-confidence patterns only
+          grep -Eoi \
+            "(AKIA[0-9A-Z]{16}|ASIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{59}|AIza[0-9A-Za-z\-_]{35}|sk_live_[0-9a-zA-Z]{24}|sk_test_[0-9a-zA-Z]{24}|SG\.[a-zA-Z0-9_\-]{22}\.[a-zA-Z0-9_\-]{43}|npm_[A-Za-z0-9]{36}|glpat-[A-Za-z0-9_\-]{20}|xox[baprs]-[0-9a-zA-Z\-]{10,})" \
+            /tmp/js/$D/all_content.txt 2>/dev/null \
+            | sort -u > /tmp/js/$D/findings/secrets.txt || true
+
+          # API endpoints from JS content
+          grep -Eoi '"(/api/[a-zA-Z0-9/_\-?=&%]{3,80})"' \
+            /tmp/js/$D/all_content.txt 2>/dev/null \
+            | tr -d '"' | sort -u \
+            > /tmp/js/$D/findings/api_endpoints.txt || true
+
+          # High-value full URLs (not keywords — full URL paths)
+          grep -iE \
+            '/(graphql|swagger|openapi|api-docs|api/v[0-9]|admin|dashboard|firebase|\.env|debug|actuator|internal|auth|oauth|token)' \
+            /tmp/js/$D/crawled.txt 2>/dev/null \
+            | sort -u > /tmp/js/$D/findings/high_value_urls.txt || true
+
+          echo "Secrets:    $(wc -l < /tmp/js/$D/findings/secrets.txt)"
+          echo "Endpoints:  $(wc -l < /tmp/js/$D/findings/api_endpoints.txt)"
+          echo "High-value: $(wc -l < /tmp/js/$D/findings/high_value_urls.txt)"
 
       - name: Discord
+        if: always()
         env:
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
-          HV=$(wc -l < /tmp/js/${{ env.DOMAIN }}/high_value.txt 2>/dev/null || echo 0)
-          SEC=$(wc -l < /tmp/js/${{ env.DOMAIN }}/secrets.json 2>/dev/null || echo 0)
+          D="${{ env.DOMAIN }}"
+          SEC=$(wc -l < /tmp/js/$D/findings/secrets.txt          2>/dev/null || echo 0)
+          API=$(wc -l < /tmp/js/$D/findings/api_endpoints.txt    2>/dev/null || echo 0)
+          HV=$(wc -l  < /tmp/js/$D/findings/high_value_urls.txt  2>/dev/null || echo 0)
+
+          COLOR=5814783
+          [ "$SEC" -gt 0 ] && COLOR=15158332
 
           jq -n \
-            --arg d "${{ env.DOMAIN }}" \
-            --arg hv "$HV" \
+            --arg d   "$D" \
             --arg sec "$SEC" \
+            --arg api "$API" \
+            --arg hv  "$HV" \
+            --argjson color "$COLOR" \
           '{
-            username: "🕵️ JSBot",
+            username: "JSBot",
             embeds: [{
               title: ("JS Scan: " + $d),
-              color: 16776960,
+              color: $color,
               fields: [
-                {name:"🎯 High-Value", value:$hv, inline:true},
-                {name:"🔑 Secrets",    value:$sec, inline:true}
+                {name:"Secrets",       value:$sec, inline:true},
+                {name:"API Endpoints", value:$api, inline:true},
+                {name:"High-Value",    value:$hv,  inline:true}
               ]
             }]
           }' | curl -s -X POST "$WEBHOOK" \
