@@ -1,0 +1,963 @@
+name: "Deep Recon & Info Disclosure Hunter"
+
+on:
+  workflow_dispatch:
+    inputs:
+      domain:
+        description: "Target Domain (e.g., datacamp.com)"
+        required: true
+      mode:
+        description: "Scan depth"
+        required: true
+        type: choice
+        options: [full, quick]
+        default: full
+
+concurrency:
+  group: deep-recon-${{ github.event.inputs.domain }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+
+  # ── JOB 1: RECON FOUNDATION ──────────────────────────────
+  recon:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    outputs:
+      live_count: ${{ steps.probe.outputs.count }}
+
+    steps:
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache: false
+
+      - name: Cache Tools
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: ~/go/bin
+          key: go-tools-${{ runner.os }}-v3
+
+      - name: Install Tools
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
+          go install github.com/projectdiscovery/httpx/cmd/httpx@latest
+          go install github.com/projectdiscovery/dnsx/cmd/dnsx@latest
+          go install github.com/projectdiscovery/tlsx/cmd/tlsx@latest
+          go install github.com/projectdiscovery/naabu/v2/cmd/naabu@latest
+          go install github.com/projectdiscovery/asnmap/cmd/asnmap@latest
+          go install github.com/lc/gau/v2/cmd/gau@latest
+          go install github.com/tomnomnom/waybackurls@latest
+          go install github.com/tomnomnom/anew@latest
+          go install github.com/ameenmaali/uro@latest
+
+      - name: Update PATH
+        run: echo "$HOME/go/bin" >> $GITHUB_PATH
+
+      - name: System Deps
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq jq curl wget
+
+      - name: Setup
+        run: |
+          D="${{ github.event.inputs.domain }}"
+          echo "DOMAIN=$D" >> $GITHUB_ENV
+          mkdir -p /tmp/recon/{subs,dns,ports,ssl,urls,asn}
+
+      - name: Subdomain Enumeration (Multi-Source)
+        run: |
+          D="$DOMAIN"
+
+          # Source 1: subfinder (passive - all sources)
+          subfinder -d $D -all -silent \
+            -o /tmp/recon/subs/subfinder.txt 2>/dev/null || true
+
+          # Source 2: crt.sh (certificate transparency)
+          curl -s "https://crt.sh/?q=%25.$D&output=json" 2>/dev/null \
+            | jq -r '.[].name_value' 2>/dev/null \
+            | sed 's/\*\.//g' \
+            | grep -iE "^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*\.$D$" \
+            | sort -u > /tmp/recon/subs/crtsh.txt 2>/dev/null || true
+
+          # Source 3: AlienVault OTX
+          curl -s "https://otx.alienvault.com/api/v1/indicators/domain/$D/passive_dns" 2>/dev/null \
+            | jq -r '.passive_dns[]?.hostname' 2>/dev/null \
+            | grep -iE "\.$D$" \
+            | sort -u > /tmp/recon/subs/otx.txt || true
+
+          # Source 4: HackerTarget
+          curl -s "https://api.hackertarget.com/hostsearch/?q=$D" 2>/dev/null \
+            | cut -d',' -f1 \
+            | grep -iE "\.$D$" \
+            | sort -u > /tmp/recon/subs/hackertarget.txt || true
+
+          # Source 5: RapidDNS
+          curl -s "https://rapiddns.io/subdomain/$D?full=1" 2>/dev/null \
+            | grep -oE "[a-zA-Z0-9\.\-]+\.$D" \
+            | sort -u > /tmp/recon/subs/rapiddns.txt || true
+
+          # Merge + validate (no garbage subdomains)
+          cat /tmp/recon/subs/*.txt 2>/dev/null \
+            | grep -iE "^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+${D}$" \
+            | sort -u > /tmp/recon/subs/all.txt
+
+          echo "Sources:"
+          for f in /tmp/recon/subs/*.txt; do
+            echo "  $(basename $f): $(wc -l < $f 2>/dev/null || echo 0)"
+          done
+          echo "Total unique valid: $(wc -l < /tmp/recon/subs/all.txt)"
+
+      - name: DNS Resolve + Brute Force Common Prefixes
+        run: |
+          D="$DOMAIN"
+
+          # Resolve discovered subdomains
+          dnsx -l /tmp/recon/subs/all.txt -silent -a -resp \
+            -o /tmp/recon/dns/resolved.txt 2>/dev/null || \
+            cp /tmp/recon/subs/all.txt /tmp/recon/dns/resolved.txt
+
+          # Common dev/admin prefixes brute force
+          for prefix in dev staging test admin api api2 api-dev beta internal portal \
+                        dashboard legacy old backup mail smtp ftp vpn git gitlab \
+                        jenkins ci cd jira confluence wiki docs support help \
+                        status health monitoring grafana kibana elastic; do
+            echo "${prefix}.${D}"
+          done > /tmp/recon/dns/wordlist.txt
+
+          dnsx -l /tmp/recon/dns/wordlist.txt -silent -a \
+            -o /tmp/recon/dns/bruteforce.txt 2>/dev/null || true
+
+          # Merge all resolved
+          cat /tmp/recon/dns/resolved.txt /tmp/recon/dns/bruteforce.txt 2>/dev/null \
+            | cut -d' ' -f1 | sort -u > /tmp/recon/dns/all_resolved.txt
+
+          echo "Resolved: $(wc -l < /tmp/recon/dns/all_resolved.txt)"
+
+      - name: HTTP Probe + Tech Detection
+        id: probe
+        run: |
+          D="$DOMAIN"
+
+          httpx -l /tmp/recon/dns/all_resolved.txt \
+            -silent \
+            -status-code -title -tech-detect \
+            -content-length -web-server \
+            -ip -cname \
+            -follow-redirects -max-redirects 3 \
+            -threads 50 -timeout 8 \
+            -json -o /tmp/recon/live.json 2>/dev/null || true
+
+          jq -r '.url' /tmp/recon/live.json 2>/dev/null \
+            | sort -u > /tmp/recon/live_urls.txt || true
+
+          COUNT=$(wc -l < /tmp/recon/live_urls.txt)
+          echo "count=$COUNT" >> $GITHUB_OUTPUT
+          echo "Live: $COUNT"
+
+      - name: ASN + IP Intelligence
+        continue-on-error: true
+        run: |
+          D="$DOMAIN"
+
+          # Get IPs from live hosts
+          jq -r '.host' /tmp/recon/live.json 2>/dev/null \
+            | sort -u > /tmp/recon/asn/ips.txt || true
+
+          # ASN mapping
+          asnmap -l /tmp/recon/asn/ips.txt -silent \
+            -json -o /tmp/recon/asn/asn.json 2>/dev/null || true
+
+          # Find more IPs from same ASN (expand attack surface)
+          jq -r '.as_number' /tmp/recon/asn/asn.json 2>/dev/null \
+            | sort -u | head -5 | while read asn; do
+              [ -z "$asn" ] && continue
+              asnmap -a "AS${asn}" -silent 2>/dev/null >> /tmp/recon/asn/cidr_ranges.txt || true
+            done
+
+          echo "ASNs: $(jq -r '.as_number' /tmp/recon/asn/asn.json 2>/dev/null | sort -u | wc -l)"
+
+      - name: SSL/TLS Analysis
+        continue-on-error: true
+        run: |
+          D="$DOMAIN"
+
+          # TLS analysis - finds misconfigs, expired certs, weak ciphers
+          tlsx -l /tmp/recon/dns/all_resolved.txt \
+            -silent -expired -self-signed \
+            -mismatched -revoked \
+            -json -o /tmp/recon/ssl/tls_issues.json 2>/dev/null || true
+
+          # Extract SANs from certs - finds more subdomains!
+          tlsx -l /tmp/recon/dns/all_resolved.txt \
+            -silent -san -cn \
+            -json 2>/dev/null \
+            | jq -r '.san[]?,  .subject_cn? // empty' 2>/dev/null \
+            | grep -iE "\.$D$" \
+            | sort -u > /tmp/recon/ssl/cert_subs.txt || true
+
+          echo "TLS issues: $(wc -l < /tmp/recon/ssl/tls_issues.json 2>/dev/null || echo 0)"
+          echo "Cert SANs (new subs): $(wc -l < /tmp/recon/ssl/cert_subs.txt 2>/dev/null || echo 0)"
+
+          # Add cert-discovered subs to live probe
+          if [ -s /tmp/recon/ssl/cert_subs.txt ]; then
+            dnsx -l /tmp/recon/ssl/cert_subs.txt -silent -a \
+              2>/dev/null \
+              | anew /tmp/recon/dns/all_resolved.txt || true
+          fi
+
+      - name: URL Collection (Historical + Crawl)
+        run: |
+          D="$DOMAIN"
+          mkdir -p /tmp/recon/urls
+
+          # Historical URLs
+          gau $D --subs \
+            --blacklist png,jpg,jpeg,gif,svg,woff,woff2,css,mp4,webp,ico,ttf,eot \
+            --o /tmp/recon/urls/gau.txt 2>/dev/null || true
+
+          cat /tmp/recon/dns/all_resolved.txt | waybackurls \
+            > /tmp/recon/urls/wayback.txt 2>/dev/null || true
+
+          # Merge + deduplicate
+          cat /tmp/recon/urls/gau.txt /tmp/recon/urls/wayback.txt 2>/dev/null \
+            | grep -iE "^https?://" \
+            | grep -vE "\.(png|jpg|jpeg|gif|svg|woff|woff2|css|mp4|webp|ico|ttf|eot)$" \
+            | sort -u \
+            | uro > /tmp/recon/urls/all.txt 2>/dev/null || true
+
+          echo "Historical URLs: $(wc -l < /tmp/recon/urls/all.txt)"
+
+      - name: Upload Recon Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: recon-${{ env.DOMAIN }}-${{ github.run_id }}
+          path: /tmp/recon/
+          retention-days: 30
+
+  # ── JOB 2: INFORMATION DISCLOSURE ────────────────────────
+  info-disclosure:
+    needs: recon
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache: false
+
+      - name: Cache Tools
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/bin
+            ~/.local/nuclei-templates
+          key: go-tools-${{ runner.os }}-v3
+
+      - name: Install Tools
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
+          go install github.com/projectdiscovery/httpx/cmd/httpx@latest
+          go install github.com/projectdiscovery/katana/cmd/katana@latest
+          go install github.com/tomnomnom/gf@latest
+          go install github.com/tomnomnom/anew@latest
+          git clone --depth 1 https://github.com/1ndianl33t/Gf-Patterns /tmp/gfp 2>/dev/null || true
+          mkdir -p ~/.gf && cp /tmp/gfp/*.json ~/.gf/ 2>/dev/null || true
+          nuclei -update-templates -ud ~/.local/nuclei-templates -silent
+
+      - name: Update PATH
+        run: echo "$HOME/go/bin" >> $GITHUB_PATH
+
+      - name: System Deps
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq jq curl
+
+      - name: Download Recon Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: recon-${{ env.DOMAIN || github.event.inputs.domain }}-${{ github.run_id }}
+          path: /tmp/recon/
+
+      - name: Setup
+        run: |
+          D="${{ github.event.inputs.domain }}"
+          echo "DOMAIN=$D" >> $GITHUB_ENV
+          mkdir -p /tmp/findings/{sensitive,headers,cors,js,dirs,cloud,git,params}
+          [ ! -s /tmp/recon/live_urls.txt ] && echo "https://$D" > /tmp/recon/live_urls.txt
+
+      - name: Nuclei — Info Disclosure (Focused)
+        continue-on-error: true
+        timeout-minutes: 20
+        run: |
+          D="$DOMAIN"
+          nuclei \
+            -list /tmp/recon/live_urls.txt \
+            -ud ~/.local/nuclei-templates \
+            -tags "exposure,token,secret,config,log,backup,debug,git,env,key,credential,disclosure,panel,api-key,aws,gcp,azure,firebase,database,password,leak" \
+            -severity critical,high,medium,info \
+            -rl 25 -c 8 \
+            -timeout 10 -retries 1 \
+            -silent -json \
+            -o /tmp/findings/nuclei_info.json 2>/dev/null || true
+          echo "Nuclei info disclosure: $(wc -l < /tmp/findings/nuclei_info.json)"
+
+      - name: Sensitive Files (Exhaustive List)
+        run: |
+          D="$DOMAIN"
+          PATHS=(
+            # Environment & Config
+            "/.env" "/.env.local" "/.env.development" "/.env.staging"
+            "/.env.production" "/.env.backup" "/.env.bak" "/.env.old"
+            "/config.json" "/config.yaml" "/config.yml" "/config.php"
+            "/config/database.yml" "/database.yml" "/database.json"
+            "/settings.py" "/settings.json" "/local_settings.py"
+            "/application.yml" "/application.properties" "/app.config"
+            # Git exposure
+            "/.git/config" "/.git/HEAD" "/.git/COMMIT_EDITMSG"
+            "/.git/description" "/.git/index" "/.git/packed-refs"
+            "/.gitignore" "/.gitmodules"
+            # Cloud credentials
+            "/.aws/credentials" "/.aws/config"
+            "/credentials.json" "/service-account.json" "/gcloud.json"
+            "/.azure/credentials"
+            # PHP/Web info
+            "/phpinfo.php" "/info.php" "/test.php" "/php.php"
+            "/server-status" "/server-info" "/.htpasswd" "/.htaccess"
+            # API docs
+            "/swagger.json" "/openapi.json" "/swagger.yaml" "/openapi.yaml"
+            "/v1/swagger.json" "/v2/swagger.json" "/v3/swagger.json"
+            "/v1/api-docs" "/v2/api-docs" "/v3/api-docs"
+            "/api/swagger.json" "/api/openapi.json"
+            "/api-docs" "/api-docs.json" "/docs/swagger.json"
+            # Spring Boot actuator
+            "/actuator" "/actuator/env" "/actuator/health"
+            "/actuator/mappings" "/actuator/beans" "/actuator/metrics"
+            "/actuator/loggers" "/actuator/httptrace" "/actuator/dump"
+            "/actuator/configprops" "/actuator/info" "/actuator/trace"
+            # Build & Package files
+            "/composer.json" "/composer.lock" "/package.json" "/yarn.lock"
+            "/Gemfile" "/Gemfile.lock" "/requirements.txt" "/Pipfile"
+            "/Dockerfile" "/docker-compose.yml" "/docker-compose.yaml"
+            "/.dockerenv" "/Makefile"
+            # Backup & Database
+            "/backup.zip" "/backup.tar.gz" "/backup.sql" "/dump.sql"
+            "/db.sql" "/database.sql" "/data.sql"
+            "/wp-config.php" "/wp-config.php.bak" "/wp-config.php.old"
+            # CI/CD
+            "/.travis.yml" "/.circleci/config.yml" "/.github/workflows"
+            "/Jenkinsfile" "/.jenkins" "/bitbucket-pipelines.yml"
+            # Misc
+            "/robots.txt" "/security.txt" "/.well-known/security.txt"
+            "/crossdomain.xml" "/clientaccesspolicy.xml"
+            "/sitemap.xml" "/humans.txt" "/readme.txt" "/README.md"
+            "/CHANGELOG.md" "/INSTALL.md"
+            # IDE & Editor
+            "/.vscode/settings.json" "/.idea/workspace.xml"
+            "/.DS_Store" "/Thumbs.db"
+            # Node/Python specific
+            "/.npmrc" "/pip.conf" "/.pypirc"
+            "/private.key" "/server.key" "/ssl.key" "/id_rsa"
+          )
+
+          while IFS= read -r host; do
+            [ -z "$host" ] && continue
+            host=$(echo "$host" | tr -d '\r')
+
+            for path in "${PATHS[@]}"; do
+              url="${host}${path}"
+              resp=$(curl -sk -o /tmp/sf_body.txt \
+                -w "%{http_code}|%{size_download}|%{content_type}" \
+                --max-time 6 -L "$url" 2>/dev/null || echo "000|0|")
+
+              code=$(echo "$resp" | cut -d'|' -f1)
+              size=$(echo "$resp" | cut -d'|' -f2)
+
+              if [ "$code" = "200" ] && [ "${size:-0}" -gt 20 ] 2>/dev/null; then
+                snippet=$(head -c 300 /tmp/sf_body.txt 2>/dev/null || echo "")
+                # Only flag if NOT an HTML login/error page
+                if ! echo "$snippet" | grep -qiE "(<!DOCTYPE|<html|<head|<body)"; then
+                  echo "[$code][$size B] $url" \
+                    >> /tmp/findings/sensitive/files.txt
+                fi
+              fi
+            done
+          done < /tmp/recon/live_urls.txt
+
+          echo "Sensitive files: $(wc -l < /tmp/findings/sensitive/files.txt 2>/dev/null || echo 0)"
+
+      - name: JS Secret Detection (Content-Based)
+        continue-on-error: true
+        run: |
+          D="$DOMAIN"
+          mkdir -p /tmp/js_content
+
+          # Get JS URLs from recon
+          grep -iE '\.js($|\?)' /tmp/recon/urls/all.txt 2>/dev/null \
+            | grep -v '\.min\.js' | sort -u | head -200 \
+            > /tmp/js_urls.txt || true
+
+          # Crawl for more JS
+          if [ -s /tmp/recon/live_urls.txt ]; then
+            katana -list /tmp/recon/live_urls.txt \
+              -silent -jc -d 2 -timeout 8 -c 10 \
+              -ef css,png,jpg,gif,svg,ico,woff,ttf \
+              2>/dev/null \
+              | grep -iE '\.js($|\?)' \
+              | grep -v '\.min\.js' \
+              | anew /tmp/js_urls.txt || true
+          fi
+
+          echo "JS files to scan: $(wc -l < /tmp/js_urls.txt)"
+
+          # Download content
+          while IFS= read -r url; do
+            [ -z "$url" ] && continue
+            fname=$(echo "$url" | md5sum | cut -d' ' -f1)
+            curl -skL --max-time 10 "$url" \
+              -o "/tmp/js_content/${fname}.js" 2>/dev/null || true
+          done < /tmp/js_urls.txt
+
+          cat /tmp/js_content/*.js 2>/dev/null \
+            > /tmp/all_js.txt || touch /tmp/all_js.txt
+
+          echo "JS content: $(wc -c < /tmp/all_js.txt) bytes"
+
+          # High-confidence secret patterns only
+          grep -Eoi \
+            "(AKIA[0-9A-Z]{16}|ASIA[0-9A-Z]{16}|AIPA[0-9A-Z]{16}|AGPA[0-9A-Z]{16}|AROA[0-9A-Z]{16}|AIDA[0-9A-Z]{16})" \
+            /tmp/all_js.txt >> /tmp/findings/js/secrets.txt 2>/dev/null || true
+
+          grep -Eoi "(ghp_[A-Za-z0-9]{36}|gho_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{59})" \
+            /tmp/all_js.txt >> /tmp/findings/js/secrets.txt 2>/dev/null || true
+
+          grep -Eoi "(AIza[0-9A-Za-z\-_]{35})" \
+            /tmp/all_js.txt >> /tmp/findings/js/secrets.txt 2>/dev/null || true
+
+          grep -Eoi "(sk_live_[0-9a-zA-Z]{24}|sk_test_[0-9a-zA-Z]{24}|rk_live_[0-9a-zA-Z]{24})" \
+            /tmp/all_js.txt >> /tmp/findings/js/secrets.txt 2>/dev/null || true
+
+          grep -Eoi "(SG\.[a-zA-Z0-9_\-]{22}\.[a-zA-Z0-9_\-]{43})" \
+            /tmp/all_js.txt >> /tmp/findings/js/secrets.txt 2>/dev/null || true
+
+          grep -Eoi "(npm_[A-Za-z0-9]{36}|glpat-[A-Za-z0-9_\-]{20}|xox[baprs]-[0-9a-zA-Z\-]{10,})" \
+            /tmp/all_js.txt >> /tmp/findings/js/secrets.txt 2>/dev/null || true
+
+          # Firebase URLs in JS
+          grep -Eoi "https://[a-z0-9\-]+\.firebaseio\.com" \
+            /tmp/all_js.txt >> /tmp/findings/js/firebase.txt 2>/dev/null || true
+
+          # API endpoints extracted from JS
+          grep -Eoi '"(/api/[a-zA-Z0-9/_\-?=&%]{3,80})"' \
+            /tmp/all_js.txt 2>/dev/null \
+            | tr -d '"' | sort -u \
+            > /tmp/findings/js/api_endpoints.txt || true
+
+          sort -u /tmp/findings/js/secrets.txt -o /tmp/findings/js/secrets.txt 2>/dev/null || true
+
+          echo "Secrets: $(wc -l < /tmp/findings/js/secrets.txt 2>/dev/null || echo 0)"
+          echo "API endpoints: $(wc -l < /tmp/findings/js/api_endpoints.txt 2>/dev/null || echo 0)"
+          echo "Firebase URLs: $(wc -l < /tmp/findings/js/firebase.txt 2>/dev/null || echo 0)"
+
+      - name: Cloud Storage Enum (S3/GCS/Azure)
+        continue-on-error: true
+        run: |
+          D="$DOMAIN"
+          BASE=$(echo $D | sed 's/\..*//')
+          WORDS=("$BASE" "${BASE}-backup" "${BASE}-dev" "${BASE}-staging"
+                 "${BASE}-prod" "${BASE}-assets" "${BASE}-static" "${BASE}-media"
+                 "${BASE}-data" "${BASE}-files" "${BASE}-uploads" "${BASE}-images"
+                 "${BASE}-bucket" "${BASE}-store" "${BASE}-storage" "${BASE}-cdn")
+
+          for bucket in "${WORDS[@]}"; do
+            # AWS S3
+            status=$(curl -sk -o /tmp/cloud_body.txt -w "%{http_code}" \
+              --max-time 5 "https://${bucket}.s3.amazonaws.com" 2>/dev/null || echo "000")
+            if [ "$status" = "200" ] || [ "$status" = "403" ]; then
+              content=$(head -c 200 /tmp/cloud_body.txt 2>/dev/null || echo "")
+              if echo "$content" | grep -qiE "(ListBucketResult|AmazonS3|amazonaws)"; then
+                echo "[S3][$status] ${bucket}.s3.amazonaws.com" \
+                  >> /tmp/findings/cloud/buckets.txt
+              fi
+            fi
+            # Also check path-style
+            status2=$(curl -sk -o /dev/null -w "%{http_code}" \
+              --max-time 5 "https://s3.amazonaws.com/${bucket}" 2>/dev/null || echo "000")
+            if [ "$status2" = "200" ]; then
+              echo "[S3-path][$status2] s3.amazonaws.com/${bucket}" \
+                >> /tmp/findings/cloud/buckets.txt
+            fi
+
+            # GCS
+            status=$(curl -sk -o /tmp/cloud_body.txt -w "%{http_code}" \
+              --max-time 5 "https://storage.googleapis.com/${bucket}" 2>/dev/null || echo "000")
+            if [ "$status" = "200" ]; then
+              echo "[GCS][$status] storage.googleapis.com/${bucket}" \
+                >> /tmp/findings/cloud/buckets.txt
+            fi
+
+            # Azure Blob
+            status=$(curl -sk -o /dev/null -w "%{http_code}" \
+              --max-time 5 "https://${bucket}.blob.core.windows.net" 2>/dev/null || echo "000")
+            if [ "$status" = "200" ] || [ "$status" = "400" ]; then
+              echo "[Azure][$status] ${bucket}.blob.core.windows.net" \
+                >> /tmp/findings/cloud/buckets.txt
+            fi
+          done
+
+          echo "Cloud buckets: $(wc -l < /tmp/findings/cloud/buckets.txt 2>/dev/null || echo 0)"
+
+      - name: Security Headers Analysis
+        run: |
+          D="$DOMAIN"
+          echo "Target,Missing-Headers,HSTS,CSP,X-Frame,X-Content-Type,Referrer-Policy" \
+            > /tmp/findings/headers/analysis.csv
+
+          while IFS= read -r host; do
+            [ -z "$host" ] && continue
+            host=$(echo "$host" | tr -d '\r')
+
+            headers=$(curl -sk -I -L --max-time 8 "$host" 2>/dev/null || echo "")
+            hsts=$(echo "$headers"   | grep -i 'strict-transport'       | head -1 | xargs || echo "MISSING")
+            csp=$(echo "$headers"    | grep -i 'content-security-policy' | head -1 | xargs || echo "MISSING")
+            xfo=$(echo "$headers"    | grep -i 'x-frame-options'         | head -1 | xargs || echo "MISSING")
+            xcto=$(echo "$headers"   | grep -i 'x-content-type-options'  | head -1 | xargs || echo "MISSING")
+            rp=$(echo "$headers"     | grep -i 'referrer-policy'          | head -1 | xargs || echo "MISSING")
+            xxss=$(echo "$headers"   | grep -i 'x-xss-protection'         | head -1 | xargs || echo "MISSING")
+
+            missing=""
+            [ "$hsts"  = "MISSING" ] && missing="${missing}HSTS "
+            [ "$csp"   = "MISSING" ] && missing="${missing}CSP "
+            [ "$xfo"   = "MISSING" ] && missing="${missing}X-Frame "
+            [ "$xcto"  = "MISSING" ] && missing="${missing}X-Content-Type "
+            [ "$rp"    = "MISSING" ] && missing="${missing}Referrer-Policy "
+
+            echo "\"$host\",\"$missing\",\"$hsts\",\"$csp\",\"$xfo\",\"$xcto\",\"$rp\"" \
+              >> /tmp/findings/headers/analysis.csv
+
+            if [ -n "$missing" ]; then
+              echo "[MISSING] $host => ${missing}" >> /tmp/findings/headers/issues.txt
+            fi
+          done < /tmp/recon/live_urls.txt
+
+          echo "Header issues: $(wc -l < /tmp/findings/headers/issues.txt 2>/dev/null || echo 0)"
+
+      - name: CORS Misconfiguration
+        continue-on-error: true
+        run: |
+          D="$DOMAIN"
+          EVIL_ORIGIN="https://evil.${D}"
+
+          while IFS= read -r host; do
+            [ -z "$host" ] && continue
+            host=$(echo "$host" | tr -d '\r')
+
+            resp=$(curl -sk -I \
+              -H "Origin: $EVIL_ORIGIN" \
+              --max-time 6 "$host" 2>/dev/null || echo "")
+
+            acao=$(echo "$resp" | grep -i 'access-control-allow-origin' \
+              | head -1 | sed 's/.*: //' | xargs || echo "")
+            acac=$(echo "$resp" | grep -i 'access-control-allow-credentials' \
+              | head -1 | sed 's/.*: //' | xargs || echo "")
+
+            # CRITICAL: evil origin reflected + credentials
+            if [ "$acao" = "$EVIL_ORIGIN" ] && [ "$acac" = "true" ]; then
+              echo "[CRITICAL-CORS] $host | ACAO=$acao | ACAC=$acac" \
+                >> /tmp/findings/cors/vulns.txt
+            elif [ "$acao" = "null" ] && [ "$acac" = "true" ]; then
+              echo "[HIGH-CORS] $host | null origin with credentials" \
+                >> /tmp/findings/cors/vulns.txt
+            fi
+          done < /tmp/recon/live_urls.txt
+
+          echo "CORS vulns: $(wc -l < /tmp/findings/cors/vulns.txt 2>/dev/null || echo 0)"
+
+      - name: Upload Info Disclosure Findings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: info-disclosure-${{ env.DOMAIN }}-${{ github.run_id }}
+          path: /tmp/findings/
+          retention-days: 30
+
+  # ── JOB 3: ACTIVE SCANNING ───────────────────────────────
+  active-scan:
+    needs: recon
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    if: ${{ github.event.inputs.mode == 'full' }}
+
+    steps:
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache: false
+
+      - name: Cache Tools
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/bin
+            ~/.local/nuclei-templates
+          key: go-tools-${{ runner.os }}-v3
+
+      - name: Install Tools
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
+          go install github.com/projectdiscovery/httpx/cmd/httpx@latest
+          go install github.com/ffuf/ffuf/v2@latest
+          go install github.com/tomnomnom/gf@latest
+          go install github.com/tomnomnom/anew@latest
+          go install github.com/tomnomnom/qsreplace@latest
+          go install github.com/tomnomnom/kxss@latest
+          pip install arjun --quiet 2>/dev/null || true
+          git clone --depth 1 https://github.com/1ndianl33t/Gf-Patterns /tmp/gfp 2>/dev/null || true
+          mkdir -p ~/.gf && cp /tmp/gfp/*.json ~/.gf/ 2>/dev/null || true
+          nuclei -update-templates -ud ~/.local/nuclei-templates -silent
+
+      - name: Update PATH
+        run: echo "$HOME/go/bin" >> $GITHUB_PATH
+
+      - name: System Deps
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq jq curl
+
+      - name: Download Recon Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: recon-${{ env.DOMAIN || github.event.inputs.domain }}-${{ github.run_id }}
+          path: /tmp/recon/
+
+      - name: Setup
+        run: |
+          D="${{ github.event.inputs.domain }}"
+          echo "DOMAIN=$D" >> $GITHUB_ENV
+          mkdir -p /tmp/active/{dirs,params,vulns,redirect,crlf}
+          [ ! -s /tmp/recon/live_urls.txt ] && echo "https://$D" > /tmp/recon/live_urls.txt
+
+      - name: Directory Brute Force (High-Value Paths)
+        continue-on-error: true
+        timeout-minutes: 15
+        run: |
+          D="$DOMAIN"
+          # Targeted wordlist - high-value endpoints only (not 10k generic words)
+          cat > /tmp/dirs_wordlist.txt << 'WORDS'
+admin
+api
+v1
+v2
+v3
+dashboard
+config
+settings
+backup
+debug
+test
+dev
+staging
+internal
+private
+secret
+token
+auth
+oauth
+login
+signin
+register
+user
+users
+account
+accounts
+profile
+manage
+management
+console
+portal
+panel
+wp-admin
+wp-json
+wp-content
+admin/config
+admin/settings
+admin/users
+api/v1
+api/v2
+api/v3
+api/swagger
+api/docs
+api/health
+api/debug
+swagger
+swagger-ui
+swagger-ui.html
+openapi
+graphql
+graphiql
+playground
+metrics
+health
+healthcheck
+status
+info
+version
+build
+release
+changelog
+robots.txt
+sitemap.xml
+.env
+.git
+.svn
+.htpasswd
+phpinfo.php
+server-status
+actuator
+actuator/env
+actuator/health
+WORDS
+
+          # Run ffuf on top 20 live hosts
+          head -20 /tmp/recon/live_urls.txt | while IFS= read -r host; do
+            [ -z "$host" ] && continue
+            safe_host=$(echo "$host" | sed 's|[:/]|_|g')
+
+            ffuf \
+              -u "${host}/FUZZ" \
+              -w /tmp/dirs_wordlist.txt \
+              -mc 200,201,204,301,302 \
+              -fc 400,403,404,405,429,500,503 \
+              -ac \
+              -t 30 \
+              -timeout 6 \
+              -silent \
+              -json \
+              -o "/tmp/active/dirs/${safe_host}.json" \
+              2>/dev/null || true
+          done
+
+          # Parse results - extract only confirmed hits
+          find /tmp/active/dirs/ -name "*.json" -exec \
+            jq -r '.results[]? | select(.status == 200 or .status == 201) | 
+              "[" + (.status|tostring) + "] " + .url' {} \; \
+            2>/dev/null \
+            | sort -u > /tmp/active/dirs/confirmed.txt || true
+
+          echo "Dir hits: $(wc -l < /tmp/active/dirs/confirmed.txt)"
+
+      - name: Parameter Discovery (High-Value Endpoints)
+        continue-on-error: true
+        timeout-minutes: 10
+        run: |
+          D="$DOMAIN"
+
+          # Find API endpoints from recon
+          grep -iE '(/api/|/v[0-9]+/|/rest/)' \
+            /tmp/recon/urls/all.txt 2>/dev/null \
+            | sort -u | head -30 > /tmp/api_endpoints.txt || true
+
+          echo "API endpoints: $(wc -l < /tmp/api_endpoints.txt)"
+
+          # Run arjun on API endpoints
+          if [ -s /tmp/api_endpoints.txt ] && command -v arjun &>/dev/null; then
+            while IFS= read -r url; do
+              [ -z "$url" ] && continue
+              arjun -u "$url" \
+                --stable \
+                -t 5 \
+                --rate-limit 5 \
+                -oT /tmp/active/params/arjun.txt \
+                2>/dev/null || true
+            done < /tmp/api_endpoints.txt
+          fi
+
+          echo "Params found: $(wc -l < /tmp/active/params/arjun.txt 2>/dev/null || echo 0)"
+
+      - name: Open Redirect Check
+        continue-on-error: true
+        run: |
+          D="$DOMAIN"
+
+          # Find redirect parameters from historical URLs
+          cat /tmp/recon/urls/all.txt 2>/dev/null \
+            | gf redirect 2>/dev/null \
+            | sort -u | head -50 > /tmp/redirect_candidates.txt || true
+
+          echo "Redirect candidates: $(wc -l < /tmp/redirect_candidates.txt)"
+
+          EVIL="https://evil.com"
+          while IFS= read -r url; do
+            [ -z "$url" ] && continue
+            # Replace parameter value with evil URL
+            test_url=$(echo "$url" | sed "s|=.*&|=$EVIL\&|g; s|=.*$|=$EVIL|")
+            location=$(curl -sk -o /dev/null \
+              -w "%{redirect_url}" \
+              --max-time 5 "$test_url" 2>/dev/null || echo "")
+            if echo "$location" | grep -q "evil.com"; then
+              echo "[OPEN-REDIRECT] $url => $location" \
+                >> /tmp/active/redirect/confirmed.txt
+            fi
+          done < /tmp/redirect_candidates.txt
+
+          echo "Open redirects: $(wc -l < /tmp/active/redirect/confirmed.txt 2>/dev/null || echo 0)"
+
+      - name: CRLF Injection Check
+        continue-on-error: true
+        run: |
+          D="$DOMAIN"
+          CRLF_PAYLOADS=(
+            "%0d%0aX-Injected: crlf"
+            "%0aX-Injected: crlf"
+            "%0d%0aSet-Cookie: crlftest=1"
+            "%E5%98%8A%E9%8D%A5nX-Injected: crlf"
+          )
+
+          head -20 /tmp/recon/live_urls.txt | while IFS= read -r host; do
+            [ -z "$host" ] && continue
+            for payload in "${CRLF_PAYLOADS[@]}"; do
+              resp=$(curl -sk -I --max-time 5 "${host}/${payload}" 2>/dev/null || echo "")
+              if echo "$resp" | grep -qi "x-injected: crlf\|crlftest=1"; then
+                echo "[CRLF] $host | Payload: $payload" \
+                  >> /tmp/active/crlf/confirmed.txt
+              fi
+            done
+          done
+
+          echo "CRLF: $(wc -l < /tmp/active/crlf/confirmed.txt 2>/dev/null || echo 0)"
+
+      - name: Nuclei — CVE + Tech Vulns
+        continue-on-error: true
+        timeout-minutes: 20
+        run: |
+          nuclei \
+            -list /tmp/recon/live_urls.txt \
+            -ud ~/.local/nuclei-templates \
+            -tags "cve,rce,sqli,ssrf,lfi,idor,xss,xxe,ssti,takeover" \
+            -severity critical,high \
+            -rl 20 -c 5 \
+            -timeout 10 -retries 1 \
+            -silent -json \
+            -o /tmp/active/vulns/nuclei_cve.json 2>/dev/null || true
+
+          echo "CVEs: $(wc -l < /tmp/active/vulns/nuclei_cve.json)"
+
+      - name: Upload Active Scan Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: active-scan-${{ env.DOMAIN }}-${{ github.run_id }}
+          path: /tmp/active/
+          retention-days: 30
+
+  # ── JOB 4: DISCORD REPORT ────────────────────────────────
+  report:
+    needs: [recon, info-disclosure, active-scan]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "*-${{ github.event.inputs.domain }}-${{ github.run_id }}"
+          merge-multiple: true
+          path: /tmp/all/
+        continue-on-error: true
+
+      - name: System Deps
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq jq
+
+      - name: Send Discord Report
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          D="${{ github.event.inputs.domain }}"
+
+          SUBS=$(wc -l < /tmp/all/subs/all.txt            2>/dev/null || echo 0)
+          LIVE=$(wc -l < /tmp/all/live_urls.txt           2>/dev/null || echo 0)
+          SENS=$(wc -l < /tmp/all/sensitive/files.txt     2>/dev/null || echo 0)
+          NUCI=$(wc -l < /tmp/all/nuclei_info.json        2>/dev/null || echo 0)
+          SECS=$(wc -l < /tmp/all/js/secrets.txt          2>/dev/null || echo 0)
+          CORS=$(wc -l < /tmp/all/cors/vulns.txt          2>/dev/null || echo 0)
+          CLOU=$(wc -l < /tmp/all/cloud/buckets.txt       2>/dev/null || echo 0)
+          TLS=$(wc -l  < /tmp/all/ssl/tls_issues.json     2>/dev/null || echo 0)
+          DIRS=$(wc -l < /tmp/all/dirs/confirmed.txt      2>/dev/null || echo 0)
+          REDIR=$(wc -l < /tmp/all/redirect/confirmed.txt 2>/dev/null || echo 0)
+          CRLF=$(wc -l < /tmp/all/crlf/confirmed.txt      2>/dev/null || echo 0)
+          CVES=$(wc -l < /tmp/all/vulns/nuclei_cve.json   2>/dev/null || echo 0)
+          HDR=$(wc -l  < /tmp/all/headers/issues.txt      2>/dev/null || echo 0)
+
+          # Color based on severity
+          COLOR=5814783  # blue (info)
+          [ "$SENS" -gt 0 ] || [ "$SECS" -gt 0 ] || [ "$CORS" -gt 0 ] \
+            && COLOR=16744192  # orange (high)
+          [ "$CVES" -gt 0 ] || [ "$CLOU" -gt 0 ] \
+            && COLOR=15158332  # red (critical)
+
+          # Top sensitive files
+          TOP_SENS=$(head -5 /tmp/all/sensitive/files.txt 2>/dev/null \
+            | sed 's/^/• /' || echo "None")
+          [ -z "$TOP_SENS" ] && TOP_SENS="None"
+
+          # Top nuclei findings
+          TOP_NUCLEI=$(jq -r '.info.name + " => " + .host' \
+            /tmp/all/nuclei_info.json 2>/dev/null \
+            | head -5 | sed 's/^/• /' || echo "None")
+          [ -z "$TOP_NUCLEI" ] && TOP_NUCLEI="None"
+
+          jq -n \
+            --arg d      "$D" \
+            --arg subs   "$SUBS" \
+            --arg live   "$LIVE" \
+            --arg sens   "$SENS" \
+            --arg nuci   "$NUCI" \
+            --arg secs   "$SECS" \
+            --arg cors   "$CORS" \
+            --arg cloud  "$CLOU" \
+            --arg tls    "$TLS" \
+            --arg dirs   "$DIRS" \
+            --arg redir  "$REDIR" \
+            --arg crlf   "$CRLF" \
+            --arg cves   "$CVES" \
+            --arg hdr    "$HDR" \
+            --arg tsens  "$TOP_SENS" \
+            --arg tnucl  "$TOP_NUCLEI" \
+            --argjson color "$COLOR" \
+          '{
+            username: "DeepRecon",
+            embeds: [{
+              title: ("🎯 Deep Recon: " + $d),
+              color: $color,
+              fields: [
+                {name:"🌐 Recon",
+                 value:("Subs: **"+$subs+"** | Live: **"+$live+"** | TLS Issues: **"+$tls+"**"),
+                 inline:false},
+                {name:"🔓 Info Disclosure",
+                 value:("Sensitive Files: **"+$sens+"** | Nuclei: **"+$nuci+"** | JS Secrets: **"+$secs+"**"),
+                 inline:false},
+                {name:"☁️ Cloud + CORS",
+                 value:("Buckets: **"+$cloud+"** | CORS Vulns: **"+$cors+"**"),
+                 inline:false},
+                {name:"🔨 Active Scan",
+                 value:("Dirs: **"+$dirs+"** | CVEs: **"+$cves+"** | Open Redirect: **"+$redir+"** | CRLF: **"+$crlf+"**"),
+                 inline:false},
+                {name:"🛡️ Headers",
+                 value:("Missing Headers: **"+$hdr+"**"),
+                 inline:false},
+                {name:"📂 Top Sensitive Files",
+                 value:$tsens,
+                 inline:false},
+                {name:"🚨 Top Nuclei Findings",
+                 value:$tnucl,
+                 inline:false}
+              ]
+            }]
+          }' | curl -s -X POST "$WEBHOOK" \
+                 -H "Content-Type: application/json" \
+                 -d @- || true
