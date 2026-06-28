@@ -1,4 +1,4 @@
-name: BBOT Recon
+name: "BBOT Recon"
 
 on:
   workflow_dispatch:
@@ -7,41 +7,62 @@ on:
         description: "Target Domain"
         required: true
 
+permissions:
+  contents: read
+
 jobs:
   recon:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
 
     steps:
-      - name: Checkout Repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Install BBOT
         run: |
-          python3 -m pip install --upgrade pip
-          pip install bbot
+          python3 -m pip install --upgrade pip --quiet
+          pip install bbot --quiet
 
       - name: Run BBOT Scan
+        continue-on-error: true
         run: |
           mkdir -p output
-          bbot -t "${{ github.event.inputs.domain }}" \
-          -f subdomain-enum web-basic \
-          -o output
+          bbot \
+            -t "${{ github.event.inputs.domain }}" \
+            -f subdomain-enum web-basic \
+            -o output \
+            --yes 2>/dev/null || true
 
       - name: Zip Results
-        run: |
-          zip -r results.zip output
+        run: zip -r results.zip output 2>/dev/null || true
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: bbot-results
+          name: bbot-${{ github.event.inputs.domain }}-${{ github.run_number }}
           path: results.zip
+          retention-days: 14
 
-      - name: Send Discord Notification
+      - name: Discord Notification
+        if: always()
         env:
-          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
-          curl -H "Content-Type: application/json" \
-          -X POST \
-          -d "{\"content\":\"✅ BBOT scan finished for: ${{ github.event.inputs.domain }}\"}" \
-          $DISCORD_WEBHOOK
+          COUNT=$(find output -name "*.txt" -exec wc -l {} + 2>/dev/null \
+            | tail -1 | awk '{print $1}' || echo 0)
+
+          jq -n \
+            --arg d "${{ github.event.inputs.domain }}" \
+            --arg c "$COUNT" \
+          '{
+            username: "BBOTBot",
+            embeds: [{
+              title: ("BBOT Scan Complete: " + $d),
+              color: 5814783,
+              fields: [
+                {name: "Results", value: ($c + " lines"), inline: true}
+              ]
+            }]
+          }' | curl -s -X POST "$WEBHOOK" \
+                 -H "Content-Type: application/json" -d @- || true
