@@ -1,0 +1,224 @@
+name: "Subdomain Monitor"
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      domain:
+        description: 'Target Domain'
+        required: true
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: false
+
+      - name: Install jq
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq jq
+
+      - name: Restore Tool Cache
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: ~/go/bin
+          key: go-tools-${{ runner.os }}-v3
+
+      - name: Install Tools
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
+          go install github.com/projectdiscovery/httpx/cmd/httpx@latest
+          go install github.com/projectdiscovery/dnsx/cmd/dnsx@latest
+          go install github.com/PentestPad/subzy@latest
+
+      - name: Update PATH
+        run: echo "$HOME/go/bin" >> $GITHUB_PATH
+
+      - name: Set Domain
+        run: |
+          DOMAIN="${{ github.event.inputs.domain || secrets.TARGET_DOMAIN }}"
+          if [ -z "$DOMAIN" ]; then
+            echo "DOMAIN is empty"
+            exit 1
+          fi
+          echo "DOMAIN=$DOMAIN" >> $GITHUB_ENV
+          mkdir -p "results/$DOMAIN"
+          touch "results/$DOMAIN/prev.txt" \
+                /tmp/takeovers.txt \
+                /tmp/new_subs.txt \
+                /tmp/removed_subs.txt \
+                /tmp/live_hosts.txt \
+                /tmp/live.txt
+
+      - name: Enumerate Subdomains
+        continue-on-error: true
+        run: |
+          subfinder -d "$DOMAIN" -all -silent \
+            -o /tmp/subs_raw.txt 2>/dev/null || true
+
+          grep -iE "^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+${DOMAIN}$" \
+            /tmp/subs_raw.txt 2>/dev/null \
+            | sort -u > /tmp/subs.txt || true
+
+          echo "Raw: $(wc -l < /tmp/subs_raw.txt 2>/dev/null || echo 0)"
+          echo "Valid: $(wc -l < /tmp/subs.txt 2>/dev/null || echo 0)"
+
+      - name: DNS Resolve
+        continue-on-error: true
+        run: |
+          dnsx -l /tmp/subs.txt -silent -a \
+            -o /tmp/resolved.txt 2>/dev/null || \
+            cp /tmp/subs.txt /tmp/resolved.txt
+          sort -u /tmp/resolved.txt -o /tmp/resolved.txt
+
+      - name: HTTP Probe
+        continue-on-error: true
+        run: |
+          httpx -l /tmp/resolved.txt \
+            -silent \
+            -status-code \
+            -title \
+            -tech-detect \
+            -threads 50 \
+            -timeout 8 \
+            -json \
+            -o /tmp/live_raw.json 2>/dev/null || true
+
+          jq -r '.url' /tmp/live_raw.json 2>/dev/null \
+            | sort -u > /tmp/live_hosts.txt || true
+
+          jq -r '[.url, .status_code, .title] | @tsv' /tmp/live_raw.json 2>/dev/null \
+            | sort > /tmp/live.txt || true
+
+      - name: Takeover Check
+        continue-on-error: true
+        run: |
+          subzy run \
+            --targets /tmp/resolved.txt \
+            --concurrency 20 \
+            --hide_fails \
+            --verify_ssl \
+            --output /tmp/subzy_raw.json 2>/dev/null || true
+
+          grep -s '.' /tmp/subzy_raw.json \
+            | jq -r 'select(.vulnerable == true) | "[TAKEOVER] \(.subdomain) => \(.service)"' \
+            > /tmp/takeovers.txt 2>/dev/null || true
+
+          echo "Confirmed takeovers: $(wc -l < /tmp/takeovers.txt)"
+
+      - name: Diff Against Previous Run
+        run: |
+          comm -23 \
+            <(sort /tmp/resolved.txt) \
+            <(sort "results/$DOMAIN/prev.txt") \
+            > /tmp/new_subs.txt
+
+          comm -23 \
+            <(sort "results/$DOMAIN/prev.txt") \
+            <(sort /tmp/resolved.txt) \
+            > /tmp/removed_subs.txt
+
+          NEW=$(wc -l < /tmp/new_subs.txt)
+          REMOVED=$(wc -l < /tmp/removed_subs.txt)
+          TAKEOVERS=$(wc -l < /tmp/takeovers.txt 2>/dev/null || echo 0)
+
+          echo "NEW=$NEW"             >> $GITHUB_ENV
+          echo "REMOVED=$REMOVED"     >> $GITHUB_ENV
+          echo "TAKEOVERS=$TAKEOVERS" >> $GITHUB_ENV
+
+          echo "New: $NEW | Removed: $REMOVED | Takeovers: $TAKEOVERS"
+
+      - name: Save Results & Commit
+        run: |
+          cp /tmp/resolved.txt   "results/$DOMAIN/subdomains.txt"
+          cp /tmp/resolved.txt   "results/$DOMAIN/prev.txt"
+          cp /tmp/live_hosts.txt "results/$DOMAIN/live_hosts.txt" 2>/dev/null || true
+          cp /tmp/live.txt       "results/$DOMAIN/live.txt"       2>/dev/null || true
+          cp /tmp/new_subs.txt   "results/$DOMAIN/new.txt"        2>/dev/null || true
+          cp /tmp/takeovers.txt  "results/$DOMAIN/takeovers.txt"  2>/dev/null || true
+
+          TOTAL=$(wc -l < /tmp/resolved.txt   2>/dev/null || echo 0)
+          LIVE=$(wc -l  < /tmp/live_hosts.txt 2>/dev/null || echo 0)
+
+          {
+            echo "# Recon Summary: $DOMAIN"
+            echo "Last Updated: $(date -u)"
+            echo ""
+            echo "| Metric | Count |"
+            echo "|--------|-------|"
+            echo "| Total Subdomains | $TOTAL |"
+            echo "| Live Hosts | $LIVE |"
+            echo "| New (this run) | ${{ env.NEW }} |"
+            echo "| Removed | ${{ env.REMOVED }} |"
+            echo "| Confirmed Takeovers | ${{ env.TAKEOVERS }} |"
+          } > "results/$DOMAIN/summary.md"
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "results/$DOMAIN/"
+          git diff --staged --quiet || \
+            git commit -m "Recon Update [$DOMAIN] $(date -u +'%Y-%m-%d %H:%M')"
+          git push || true
+
+      - name: Discord — Only on Changes
+        if: env.NEW != '0' || env.REMOVED != '0' || env.TAKEOVERS != '0'
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          TOTAL=$(wc -l < /tmp/resolved.txt   2>/dev/null || echo 0)
+          LIVE=$(wc -l  < /tmp/live_hosts.txt 2>/dev/null || echo 0)
+
+          NEW_LIST=$(head -10 /tmp/new_subs.txt 2>/dev/null \
+            | awk '{print "- "$0}' | paste -sd '\n' || echo "None")
+          [ -z "$NEW_LIST" ] && NEW_LIST="None"
+
+          TAKEOVER_LIST=$(head -5 /tmp/takeovers.txt 2>/dev/null \
+            | awk '{print "- "$0}' | paste -sd '\n' || echo "None")
+          [ -z "$TAKEOVER_LIST" ] && TAKEOVER_LIST="None"
+
+          COLOR=5814783
+          [ "${{ env.TAKEOVERS }}" != "0" ] && COLOR=15158332
+
+          jq -n \
+            --arg d  "$DOMAIN" \
+            --arg t  "$TOTAL" \
+            --arg l  "$LIVE" \
+            --arg n  "${{ env.NEW }}" \
+            --arg r  "${{ env.REMOVED }}" \
+            --arg tk "${{ env.TAKEOVERS }}" \
+            --arg nl "$NEW_LIST" \
+            --arg tl "$TAKEOVER_LIST" \
+            --argjson color "$COLOR" \
+          '{
+            username: "SubMonitor",
+            embeds: [{
+              title: ("Subdomain Change: " + $d),
+              color: $color,
+              fields: [
+                {name:"Total",            value:$t,  inline:true},
+                {name:"Live",             value:$l,  inline:true},
+                {name:"New",              value:$n,  inline:true},
+                {name:"Removed",          value:$r,  inline:true},
+                {name:"Takeovers",        value:$tk, inline:true},
+                {name:"New Subdomains",   value:$nl, inline:false},
+                {name:"Takeover Targets", value:$tl, inline:false}
+              ]
+            }]
+          }' | curl -s -X POST "$WEBHOOK" \
+               -H "Content-Type: application/json" \
+               -d @- || true
