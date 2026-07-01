@@ -47,6 +47,7 @@ blog.compliancy.datacamp.com
 blog.datacamp.com
 blog.kong.datacamp.com
 blog.new.datacamp.com
+blogs.datacamp.com
 bokeh-server.datacamp.com
 bookmarks.datacamp.com
 boro.datacamp.com
@@ -146,6 +147,7 @@ events.datacamp.com
 evt.optima.datacamp.com
 excel-api.datacamp.com
 explorables.datacamp.com
+explorables.new.datacamp.com
 explore.datacamp.com
 external.ai-tutor.datacamp.com
 external.app.datacamp.com
@@ -193,7 +195,6 @@ help.datacamp.com
 hh.datacamp.com
 home-hub.datacamp.com
 home.it.datacamp.com
-homepage1.datacamp.com
 homepage3.datacamp.com
 httpswww.datacamp.com
 hub.auth.datacamp.com
@@ -208,7 +209,6 @@ images.datacamp.com
 images.learn-hub-api.datacamp.com
 images.links.datacamp.com
 img.links.datacamp.com
-info.datacamp.com
 infra-reporter.datacamp.com
 ingressgateway-datacamp-ops.ops.datacamp.com
 ingressgateway-ops-us-east-1.ops.datacamp.com
@@ -225,6 +225,7 @@ int.learn-hub-api.datacamp.com
 intranet.datacamp.com
 jupyter-static.datacamp.com
 jupyterhub.datacamp.com
+k2.datacamp.com
 k4.datacamp.com
 k5.datacamp.com
 k8s.ai-tutor.datacamp.com
@@ -353,6 +354,7 @@ prod.links.datacamp.com
 project-frontend.new.datacamp.com
 projector.datacamp.com
 projector.new.datacamp.com
+projects-api.datacamp.com
 projects-api.new.datacamp.com
 projects.datacamp.com
 prometheus-aggregator.datacamp.com
@@ -407,7 +409,6 @@ skill-assessment-frontend-v2.new.datacamp.com
 skill-audit.datacamp.com
 sl.datacamp.com
 slack-global.datacamp.com
-slack-global.datacamp.comslack-global.datacamp.com
 slack-usa.datacamp.com
 slides.datacamp.com
 smtp.datacamp.com
@@ -539,8 +540,8 @@ www2.datacamp.com
 www2s.datacamp.com
 www2u.datacamp.com
 www4b.datacamp.com
-www5a.datacamp.com
 www5c.datacamp.com
 www5d.datacamp.com
+www7b.datacamp.com
 wwww.datacamp.com
 z28rg4x8kh99-workspace-sessions.datacamp.com
