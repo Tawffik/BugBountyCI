@@ -1,2 +1,1 @@
-comune.datacamp.com
-u.datacamp.com
+teach-browser.datacamp.com
