@@ -1,5 +1,2 @@
-a.datacamp.com
-challenges-api.new.datacamp.com
-top100.datacamp.com
-union.datacamp.com
-www5f.datacamp.com
+cn.datacamp.com
+maven.datacamp.com
