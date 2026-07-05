@@ -1,0 +1,1814 @@
+# ============================================================
+# Zero Track Trigger - Information Disclosure Hunter
+# Detection-only. Finds leaked files, secrets, schemas, and
+# verbose banners. Does not inject, exploit, or brute force.
+# ============================================================
+
+name: "🔍 Zero Track Trigger - Info Disclosure Hunter"
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Target domain (e.g., example.com)"
+        required: true
+        type: string
+      subdomain_enum:
+        description: "Enable subdomain enumeration"
+        type: boolean
+        default: true
+      js_secrets_scan:
+        description: "Scan JS files for secrets/JWTs"
+        type: boolean
+        default: true
+      nuclei_exposures:
+        description: "Run nuclei exposure/config/backup/token templates"
+        type: boolean
+        default: true
+      ai_analysis:
+        description: "Enable AI-powered triage"
+        type: boolean
+        default: true
+      ai_provider:
+        description: "AI provider ('both' = auto waterfall through whichever keys are set: anthropic -> openrouter -> groq -> gemini)"
+        type: choice
+        options:
+          - both
+          - anthropic
+          - openrouter
+          - groq
+          - gemini
+        default: "both"
+      discord_notify:
+        description: "Send Discord notification"
+        type: boolean
+        default: true
+
+env:
+  TARGET: ${{ github.event.inputs.target }}
+  TIMESTAMP: ${{ github.run_id }}-${{ github.run_number }}
+  RESULTS_DIR: results/infodisc-${{ github.run_id }}-${{ github.run_number }}
+  DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+  OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+concurrency:
+  group: infodisc-${{ github.event.inputs.target }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+
+  # ============================================================
+  # STAGE 1: Setup
+  # ============================================================
+
+  setup:
+    name: "🛠️ Setup & Dependencies"
+    runs-on: ubuntu-latest
+    outputs:
+      results_dir: ${{ steps.set_output.outputs.results_dir }}
+      target: ${{ steps.set_output.outputs.target }}
+      anthropic_key_set: ${{ steps.check_secrets.outputs.anthropic_key_set }}
+      openrouter_key_set: ${{ steps.check_secrets.outputs.openrouter_key_set }}
+      groq_key_set: ${{ steps.check_secrets.outputs.groq_key_set }}
+      gemini_key_set: ${{ steps.check_secrets.outputs.gemini_key_set }}
+    steps:
+      - name: "📥 Checkout Repository"
+        uses: actions/checkout@v4
+
+      - name: "🔒 Verify Target Is In Authorized Scope"
+        run: |
+          TARGET="${{ github.event.inputs.target }}"
+          SCOPE_FILE="scope.txt"
+
+          if [ ! -f "$SCOPE_FILE" ]; then
+            echo "⚠️  No scope.txt found at repo root - skipping scope check."
+            echo "⚠️  Create a scope.txt (one allowed domain or *.domain.com per line)"
+            echo "⚠️  to restrict which targets this workflow is allowed to run against."
+            exit 0
+          fi
+
+          MATCH=0
+          while IFS= read -r line; do
+            line=$(echo "$line" | tr -d '\r' | sed 's/#.*//' | xargs)
+            [ -z "$line" ] && continue
+            if [ "$line" = "$TARGET" ]; then
+              MATCH=1
+              break
+            fi
+            case "$line" in
+              \*.*)
+                BASE="${line#\*.}"
+                if [ "$TARGET" = "$BASE" ] || [[ "$TARGET" == *".$BASE" ]]; then
+                  MATCH=1
+                  break
+                fi
+                ;;
+            esac
+          done < "$SCOPE_FILE"
+
+          if [ "$MATCH" != "1" ]; then
+            echo "❌ '$TARGET' is NOT listed in scope.txt. Refusing to run."
+            exit 1
+          fi
+          echo "✅ '$TARGET' is authorized per scope.txt"
+
+      - name: "🔑 Check Available Secrets"
+        id: check_secrets
+        run: |
+          if [ -n "${{ secrets.ANTHROPIC_API_KEY }}" ]; then
+            echo "anthropic_key_set=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "anthropic_key_set=false" >> "$GITHUB_OUTPUT"
+          fi
+          if [ -n "${{ secrets.OPENROUTER_API_KEY }}" ]; then
+            echo "openrouter_key_set=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "openrouter_key_set=false" >> "$GITHUB_OUTPUT"
+          fi
+          if [ -n "${{ secrets.GROQ_API_KEY }}" ]; then
+            echo "groq_key_set=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "groq_key_set=false" >> "$GITHUB_OUTPUT"
+          fi
+          if [ -n "${{ secrets.GEMINI_API_KEY }}" ]; then
+            echo "gemini_key_set=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "gemini_key_set=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: "📂 Create Results Directory Structure"
+        run: |
+          mkdir -p "${{ env.RESULTS_DIR }}"/{subdomains,live,urls,js,exposures,cloud,ai,logs}
+
+      - name: "⚡ Setup Go Environment"
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache: true
+
+      - name: "🐍 Setup Python Environment"
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: "📦 Install System Dependencies"
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq git curl wget unzip jq build-essential 2>&1 | tail -5
+          echo "✅ System dependencies installed"
+
+      - name: "📦 Build Go Tools Once (pinned versions)"
+        run: |
+          mkdir -p /tmp/toolbin
+          export GOBIN=/tmp/toolbin
+          go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@v2.6.6 2>&1 || true
+          go install github.com/projectdiscovery/httpx/cmd/httpx@v1.6.8 2>&1 || true
+          go install github.com/projectdiscovery/katana/cmd/katana@v1.1.0 2>&1 || true
+          go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@v3.3.2 2>&1 || true
+          go install github.com/tomnomnom/assetfinder@latest 2>&1 || true
+          go install github.com/tomnomnom/waybackurls@latest 2>&1 || true
+          go install github.com/lc/gau/v2/cmd/gau@latest 2>&1 || true
+          ls -la /tmp/toolbin
+          echo "✅ Tools built once at /tmp/toolbin"
+
+      - name: "📦 Update Nuclei Templates Once"
+        run: |
+          export PATH=/tmp/toolbin:$PATH
+          nuclei -update-templates 2>&1 | tail -3 || true
+          cp -r ~/.local/nuclei-templates /tmp/toolbin/nuclei-templates 2>/dev/null || \
+          cp -r ~/nuclei-templates /tmp/toolbin/nuclei-templates 2>/dev/null || true
+          echo "✅ Nuclei templates updated"
+
+      - name: "📦 Package Toolchain Artifact"
+        run: |
+          tar -czf /tmp/toolchain.tar.gz -C /tmp toolbin
+          ls -lh /tmp/toolchain.tar.gz
+
+      - name: "📤 Upload Toolchain Artifact"
+        uses: actions/upload-artifact@v4
+        with:
+          name: toolchain-${{ env.TIMESTAMP }}
+          path: /tmp/toolchain.tar.gz
+          retention-days: 1
+
+      - name: "🔧 Set Output Variables"
+        id: set_output
+        run: |
+          echo "results_dir=${{ env.RESULTS_DIR }}" >> "$GITHUB_OUTPUT"
+          echo "target=${{ env.TARGET }}" >> "$GITHUB_OUTPUT"
+
+  # ============================================================
+  # STAGE 2: Subdomain Enumeration (wider surface = more to check)
+  # ============================================================
+
+  subdomain_enum:
+    name: "🌐 Subdomain Enumeration"
+    needs: [setup]
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.subdomain_enum == 'true' }}
+    steps:
+      - name: "📂 Create Result Directories"
+        run: mkdir -p "${{ needs.setup.outputs.results_dir }}"/{subdomains,logs}
+
+      - name: "📥 Download Toolchain"
+        uses: actions/download-artifact@v4
+        with:
+          name: toolchain-${{ env.TIMESTAMP }}
+          path: /tmp/
+
+      - name: "📦 Unpack Toolchain"
+        run: |
+          tar -xzf /tmp/toolchain.tar.gz -C /tmp
+          echo "/tmp/toolbin" >> "$GITHUB_PATH"
+
+      - name: "🔍 Passive Subdomain Enumeration"
+        continue-on-error: true
+        run: |
+          subfinder -d "${{ needs.setup.outputs.target }}" -silent -all \
+            -o "${{ needs.setup.outputs.results_dir }}/subdomains/subfinder.txt" \
+            2>>"${{ needs.setup.outputs.results_dir }}/logs/subfinder.log" || true
+          assetfinder --subs-only "${{ needs.setup.outputs.target }}" \
+            > "${{ needs.setup.outputs.results_dir }}/subdomains/assetfinder.txt" \
+            2>>"${{ needs.setup.outputs.results_dir }}/logs/assetfinder.log" || true
+          echo "✅ Passive enumeration completed"
+
+      - name: "🔍 Certificate Transparency (crt.sh)"
+        continue-on-error: true
+        run: |
+          TARGET="${{ needs.setup.outputs.target }}"
+          curl -s --max-time 30 "https://crt.sh/?q=%25.${TARGET}&output=json" \
+            -o /tmp/crtsh.json 2>>"${{ needs.setup.outputs.results_dir }}/logs/crtsh.log" || true
+          if [ -s /tmp/crtsh.json ]; then
+            jq -r '.[].name_value' /tmp/crtsh.json 2>/dev/null \
+              | tr ',' '\n' \
+              | sed 's/^\*\.//' \
+              | grep -iE "(^|\.)$(echo "$TARGET" | sed 's/\./\\./g')\$" \
+              | sort -u \
+              > "${{ needs.setup.outputs.results_dir }}/subdomains/crtsh.txt" 2>/dev/null || true
+          fi
+          echo "✅ crt.sh names: $(wc -l < "${{ needs.setup.outputs.results_dir }}/subdomains/crtsh.txt" 2>/dev/null || echo 0)"
+
+      - name: "🔄 Merge & Deduplicate"
+        continue-on-error: true
+        run: |
+          cat "${{ needs.setup.outputs.results_dir }}"/subdomains/*.txt 2>/dev/null \
+            | sort -u | grep -v '^\s*$' \
+            > "${{ needs.setup.outputs.results_dir }}/subdomains/all_subdomains.txt"
+          echo "✅ Total unique subdomains: $(wc -l < "${{ needs.setup.outputs.results_dir }}/subdomains/all_subdomains.txt" 2>/dev/null || echo 0)"
+
+      - name: "📤 Upload Subdomain Artifacts"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: subdomains-${{ env.TIMESTAMP }}
+          path: ${{ needs.setup.outputs.results_dir }}/subdomains/
+          retention-days: 14
+
+  # ============================================================
+  # STAGE 3: Live Host Probing
+  # ============================================================
+
+  httpx_probe:
+    name: "🌍 Live Host Probing"
+    needs: [setup, subdomain_enum]
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    steps:
+      - name: "📂 Create Result Directories"
+        run: mkdir -p "${{ needs.setup.outputs.results_dir }}"/{live,logs}
+
+      - name: "📥 Download Toolchain"
+        uses: actions/download-artifact@v4
+        with:
+          name: toolchain-${{ env.TIMESTAMP }}
+          path: /tmp/
+
+      - name: "📦 Unpack Toolchain"
+        run: |
+          tar -xzf /tmp/toolchain.tar.gz -C /tmp
+          echo "/tmp/toolbin" >> "$GITHUB_PATH"
+
+      - name: "📥 Download Subdomain Artifacts"
+        uses: actions/download-artifact@v4
+        with:
+          name: subdomains-${{ env.TIMESTAMP }}
+          path: ${{ needs.setup.outputs.results_dir }}/subdomains/
+        continue-on-error: true
+
+      - name: "🌐 HTTPX - Live Host Probing"
+        continue-on-error: true
+        timeout-minutes: 30
+        run: |
+          INPUT_FILE="${{ needs.setup.outputs.results_dir }}/subdomains/all_subdomains.txt"
+          if [ ! -f "$INPUT_FILE" ] || [ ! -s "$INPUT_FILE" ]; then
+            echo "${{ needs.setup.outputs.target }}" > /tmp/single_target.txt
+            INPUT_FILE=/tmp/single_target.txt
+          fi
+          httpx -l "$INPUT_FILE" \
+            -silent -status-code -content-length -content-type -title \
+            -web-server -ip -cname -location -cdn \
+            -follow-redirects -max-redirects 5 \
+            -threads 100 -rate-limit 150 -timeout 10 -retries 3 \
+            -json \
+            -o "${{ needs.setup.outputs.results_dir }}/live/live_hosts.json" \
+            2>>"${{ needs.setup.outputs.results_dir }}/logs/httpx.log"
+
+          # httpx's -j/-json flag only toggles JSON mode for whatever -o
+          # writes - it is not a second "write JSON here too" option. Derive
+          # the plain host list every other step expects (one URL per line)
+          # from the JSON with jq.
+          if [ -s "${{ needs.setup.outputs.results_dir }}/live/live_hosts.json" ]; then
+            jq -r '.url // .input' "${{ needs.setup.outputs.results_dir }}/live/live_hosts.json" 2>/dev/null \
+              | grep -v '^\s*$' \
+              > "${{ needs.setup.outputs.results_dir }}/live/live_hosts.txt" || true
+          else
+            : > "${{ needs.setup.outputs.results_dir }}/live/live_hosts.txt"
+          fi
+          echo "✅ Live hosts: $(wc -l < "${{ needs.setup.outputs.results_dir }}/live/live_hosts.txt" 2>/dev/null || echo 0)"
+
+          # -server header is captured above; also pull a quick summary of
+          # verbose Server/X-Powered-By banners, since an exact version
+          # string (e.g. "Apache/2.4.29 (Ubuntu)") is itself an information
+          # disclosure finding that helps an attacker target known CVEs.
+          if [ -s "${{ needs.setup.outputs.results_dir }}/live/live_hosts.json" ]; then
+            jq -r 'select(.webserver != null and (.webserver | test("[0-9]"))) | "\(.url) -> \(.webserver)"' \
+              "${{ needs.setup.outputs.results_dir }}/live/live_hosts.json" \
+              > "${{ needs.setup.outputs.results_dir }}/live/verbose_server_banners.txt" 2>/dev/null || true
+            echo "✅ Verbose server banners: $(wc -l < "${{ needs.setup.outputs.results_dir }}/live/verbose_server_banners.txt" 2>/dev/null || echo 0)"
+          fi
+
+      - name: "📤 Upload Live Host Artifacts"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-hosts-${{ env.TIMESTAMP }}
+          path: ${{ needs.setup.outputs.results_dir }}/live/
+          retention-days: 14
+
+  # ============================================================
+  # STAGE 4: URL Collection (needed to find .map, docs, backups)
+  # ============================================================
+
+  url_collection:
+    name: "📜 URL Collection"
+    needs: [setup, subdomain_enum, httpx_probe]
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    steps:
+      - name: "📂 Create Result Directories"
+        run: mkdir -p "${{ needs.setup.outputs.results_dir }}"/{urls,logs}
+
+      - name: "📥 Download Toolchain"
+        uses: actions/download-artifact@v4
+        with:
+          name: toolchain-${{ env.TIMESTAMP }}
+          path: /tmp/
+
+      - name: "📦 Unpack Toolchain"
+        run: |
+          tar -xzf /tmp/toolchain.tar.gz -C /tmp
+          echo "/tmp/toolbin" >> "$GITHUB_PATH"
+
+      - name: "📥 Download Subdomain Artifacts"
+        uses: actions/download-artifact@v4
+        with:
+          name: subdomains-${{ env.TIMESTAMP }}
+          path: ${{ needs.setup.outputs.results_dir }}/subdomains/
+        continue-on-error: true
+
+      - name: "📥 Download Live Host Artifacts"
+        uses: actions/download-artifact@v4
+        with:
+          name: live-hosts-${{ env.TIMESTAMP }}
+          path: ${{ needs.setup.outputs.results_dir }}/live/
+        continue-on-error: true
+
+      - name: "📜 Wayback + Gau URL Collection"
+        continue-on-error: true
+        timeout-minutes: 20
+        run: |
+          INPUT_FILE="${{ needs.setup.outputs.results_dir }}/subdomains/all_subdomains.txt"
+          if [ ! -f "$INPUT_FILE" ] || [ ! -s "$INPUT_FILE" ]; then
+            echo "${{ needs.setup.outputs.target }}" > /tmp/single_target.txt
+            INPUT_FILE=/tmp/single_target.txt
+          fi
+          cat "$INPUT_FILE" | waybackurls \
+            > "${{ needs.setup.outputs.results_dir }}/urls/wayback_urls.txt" \
+            2>>"${{ needs.setup.outputs.results_dir }}/logs/wayback.log" || true
+          gau "${{ needs.setup.outputs.target }}" --subs \
+            --o "${{ needs.setup.outputs.results_dir }}/urls/gau_urls.txt" \
+            2>>"${{ needs.setup.outputs.results_dir }}/logs/gau.log" || true
+          echo "✅ Wayback+Gau URLs collected"
+
+      - name: "📜 Katana Crawling"
+        continue-on-error: true
+        timeout-minutes: 20
+        run: |
+          INPUT_FILE="${{ needs.setup.outputs.results_dir }}/live/live_hosts.txt"
+          if [ ! -f "$INPUT_FILE" ] || [ ! -s "$INPUT_FILE" ]; then
+            echo "https://${{ needs.setup.outputs.target }}" > /tmp/live_fallback.txt
+            INPUT_FILE=/tmp/live_fallback.txt
+          fi
+          katana -list "$INPUT_FILE" -silent -depth 3 -jc -kf -d 5 \
+            -o "${{ needs.setup.outputs.results_dir }}/urls/katana_urls.txt" \
+            2>>"${{ needs.setup.outputs.results_dir }}/logs/katana.log" || true
+          echo "✅ Katana URLs: $(wc -l < "${{ needs.setup.outputs.results_dir }}/urls/katana_urls.txt" 2>/dev/null || echo 0)"
+
+      - name: "🔄 Merge & Deduplicate All URLs"
+        continue-on-error: true
+        run: |
+          cat "${{ needs.setup.outputs.results_dir }}"/urls/*.txt 2>/dev/null \
+            | sort -u | grep -v '^\s*$' \
+            > "${{ needs.setup.outputs.results_dir }}/urls/all_urls.txt"
+          echo "✅ Total unique URLs: $(wc -l < "${{ needs.setup.outputs.results_dir }}/urls/all_urls.txt" 2>/dev/null || echo 0)"
+
+      - name: "📤 Upload URL Artifacts"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: urls-${{ env.TIMESTAMP }}
+          path: ${{ needs.setup.outputs.results_dir }}/urls/
+          retention-days: 14
+
+  # ============================================================
+  # STAGE 5: Information Disclosure Scan (the core job)
+  # ============================================================
+
+  exposure_scan:
+    name: "🔓 Information Disclosure Scan"
+    needs: [setup, httpx_probe, url_collection]
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    timeout-minutes: 45
+    steps:
+      - name: "📂 Create Result Directories"
+        run: mkdir -p "${{ needs.setup.outputs.results_dir }}"/{exposures,cloud,logs}
+
+      - name: "📥 Download Toolchain"
+        uses: actions/download-artifact@v4
+        with:
+          name: toolchain-${{ env.TIMESTAMP }}
+          path: /tmp/
+
+      - name: "📦 Unpack Toolchain"
+        run: |
+          tar -xzf /tmp/toolchain.tar.gz -C /tmp
+          echo "/tmp/toolbin" >> "$GITHUB_PATH"
+          mkdir -p ~/.local/nuclei-templates
+          cp -r /tmp/toolbin/nuclei-templates/* ~/.local/nuclei-templates/ 2>/dev/null || true
+
+      - name: "📥 Download Live Host Artifacts"
+        uses: actions/download-artifact@v4
+        with:
+          name: live-hosts-${{ env.TIMESTAMP }}
+          path: ${{ needs.setup.outputs.results_dir }}/live/
+        continue-on-error: true
+
+      - name: "📥 Download URL Artifacts"
+        uses: actions/download-artifact@v4
+        with:
+          name: urls-${{ env.TIMESTAMP }}
+          path: ${{ needs.setup.outputs.results_dir }}/urls/
+        continue-on-error: true
+
+      - name: "☢️ Nuclei Exposure Templates (config/backup/token/exposure tags)"
+        if: ${{ github.event.inputs.nuclei_exposures == 'true' }}
+        continue-on-error: true
+        timeout-minutes: 30
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo " ☢️  NUCLEI - Information Disclosure Templates"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          # Restricted to nuclei's own information-disclosure template
+          # categories - it never runs injection, RCE, or auth-bypass tags.
+          INPUT_FILE="${{ needs.setup.outputs.results_dir }}/live/live_hosts.txt"
+          if [ ! -f "$INPUT_FILE" ] || [ ! -s "$INPUT_FILE" ]; then
+            echo "https://${{ needs.setup.outputs.target }}" > /tmp/nuclei_fallback.txt
+            INPUT_FILE=/tmp/nuclei_fallback.txt
+          fi
+          nuclei -l "$INPUT_FILE" \
+            -tags exposure,config,backup,token,exposures,logs,files \
+            -rate-limit 100 -bulk-size 25 -concurrency 25 \
+            -timeout 10 -retries 1 -silent -jsonl \
+            -o "${{ needs.setup.outputs.results_dir }}/exposures/nuclei_exposures.json" \
+            2>>"${{ needs.setup.outputs.results_dir }}/logs/nuclei.log" || true
+          COUNT=$(wc -l < "${{ needs.setup.outputs.results_dir }}/exposures/nuclei_exposures.json" 2>/dev/null || echo 0)
+          echo "✅ Nuclei exposure findings: $COUNT"
+          if [ -s "${{ needs.setup.outputs.results_dir }}/exposures/nuclei_exposures.json" ]; then
+            jq -r '"[\(.info.severity // "unknown")] \(.info.name // "?") -> \(.["matched-at"] // .host // "?")"' \
+              "${{ needs.setup.outputs.results_dir }}/exposures/nuclei_exposures.json" \
+              > "${{ needs.setup.outputs.results_dir }}/exposures/nuclei_exposures.txt" 2>/dev/null || true
+          fi
+
+      - name: "🛡️ Sensitive Files Discovery"
+        continue-on-error: true
+        timeout-minutes: 15
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo " 🛡️  SENSITIVE FILES DISCOVERY (httpx -paths)"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          cat > /tmp/sensitive_paths.txt <<'EOF'
+          /.env
+          /.env.local
+          /.env.production
+          /.git/config
+          /.git/HEAD
+          /.htaccess
+          /.htpasswd
+          /config.php
+          /config.json
+          /config.yaml
+          /config.yml
+          /database.yml
+          /database.json
+          /db.php
+          /wp-config.php
+          /wp-config.bak
+          /.aws/credentials
+          /.aws/config
+          /.npmrc
+          /composer.json
+          /composer.lock
+          /package.json
+          /package-lock.json
+          /yarn.lock
+          /Dockerfile
+          /docker-compose.yml
+          /docker-compose.yaml
+          /nginx.conf
+          /server-status
+          /server-info
+          /phpinfo.php
+          /info.php
+          /client_secret.json
+          /credentials.json
+          /.gitlab-ci.yml
+          /terraform.tfstate
+          /.well-known/security.txt
+          /web.config
+          /appsettings.json
+          /application.properties
+          /application.yml
+          /.DS_Store
+          /backup.sql
+          /backup.zip
+          /dump.sql
+          /site.zip
+          /www.zip
+          EOF
+
+          INPUT_FILE="${{ needs.setup.outputs.results_dir }}/live/live_hosts.txt"
+          if [ ! -f "$INPUT_FILE" ] || [ ! -s "$INPUT_FILE" ]; then
+            echo "https://${{ needs.setup.outputs.target }}" > /tmp/live_sens.txt
+            INPUT_FILE=/tmp/live_sens.txt
+          fi
+
+          httpx -l "$INPUT_FILE" \
+            -paths /tmp/sensitive_paths.txt \
+            -mc 200 -threads 50 -rate-limit 150 -timeout 6 \
+            -content-length -silent \
+            -o /tmp/sensitive_raw.txt \
+            2>>"${{ needs.setup.outputs.results_dir }}/logs/sensitive.log" || true
+
+          awk '{ if ($NF+0 > 20) print }' /tmp/sensitive_raw.txt \
+            > "${{ needs.setup.outputs.results_dir }}/exposures/sensitive_files.txt" 2>/dev/null || \
+            cp /tmp/sensitive_raw.txt "${{ needs.setup.outputs.results_dir }}/exposures/sensitive_files.txt"
+
+          echo "✅ Sensitive files: $(wc -l < "${{ needs.setup.outputs.results_dir }}/exposures/sensitive_files.txt" 2>/dev/null || echo 0)"
+
+      - name: "🗺️ Source Map (.js.map) Exposure Check"
+        continue-on-error: true
+        timeout-minutes: 10
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo " 🗺️  SOURCE MAP EXPOSURE CHECK"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          # A public .js.map effectively unminifies and hands over the
+          # original source (variable names, comments, sometimes internal
+          # paths) - a classic and often-overlooked information disclosure.
+          URL_FILE="${{ needs.setup.outputs.results_dir }}/urls/all_urls.txt"
+          : > /tmp/map_candidates.txt
+          if [ -f "$URL_FILE" ] && [ -s "$URL_FILE" ]; then
+            grep -iE '\.js\.map(\?|#|$)' "$URL_FILE" | sort -u > /tmp/map_candidates.txt || true
+            # also derive candidates from plain .js URLs (file.js -> file.js.map)
+            grep -iE '\.js(\?|#|$)' "$URL_FILE" | sed 's/\.js\(.*\)$/.js.map/' | sort -u >> /tmp/map_candidates.txt || true
+            sort -u -o /tmp/map_candidates.txt /tmp/map_candidates.txt
+          fi
+          if [ -s /tmp/map_candidates.txt ]; then
+            httpx -l /tmp/map_candidates.txt \
+              -mc 200 -threads 50 -rate-limit 150 -timeout 6 \
+              -content-length -silent \
+              -o "${{ needs.setup.outputs.results_dir }}/exposures/exposed_sourcemaps.txt" \
+              2>>"${{ needs.setup.outputs.results_dir }}/logs/sourcemaps.log" || true
+          fi
+          echo "✅ Exposed source maps: $(wc -l < "${{ needs.setup.outputs.results_dir }}/exposures/exposed_sourcemaps.txt" 2>/dev/null || echo 0)"
+
+      - name: "📖 API Docs / Swagger / OpenAPI Exposure"
+        continue-on-error: true
+        timeout-minutes: 10
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo " 📖 SWAGGER / OPENAPI DOCS EXPOSURE"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          cat > /tmp/docs_paths.txt <<'EOF'
+          /swagger.json
+          /swagger/v1/swagger.json
+          /api/swagger.json
+          /swagger-ui.html
+          /v2/api-docs
+          /v3/api-docs
+          /openapi.json
+          /api/docs
+          /docs
+          /api/documentation
+          /graphql
+          /graphiql
+          /.well-known/openapi.json
+          EOF
+          INPUT_FILE="${{ needs.setup.outputs.results_dir }}/live/live_hosts.txt"
+          if [ ! -f "$INPUT_FILE" ] || [ ! -s "$INPUT_FILE" ]; then
+            echo "https://${{ needs.setup.outputs.target }}" > /tmp/live_docs.txt
+            INPUT_FILE=/tmp/live_docs.txt
+          fi
+          httpx -l "$INPUT_FILE" \
+            -paths /tmp/docs_paths.txt \
+            -mc 200 -threads 50 -rate-limit 150 -timeout 6 \
+            -silent \
+            -o "${{ needs.setup.outputs.results_dir }}/exposures/api_docs_exposed.txt" \
+            2>>"${{ needs.setup.outputs.results_dir }}/logs/docs.log" || true
+          echo "✅ Exposed docs endpoints: $(wc -l < "${{ needs.setup.outputs.results_dir }}/exposures/api_docs_exposed.txt" 2>/dev/null || echo 0)"
+
+      - name: "🕵️ GraphQL Schema Introspection"
+        continue-on-error: true
+        timeout-minutes: 10
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo " 🕵️  GRAPHQL INTROSPECTION"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          INPUT_FILE="${{ needs.setup.outputs.results_dir }}/live/live_hosts.txt"
+          if [ ! -f "$INPUT_FILE" ] || [ ! -s "$INPUT_FILE" ]; then
+            echo "https://${{ needs.setup.outputs.target }}" > /tmp/live_gql.txt
+            INPUT_FILE=/tmp/live_gql.txt
+          fi
+          GRAPHQL_PATHS=("/graphql" "/api/graphql" "/v1/graphql" "/query" "/graphql/console")
+          while IFS= read -r host; do
+            host=$(echo "$host" | tr -d '\r' | grep -v '^\s*$')
+            [ -z "$host" ] && continue
+            for path in "${GRAPHQL_PATHS[@]}"; do
+              url="${host}${path}"
+              status=$(curl -sk -o /tmp/gql_body.txt -w "%{http_code}" --max-time 5 \
+                -X POST -H "Content-Type: application/json" \
+                -d '{"query":"{__schema{queryType{name} types{name}}}"}' "$url" 2>/dev/null || echo "000")
+              if [ "$status" = "200" ] && grep -qiE '"__schema"|"types"' /tmp/gql_body.txt 2>/dev/null; then
+                echo "[SCHEMA-EXPOSED] $url" >> "${{ needs.setup.outputs.results_dir }}/exposures/graphql_introspection.txt"
+                safe_name=$(echo "$url" | sed 's/[^a-zA-Z0-9]/_/g' | cut -c1-80)
+                cp /tmp/gql_body.txt "${{ needs.setup.outputs.results_dir }}/exposures/graphql_schema_${safe_name}.json" 2>/dev/null || true
+              fi
+              sleep 0.05
+            done
+          done < "$INPUT_FILE"
+          echo "✅ GraphQL schemas exposed: $(wc -l < "${{ needs.setup.outputs.results_dir }}/exposures/graphql_introspection.txt" 2>/dev/null || echo 0)"
+
+      - name: "📁 Directory Listing Check"
+        continue-on-error: true
+        timeout-minutes: 10
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo " 📁 DIRECTORY LISTING CHECK"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          COMMON_DIRS=("/uploads/" "/files/" "/backup/" "/assets/" "/static/" "/media/" "/images/" "/docs/" "/data/" "/tmp/" "/log/" "/logs/")
+          INPUT_FILE="${{ needs.setup.outputs.results_dir }}/live/live_hosts.txt"
+          if [ ! -f "$INPUT_FILE" ] || [ ! -s "$INPUT_FILE" ]; then
+            echo "https://${{ needs.setup.outputs.target }}" > /tmp/live_dirs.txt
+            INPUT_FILE=/tmp/live_dirs.txt
+          fi
+          head -15 "$INPUT_FILE" | while IFS= read -r host; do
+            host=$(echo "$host" | tr -d '\r' | grep -v '^\s*$')
+            [ -z "$host" ] && continue
+            for path in "${COMMON_DIRS[@]}"; do
+              url="${host}${path}"
+              body=$(curl -sk --max-time 5 "$url" 2>/dev/null || echo "")
+              if echo "$body" | grep -qiE '<title>Index of|Index of /[a-zA-Z0-9_/.-]*</title|Directory listing for'; then
+                echo "[LISTING] $url" >> "${{ needs.setup.outputs.results_dir }}/exposures/directory_listing.txt"
+              fi
+              sleep 0.05
+            done
+          done
+          echo "✅ Directory listings found: $(wc -l < "${{ needs.setup.outputs.results_dir }}/exposures/directory_listing.txt" 2>/dev/null || echo 0)"
+
+      - name: "🐞 Debug/Verbose Endpoint Check"
+        continue-on-error: true
+        timeout-minutes: 10
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo " 🐞 DEBUG / VERBOSE ENDPOINT CHECK"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          cat > /tmp/debug_paths.txt <<'EOF'
+          /debug
+          /_debug
+          /console
+          /trace
+          /actuator
+          /actuator/env
+          /actuator/health
+          /actuator/beans
+          /actuator/configprops
+          /elmah.axd
+          /_profiler
+          /debug/default/view
+          /__debug__
+          EOF
+          INPUT_FILE="${{ needs.setup.outputs.results_dir }}/live/live_hosts.txt"
+          if [ ! -f "$INPUT_FILE" ] || [ ! -s "$INPUT_FILE" ]; then
+            echo "https://${{ needs.setup.outputs.target }}" > /tmp/live_debug.txt
+            INPUT_FILE=/tmp/live_debug.txt
+          fi
+          httpx -l "$INPUT_FILE" \
+            -paths /tmp/debug_paths.txt \
+            -mc 200 -threads 50 -rate-limit 150 -timeout 6 \
+            -silent \
+            -o "${{ needs.setup.outputs.results_dir }}/exposures/debug_endpoints.txt" \
+            2>>"${{ needs.setup.outputs.results_dir }}/logs/debug.log" || true
+          echo "✅ Debug endpoints exposed: $(wc -l < "${{ needs.setup.outputs.results_dir }}/exposures/debug_endpoints.txt" 2>/dev/null || echo 0)"
+
+      - name: "☁️ Cloud Bucket Discovery + Public Listing Check"
+        continue-on-error: true
+        timeout-minutes: 15
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo " ☁️  CLOUD BUCKET DISCOVERY"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          URL_FILE="${{ needs.setup.outputs.results_dir }}/urls/all_urls.txt"
+          if [ -f "$URL_FILE" ] && [ -s "$URL_FILE" ]; then
+            grep -iE '(s3\.amazonaws\.com|s3-[a-z0-9-]+\.amazonaws\.com|\.s3\.)' "$URL_FILE" \
+              | sort -u > "${{ needs.setup.outputs.results_dir }}/cloud/aws_buckets.txt" 2>/dev/null || true
+            grep -iE '(storage\.googleapis\.com|\.storage\.google)' "$URL_FILE" \
+              | sort -u > "${{ needs.setup.outputs.results_dir }}/cloud/gcp_buckets.txt" 2>/dev/null || true
+            grep -iE '(blob\.core\.windows\.net)' "$URL_FILE" \
+              | sort -u > "${{ needs.setup.outputs.results_dir }}/cloud/azure_buckets.txt" 2>/dev/null || true
+          fi
+          : > "${{ needs.setup.outputs.results_dir }}/cloud/open_buckets.txt"
+          for f in aws_buckets.txt gcp_buckets.txt azure_buckets.txt; do
+            path="${{ needs.setup.outputs.results_dir }}/cloud/$f"
+            [ -f "$path" ] && [ -s "$path" ] || continue
+            while IFS= read -r bucket_url; do
+              bucket_url=$(echo "$bucket_url" | tr -d '\r' | grep -v '^\s*$')
+              [ -z "$bucket_url" ] && continue
+              root=$(echo "$bucket_url" | grep -oE '^[a-zA-Z]+://[^/]+')
+              [ -z "$root" ] && root="https://$bucket_url"
+              body=$(curl -sk --max-time 6 "$root" 2>/dev/null || echo "")
+              if echo "$body" | grep -qiE '<ListBucketResult|<Contents>|"kind":\s*"storage#objects"'; then
+                echo "[OPEN-LISTING] $root" >> "${{ needs.setup.outputs.results_dir }}/cloud/open_buckets.txt"
+              fi
+              sleep 0.05
+            done < "$path"
+          done
+          echo "✅ Publicly listable buckets: $(wc -l < "${{ needs.setup.outputs.results_dir }}/cloud/open_buckets.txt" 2>/dev/null || echo 0)"
+
+      - name: "📤 Upload Exposure Artifacts"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: exposures-${{ env.TIMESTAMP }}
+          path: |
+            ${{ needs.setup.outputs.results_dir }}/exposures/
+            ${{ needs.setup.outputs.results_dir }}/cloud/
+          retention-days: 14
+
+  # ============================================================
+  # STAGE 6: JS Secrets & JWT Disclosure
+  # ============================================================
+
+  js_secrets_scan:
+    name: "🔑 JS Secrets & JWT Disclosure"
+    needs: [setup, url_collection]
+    runs-on: ubuntu-latest
+    if: ${{ always() && github.event.inputs.js_secrets_scan == 'true' }}
+    timeout-minutes: 20
+    steps:
+      - name: "📂 Create Result Directories"
+        run: mkdir -p "${{ needs.setup.outputs.results_dir }}"/{js,logs}
+
+      - name: "📥 Download URL Artifacts"
+        uses: actions/download-artifact@v4
+        with:
+          name: urls-${{ env.TIMESTAMP }}
+          path: ${{ needs.setup.outputs.results_dir }}/urls/
+        continue-on-error: true
+
+      - name: "📦 Extract JS File List"
+        run: |
+          URL_FILE="${{ needs.setup.outputs.results_dir }}/urls/all_urls.txt"
+          if [ -f "$URL_FILE" ] && [ -s "$URL_FILE" ]; then
+            grep -iE '\.js(\?|#|$)' "$URL_FILE" \
+              > "${{ needs.setup.outputs.results_dir }}/js/js_files.txt" 2>/dev/null || true
+          fi
+          echo "✅ JS files found: $(wc -l < "${{ needs.setup.outputs.results_dir }}/js/js_files.txt" 2>/dev/null || echo 0)"
+
+      - name: "🔑 Fetch JS Content and Scan for Secrets + JWTs"
+        continue-on-error: true
+        timeout-minutes: 15
+        env:
+          RD: ${{ needs.setup.outputs.results_dir }}
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo " 🔑 JS SECRETS + JWT DISCLOSURE SCAN"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          # Fetches up to 50 already-discovered JS files (read-only GET,
+          # same as loading the page in a browser) and pattern-matches for
+          # leaked API keys/tokens and embedded JWTs. JWT payloads are
+          # base64-decoded for inspection only - no signature verification,
+          # no secret cracking, nothing is sent anywhere.
+          cat > /tmp/js_secrets_scan.py <<'PYEOF'
+          import base64, json, os, re, urllib.request, urllib.error
+
+          rd = os.environ.get("RD")
+          js_file = os.path.join(rd, "js", "js_files.txt")
+
+          urls = []
+          try:
+              with open(js_file) as f:
+                  urls = [l.strip() for l in f if l.strip()][:50]
+          except OSError:
+              pass
+
+          secret_patterns = {
+              "AWS Access Key": re.compile(r"AKIA[0-9A-Z]{16}"),
+              "Google API Key": re.compile(r"AIza[0-9A-Za-z_-]{35}"),
+              "Slack Token": re.compile(r"xox[baprs]-[0-9A-Za-z-]{10,}"),
+              "Generic API Key/Secret": re.compile(
+                  r"(?i)(api[_-]?key|apikey|secret|access[_-]?token|client[_-]?secret)"
+                  r"[\"']?\s*[:=]\s*[\"']([A-Za-z0-9_\-\.]{16,})[\"']"
+              ),
+              "Private Key Block": re.compile(r"-----BEGIN (RSA |EC )?PRIVATE KEY-----"),
+          }
+          jwt_re = re.compile(r"eyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}")
+
+          def b64decode(seg):
+              pad = "=" * (-len(seg) % 4)
+              try:
+                  return json.loads(base64.urlsafe_b64decode(seg + pad))
+              except Exception:
+                  return None
+
+          secret_findings = []
+          jwt_findings = []
+          seen_jwt = set()
+
+          for url in urls:
+              try:
+                  req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+                  with urllib.request.urlopen(req, timeout=8) as r:
+                      body = r.read(2_000_000).decode(errors="ignore")
+              except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, OSError):
+                  continue
+
+              for label, pattern in secret_patterns.items():
+                  for m in pattern.finditer(body):
+                      snippet = m.group(0)
+                      if len(snippet) > 60:
+                          snippet = snippet[:60] + "..."
+                      secret_findings.append(url + " | " + label + " | " + snippet)
+
+              for m in jwt_re.finditer(body):
+                  token = m.group(0)
+                  if token in seen_jwt:
+                      continue
+                  seen_jwt.add(token)
+                  parts = token.split(".")
+                  header = b64decode(parts[0])
+                  payload = b64decode(parts[1]) if len(parts) > 1 else None
+                  flags = []
+                  if header and str(header.get("alg", "")).lower() == "none":
+                      flags.append("alg=none accepted")
+                  if payload:
+                      sensitive_keys = {"password", "secret", "ssn", "credit_card", "api_key", "email"}
+                      hit = sensitive_keys & set(k.lower() for k in payload.keys())
+                      if hit:
+                          flags.append("sensitive claim(s): " + ", ".join(sorted(hit)))
+                  status = ", ".join(flags) if flags else "structure only, no obvious sensitive claim"
+                  jwt_findings.append(url + " | alg=" + str(header.get("alg") if header else "?") + " | " + status)
+
+          with open(os.path.join(rd, "js", "js_secrets.txt"), "w") as f:
+              f.write("\n".join(secret_findings) + ("\n" if secret_findings else ""))
+          with open(os.path.join(rd, "js", "jwt_findings.txt"), "w") as f:
+              f.write("\n".join(jwt_findings) + ("\n" if jwt_findings else ""))
+
+          print("Secrets found: " + str(len(secret_findings)))
+          print("JWTs found: " + str(len(jwt_findings)))
+          PYEOF
+          python3 /tmp/js_secrets_scan.py
+          echo "✅ JS secrets: $(wc -l < "$RD/js/js_secrets.txt" 2>/dev/null || echo 0)"
+          echo "✅ JWT findings: $(wc -l < "$RD/js/jwt_findings.txt" 2>/dev/null || echo 0)"
+
+      - name: "📤 Upload JS Secrets Artifacts"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: js-secrets-${{ env.TIMESTAMP }}
+          path: ${{ needs.setup.outputs.results_dir }}/js/
+          retention-days: 14
+
+  # ============================================================
+  # STAGE 7: AI Triage (information disclosure focused)
+  # ============================================================
+
+  ai_triage:
+    name: "🤖 AI Triage"
+    needs: [setup, exposure_scan, js_secrets_scan]
+    runs-on: ubuntu-latest
+    if: ${{ always() && github.event.inputs.ai_analysis == 'true' }}
+    timeout-minutes: 20
+    steps:
+      - name: "📥 Download All Artifacts"
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "*-${{ env.TIMESTAMP }}"
+          merge-multiple: true
+          path: ${{ needs.setup.outputs.results_dir }}/
+        continue-on-error: true
+
+      - name: "📂 Create AI Output Directory"
+        run: mkdir -p "${{ needs.setup.outputs.results_dir }}/ai"
+
+      - name: "🤖 Claude AI Triage"
+        id: claude_triage
+        if: ${{ needs.setup.outputs.anthropic_key_set == 'true' && (github.event.inputs.ai_provider == 'anthropic' || github.event.inputs.ai_provider == 'both') }}
+        continue-on-error: true
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TARGET: ${{ needs.setup.outputs.target }}
+          RD: ${{ needs.setup.outputs.results_dir }}
+        run: |
+          # NOTE: the Python source below sits between a QUOTED heredoc
+          # delimiter ('PYEOF'). Quoting the delimiter tells bash NOT to
+          # expand anything inside it (no $VAR, no template expressions), so
+          # nothing here can be misread by bash or the YAML parser. All
+          # dynamic values come in purely through the env: block above and
+          # are read in Python via os.environ - never interpolated into the
+          # source text itself.
+          cat > /tmp/ai_triage.py <<'PYEOF'
+          import json, os, sys, urllib.request, urllib.error
+
+          def read_capped(*paths, cap=6000, default="No data found"):
+              chunks = []
+              for p in paths:
+                  try:
+                      with open(p, "r", errors="ignore") as f:
+                          chunks.append(f.read())
+                  except OSError:
+                      continue
+              text = "\n".join(chunks).strip()
+              return text[:cap] if text else default
+
+          api_key = os.environ.get("ANTHROPIC_API_KEY")
+          target = os.environ.get("TARGET", "unknown-target")
+          rd = os.environ.get("RD")
+
+          if not api_key or not rd:
+              print("Missing ANTHROPIC_API_KEY or RD, skipping", file=sys.stderr)
+              sys.exit(0)
+
+          nuclei_exp = read_capped(os.path.join(rd, "exposures", "nuclei_exposures.txt"), cap=4000)
+          sensitive = read_capped(os.path.join(rd, "exposures", "sensitive_files.txt"), cap=3000)
+          sourcemaps = read_capped(os.path.join(rd, "exposures", "exposed_sourcemaps.txt"), cap=2000)
+          api_docs = read_capped(os.path.join(rd, "exposures", "api_docs_exposed.txt"), cap=2000)
+          graphql = read_capped(os.path.join(rd, "exposures", "graphql_introspection.txt"), cap=1500)
+          dir_listing = read_capped(os.path.join(rd, "exposures", "directory_listing.txt"), cap=1500)
+          debug_eps = read_capped(os.path.join(rd, "exposures", "debug_endpoints.txt"), cap=1500)
+          open_buckets = read_capped(os.path.join(rd, "cloud", "open_buckets.txt"), cap=1500)
+          js_secrets = read_capped(os.path.join(rd, "js", "js_secrets.txt"), cap=3000)
+          jwt_findings = read_capped(os.path.join(rd, "js", "jwt_findings.txt"), cap=2000)
+          banners = read_capped(os.path.join(rd, "live", "verbose_server_banners.txt"), cap=1500)
+
+          prompt = (
+              "You are a senior bug bounty hunter specializing exclusively in "
+              "INFORMATION DISCLOSURE vulnerabilities, analyzing scan results for: "
+              + target + "\n\n"
+              "Scope note: every item below came from passive/read-only checks "
+              "(no injection, no auth bypass, no brute force). Your job is purely "
+              "triage and severity classification of what was already found.\n\n"
+              "=== NUCLEI EXPOSURE TEMPLATES ===\n" + nuclei_exp + "\n\n"
+              "=== SENSITIVE FILES ===\n" + sensitive + "\n\n"
+              "=== EXPOSED SOURCE MAPS ===\n" + sourcemaps + "\n\n"
+              "=== EXPOSED API DOCS/SWAGGER/GRAPHQL PLAYGROUND ===\n" + api_docs + "\n\n"
+              "=== GRAPHQL SCHEMA INTROSPECTION ===\n" + graphql + "\n\n"
+              "=== DIRECTORY LISTINGS ===\n" + dir_listing + "\n\n"
+              "=== DEBUG/VERBOSE ENDPOINTS ===\n" + debug_eps + "\n\n"
+              "=== PUBLICLY LISTABLE CLOUD BUCKETS ===\n" + open_buckets + "\n\n"
+              "=== JS SECRETS/API KEYS ===\n" + js_secrets + "\n\n"
+              "=== JWT DISCLOSURE FINDINGS ===\n" + jwt_findings + "\n\n"
+              "=== VERBOSE SERVER/TECH BANNERS ===\n" + banners + "\n\n"
+              "TASK:\n"
+              "1. Classify each real finding by DATA SENSITIVITY, not generic "
+              "severity: (a) credentials/keys/private keys - CRITICAL, "
+              "(b) PII or business data (source code, internal docs, DB dumps) - "
+              "HIGH, (c) infra/tech fingerprint (versions, stack traces, verbose "
+              "banners) - MEDIUM, (d) purely cosmetic/no real leak - LOW/INFO.\n"
+              "2. FALSE POSITIVE FILTER - flag anything that looks like a default "
+              "404/error page rather than a real exposure.\n"
+              "3. For each CRITICAL/HIGH item: exact curl command to re-verify, "
+              "and a one-line description of the worst realistic impact.\n"
+              "4. TOP 3 to report first.\n"
+              "Format as structured markdown. Be specific, concise, no filler."
+          )
+
+          payload = json.dumps({
+              "model": "claude-opus-4-8",
+              "max_tokens": 4096,
+              "messages": [{"role": "user", "content": prompt}],
+          }).encode()
+
+          req = urllib.request.Request(
+              "https://api.anthropic.com/v1/messages",
+              data=payload,
+              headers={
+                  "x-api-key": api_key,
+                  "anthropic-version": "2023-06-01",
+                  "content-type": "application/json",
+              },
+              method="POST",
+          )
+
+          os.makedirs(os.path.join(rd, "ai"), exist_ok=True)
+
+          try:
+              with urllib.request.urlopen(req, timeout=90) as r:
+                  result = json.loads(r.read())
+              analysis = result["content"][0]["text"]
+              with open(os.path.join(rd, "ai", "claude_triage.md"), "w") as f:
+                  f.write("# Information Disclosure Triage Report\n")
+                  f.write("Target: " + target + "\n\n")
+                  f.write(analysis)
+              print("Claude triage complete")
+          except urllib.error.HTTPError as e:
+              print("Claude API HTTP error " + str(e.code) + ": " + e.read().decode(errors="ignore")[:500], file=sys.stderr)
+              sys.exit(1)
+          except Exception as e:
+              print("Claude API error: " + str(e), file=sys.stderr)
+              sys.exit(1)
+          PYEOF
+          python3 /tmp/ai_triage.py
+
+      - name: "🤖 OpenRouter AI Triage (Fallback)"
+        id: openrouter_triage
+        if: ${{ always() && needs.setup.outputs.openrouter_key_set == 'true' && (github.event.inputs.ai_provider == 'openrouter' || (github.event.inputs.ai_provider == 'both' && steps.claude_triage.outcome != 'success')) }}
+        continue-on-error: true
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          TARGET: ${{ needs.setup.outputs.target }}
+          RD: ${{ needs.setup.outputs.results_dir }}
+          REPO: ${{ github.repository }}
+        run: |
+          cat > /tmp/ai_triage_or.py <<'PYEOF'
+          import json, os, sys, urllib.request, urllib.error
+
+          def read_capped(*paths, cap=3000, default="No data"):
+              chunks = []
+              for p in paths:
+                  try:
+                      with open(p, "r", errors="ignore") as f:
+                          chunks.append(f.read())
+                  except OSError:
+                      continue
+              text = "\n".join(chunks).strip()
+              return text[:cap] if text else default
+
+          api_key = os.environ.get("OPENROUTER_API_KEY")
+          target = os.environ.get("TARGET", "unknown-target")
+          rd = os.environ.get("RD")
+          repo = os.environ.get("REPO", "")
+
+          if not api_key or not rd:
+              print("Missing OPENROUTER_API_KEY or RD, skipping", file=sys.stderr)
+              sys.exit(0)
+
+          sensitive = read_capped(os.path.join(rd, "exposures", "sensitive_files.txt"))
+          nuclei_exp = read_capped(os.path.join(rd, "exposures", "nuclei_exposures.txt"))
+          js_secrets = read_capped(os.path.join(rd, "js", "js_secrets.txt"))
+
+          prompt = (
+              "You are a bug bounty hunter specializing in information disclosure, "
+              "analyzing: " + target + "\n\n"
+              "SENSITIVE FILES: " + sensitive + "\n"
+              "NUCLEI EXPOSURES: " + nuclei_exp + "\n"
+              "JS SECRETS: " + js_secrets + "\n\n"
+              "Classify by data sensitivity (credentials > PII/source > infra "
+              "fingerprint), filter false positives, give top 3 to report first. "
+              "Format as markdown."
+          )
+
+          payload = json.dumps({
+              "model": "anthropic/claude-3.5-sonnet",
+              "max_tokens": 4096,
+              "messages": [{"role": "user", "content": prompt}],
+          }).encode()
+
+          req = urllib.request.Request(
+              "https://openrouter.ai/api/v1/chat/completions",
+              data=payload,
+              headers={
+                  "Authorization": "Bearer " + api_key,
+                  "Content-Type": "application/json",
+                  "HTTP-Referer": "https://github.com/" + repo,
+                  "X-Title": "InfoDiscHunter",
+              },
+              method="POST",
+          )
+
+          os.makedirs(os.path.join(rd, "ai"), exist_ok=True)
+
+          try:
+              with urllib.request.urlopen(req, timeout=90) as r:
+                  result = json.loads(r.read())
+              analysis = result["choices"][0]["message"]["content"]
+              with open(os.path.join(rd, "ai", "openrouter_triage.md"), "w") as f:
+                  f.write("# Information Disclosure Triage Report (OpenRouter)\n\n")
+                  f.write(analysis)
+              print("OpenRouter triage complete")
+          except urllib.error.HTTPError as e:
+              print("OpenRouter HTTP error " + str(e.code) + ": " + e.read().decode(errors="ignore")[:500], file=sys.stderr)
+              sys.exit(1)
+          except Exception as e:
+              print("OpenRouter error: " + str(e), file=sys.stderr)
+              sys.exit(1)
+          PYEOF
+          python3 /tmp/ai_triage_or.py
+
+      - name: "🤖 Groq AI Triage (Fallback)"
+        id: groq_triage
+        if: ${{ always() && needs.setup.outputs.groq_key_set == 'true' && (github.event.inputs.ai_provider == 'groq' || (github.event.inputs.ai_provider == 'both' && steps.claude_triage.outcome != 'success' && steps.openrouter_triage.outcome != 'success')) }}
+        continue-on-error: true
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          TARGET: ${{ needs.setup.outputs.target }}
+          RD: ${{ needs.setup.outputs.results_dir }}
+        run: |
+          cat > /tmp/ai_triage_groq.py <<'PYEOF'
+          import json, os, sys, urllib.request, urllib.error
+
+          def read_capped(*paths, cap=3000, default="No data"):
+              chunks = []
+              for p in paths:
+                  try:
+                      with open(p, "r", errors="ignore") as f:
+                          chunks.append(f.read())
+                  except OSError:
+                      continue
+              text = "\n".join(chunks).strip()
+              return text[:cap] if text else default
+
+          api_key = os.environ.get("GROQ_API_KEY")
+          target = os.environ.get("TARGET", "unknown-target")
+          rd = os.environ.get("RD")
+
+          if not api_key or not rd:
+              print("Missing GROQ_API_KEY or RD, skipping", file=sys.stderr)
+              sys.exit(0)
+
+          sensitive = read_capped(os.path.join(rd, "exposures", "sensitive_files.txt"))
+          nuclei_exp = read_capped(os.path.join(rd, "exposures", "nuclei_exposures.txt"))
+          js_secrets = read_capped(os.path.join(rd, "js", "js_secrets.txt"))
+
+          prompt = (
+              "You are a bug bounty hunter specializing in information disclosure, "
+              "analyzing: " + target + "\n\n"
+              "SENSITIVE FILES: " + sensitive + "\n"
+              "NUCLEI EXPOSURES: " + nuclei_exp + "\n"
+              "JS SECRETS: " + js_secrets + "\n\n"
+              "Classify by data sensitivity (credentials > PII/source > infra "
+              "fingerprint), filter false positives, give top 3 to report first. "
+              "Format as markdown."
+          )
+
+          payload = json.dumps({
+              "model": "llama-3.3-70b-versatile",
+              "max_tokens": 4096,
+              "messages": [{"role": "user", "content": prompt}],
+          }).encode()
+
+          req = urllib.request.Request(
+              "https://api.groq.com/openai/v1/chat/completions",
+              data=payload,
+              headers={
+                  "Authorization": "Bearer " + api_key,
+                  "Content-Type": "application/json",
+              },
+              method="POST",
+          )
+
+          os.makedirs(os.path.join(rd, "ai"), exist_ok=True)
+
+          try:
+              with urllib.request.urlopen(req, timeout=90) as r:
+                  result = json.loads(r.read())
+              analysis = result["choices"][0]["message"]["content"]
+              with open(os.path.join(rd, "ai", "openrouter_triage.md"), "w") as f:
+                  f.write("# Groq AI Triage Report (free-tier fallback)\n\n")
+                  f.write(analysis)
+              print("Groq triage complete")
+          except urllib.error.HTTPError as e:
+              print("Groq HTTP error " + str(e.code) + ": " + e.read().decode(errors="ignore")[:500], file=sys.stderr)
+              sys.exit(1)
+          except Exception as e:
+              print("Groq error: " + str(e), file=sys.stderr)
+              sys.exit(1)
+          PYEOF
+          python3 /tmp/ai_triage_groq.py
+
+      - name: "🤖 Gemini AI Triage (Final Fallback)"
+        id: gemini_triage
+        if: ${{ always() && needs.setup.outputs.gemini_key_set == 'true' && (github.event.inputs.ai_provider == 'gemini' || (github.event.inputs.ai_provider == 'both' && steps.claude_triage.outcome != 'success' && steps.openrouter_triage.outcome != 'success' && steps.groq_triage.outcome != 'success')) }}
+        continue-on-error: true
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TARGET: ${{ needs.setup.outputs.target }}
+          RD: ${{ needs.setup.outputs.results_dir }}
+        run: |
+          cat > /tmp/ai_triage_gemini.py <<'PYEOF'
+          import json, os, sys, urllib.request, urllib.error
+
+          def read_capped(*paths, cap=3000, default="No data"):
+              chunks = []
+              for p in paths:
+                  try:
+                      with open(p, "r", errors="ignore") as f:
+                          chunks.append(f.read())
+                  except OSError:
+                      continue
+              text = "\n".join(chunks).strip()
+              return text[:cap] if text else default
+
+          api_key = os.environ.get("GEMINI_API_KEY")
+          target = os.environ.get("TARGET", "unknown-target")
+          rd = os.environ.get("RD")
+
+          if not api_key or not rd:
+              print("Missing GEMINI_API_KEY or RD, skipping", file=sys.stderr)
+              sys.exit(0)
+
+          sensitive = read_capped(os.path.join(rd, "exposures", "sensitive_files.txt"))
+          nuclei_exp = read_capped(os.path.join(rd, "exposures", "nuclei_exposures.txt"))
+          js_secrets = read_capped(os.path.join(rd, "js", "js_secrets.txt"))
+
+          prompt = (
+              "You are a bug bounty hunter specializing in information disclosure, "
+              "analyzing: " + target + "\n\n"
+              "SENSITIVE FILES: " + sensitive + "\n"
+              "NUCLEI EXPOSURES: " + nuclei_exp + "\n"
+              "JS SECRETS: " + js_secrets + "\n\n"
+              "Classify by data sensitivity (credentials > PII/source > infra "
+              "fingerprint), filter false positives, give top 3 to report first. "
+              "Format as markdown."
+          )
+
+          payload = json.dumps({
+              "model": "gemini-2.5-flash",
+              "max_tokens": 4096,
+              "messages": [{"role": "user", "content": prompt}],
+          }).encode()
+
+          req = urllib.request.Request(
+              "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+              data=payload,
+              headers={
+                  "Authorization": "Bearer " + api_key,
+                  "Content-Type": "application/json",
+              },
+              method="POST",
+          )
+
+          os.makedirs(os.path.join(rd, "ai"), exist_ok=True)
+
+          try:
+              with urllib.request.urlopen(req, timeout=90) as r:
+                  result = json.loads(r.read())
+              analysis = result["choices"][0]["message"]["content"]
+              with open(os.path.join(rd, "ai", "openrouter_triage.md"), "w") as f:
+                  f.write("# Gemini AI Triage Report (free-tier fallback)\n\n")
+                  f.write(analysis)
+              print("Gemini triage complete")
+          except urllib.error.HTTPError as e:
+              print("Gemini HTTP error " + str(e.code) + ": " + e.read().decode(errors="ignore")[:500], file=sys.stderr)
+              sys.exit(1)
+          except Exception as e:
+              print("Gemini error: " + str(e), file=sys.stderr)
+              sys.exit(1)
+          PYEOF
+          python3 /tmp/ai_triage_gemini.py
+
+      - name: "📤 Upload AI Triage Artifacts"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-triage-${{ env.TIMESTAMP }}
+          path: ${{ needs.setup.outputs.results_dir }}/ai/
+          retention-days: 30
+
+  # ============================================================
+  # STAGE 8: AI Report (submission-ready)
+  # ============================================================
+
+  ai_report:
+    name: "📋 AI Security Report"
+    needs: [setup, ai_triage]
+    runs-on: ubuntu-latest
+    if: ${{ always() && github.event.inputs.ai_analysis == 'true' }}
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "📥 Download AI Triage"
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "*-${{ env.TIMESTAMP }}"
+          merge-multiple: true
+          path: ${{ needs.setup.outputs.results_dir }}/
+        continue-on-error: true
+
+      - name: "📋 Generate Full Report"
+        id: claude_report
+        if: ${{ needs.setup.outputs.anthropic_key_set == 'true' }}
+        continue-on-error: true
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TARGET: ${{ needs.setup.outputs.target }}
+          RD: ${{ needs.setup.outputs.results_dir }}
+        run: |
+          cat > /tmp/ai_report.py <<'PYEOF'
+          import datetime, json, os, sys, urllib.request, urllib.error
+
+          def read_capped(*paths, cap=5000, default=""):
+              chunks = []
+              for p in paths:
+                  try:
+                      with open(p, "r", errors="ignore") as f:
+                          chunks.append(f.read())
+                  except OSError:
+                      continue
+              text = "\n".join(chunks).strip()
+              return text[:cap] if text else default
+
+          api_key = os.environ.get("ANTHROPIC_API_KEY")
+          target = os.environ.get("TARGET", "unknown-target")
+          rd = os.environ.get("RD")
+
+          if not api_key or not rd:
+              print("Missing ANTHROPIC_API_KEY or RD, skipping", file=sys.stderr)
+              sys.exit(0)
+
+          triage = read_capped(os.path.join(rd, "ai", "claude_triage.md"),
+                                os.path.join(rd, "ai", "openrouter_triage.md"),
+                                cap=4000, default="No triage available")
+          scan_date = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+
+          prompt = (
+              "You are writing a professional INFORMATION DISCLOSURE bug bounty "
+              "report for: " + target + "\nScan date: " + scan_date + "\n\n"
+              "Based on this triage:\n" + triage + "\n\n"
+              "Write a complete report with:\n"
+              "# Executive Summary\n"
+              "# Scope & Methodology (note: passive/read-only checks only)\n"
+              "# Findings\n"
+              "For EACH real, high-confidence finding, use this exact "
+              "submission-ready block (HackerOne/Bugcrowd style):\n"
+              "## [Severity] Title\n"
+              "**Weakness/Type:** Information Disclosure - <subtype>\n"
+              "**Affected Asset (URL):**\n"
+              "**Severity:**\n"
+              "**Summary:**\n"
+              "**Steps to Reproduce:**\n"
+              "**Proof of Concept:** (curl command / raw response snippet)\n"
+              "**Data Exposed:** (be specific about what data class is exposed)\n"
+              "**Impact:**\n"
+              "**Suggested Remediation:**\n"
+              "---\n"
+              "# Recommendations (top 5 immediate actions)\n\n"
+              "Only include findings with HIGH confidence. Do not fabricate "
+              "response bodies you were not given."
+          )
+
+          payload = json.dumps({
+              "model": "claude-opus-4-8",
+              "max_tokens": 8192,
+              "messages": [{"role": "user", "content": prompt}],
+          }).encode()
+
+          req = urllib.request.Request(
+              "https://api.anthropic.com/v1/messages",
+              data=payload,
+              headers={
+                  "x-api-key": api_key,
+                  "anthropic-version": "2023-06-01",
+                  "content-type": "application/json",
+              },
+              method="POST",
+          )
+
+          os.makedirs(os.path.join(rd, "ai"), exist_ok=True)
+
+          try:
+              with urllib.request.urlopen(req, timeout=120) as r:
+                  result = json.loads(r.read())
+              report = result["content"][0]["text"]
+              with open(os.path.join(rd, "ai", "security_report.md"), "w") as f:
+                  f.write(report)
+              print("Report generated, length: " + str(len(report)))
+          except urllib.error.HTTPError as e:
+              print("Report HTTP error " + str(e.code) + ": " + e.read().decode(errors="ignore")[:500], file=sys.stderr)
+              sys.exit(1)
+          except Exception as e:
+              print("Report generation failed: " + str(e), file=sys.stderr)
+              sys.exit(1)
+          PYEOF
+          python3 /tmp/ai_report.py
+
+      - name: "📋 Generate Full Report (OpenRouter Fallback)"
+        id: openrouter_report
+        if: ${{ always() && needs.setup.outputs.openrouter_key_set == 'true' && steps.claude_report.outcome != 'success' }}
+        continue-on-error: true
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          TARGET: ${{ needs.setup.outputs.target }}
+          RD: ${{ needs.setup.outputs.results_dir }}
+          REPO: ${{ github.repository }}
+        run: |
+          cat > /tmp/ai_report_or.py <<'PYEOF'
+          import datetime, json, os, sys, urllib.request, urllib.error
+
+          def read_capped(*paths, cap=4000, default=""):
+              chunks = []
+              for p in paths:
+                  try:
+                      with open(p, "r", errors="ignore") as f:
+                          chunks.append(f.read())
+                  except OSError:
+                      continue
+              text = "\n".join(chunks).strip()
+              return text[:cap] if text else default
+
+          api_key = os.environ.get("OPENROUTER_API_KEY")
+          target = os.environ.get("TARGET", "unknown-target")
+          rd = os.environ.get("RD")
+          repo = os.environ.get("REPO", "")
+
+          if not api_key or not rd:
+              print("Missing OPENROUTER_API_KEY or RD, skipping", file=sys.stderr)
+              sys.exit(0)
+
+          triage = read_capped(os.path.join(rd, "ai", "claude_triage.md"),
+                                os.path.join(rd, "ai", "openrouter_triage.md"),
+                                default="No triage available")
+          scan_date = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+
+          prompt = (
+              "You are writing a professional INFORMATION DISCLOSURE bug bounty "
+              "report for: " + target + "\nScan date: " + scan_date + "\n\n"
+              "Based on this triage:\n" + triage + "\n\n"
+              "Write a complete report with: Executive Summary, Scope & Methodology "
+              "(note: passive/read-only checks only), Findings (for each real finding "
+              "use: Weakness/Type - Information Disclosure subtype, Affected Asset, "
+              "Severity, Summary, Steps to Reproduce, Proof of Concept, Data Exposed, "
+              "Impact, Suggested Remediation), and top-5 recommendations. Only include "
+              "HIGH-confidence findings."
+          )
+
+          payload = json.dumps({
+              "model": "anthropic/claude-opus-4-5",
+              "max_tokens": 8192,
+              "messages": [{"role": "user", "content": prompt}],
+          }).encode()
+
+          req = urllib.request.Request(
+              "https://openrouter.ai/api/v1/chat/completions",
+              data=payload,
+              headers={
+                  "Authorization": "Bearer " + api_key,
+                  "Content-Type": "application/json",
+                  "HTTP-Referer": "https://github.com/" + repo,
+                  "X-Title": "InfoDiscHunter",
+              },
+              method="POST",
+          )
+
+          os.makedirs(os.path.join(rd, "ai"), exist_ok=True)
+
+          try:
+              with urllib.request.urlopen(req, timeout=120) as r:
+                  result = json.loads(r.read())
+              report = result["choices"][0]["message"]["content"]
+              with open(os.path.join(rd, "ai", "security_report.md"), "w") as f:
+                  f.write(report)
+              print("OpenRouter report generated, length: " + str(len(report)))
+          except urllib.error.HTTPError as e:
+              print("OpenRouter report HTTP error " + str(e.code) + ": " + e.read().decode(errors="ignore")[:500], file=sys.stderr)
+              sys.exit(1)
+          except Exception as e:
+              print("OpenRouter report generation failed: " + str(e), file=sys.stderr)
+              sys.exit(1)
+          PYEOF
+          python3 /tmp/ai_report_or.py
+
+      - name: "📋 Generate Full Report (Groq Fallback)"
+        id: groq_report
+        if: ${{ always() && needs.setup.outputs.groq_key_set == 'true' && steps.claude_report.outcome != 'success' && steps.openrouter_report.outcome != 'success' }}
+        continue-on-error: true
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          TARGET: ${{ needs.setup.outputs.target }}
+          RD: ${{ needs.setup.outputs.results_dir }}
+        run: |
+          cat > /tmp/ai_report_groq.py <<'PYEOF'
+          import datetime, json, os, sys, urllib.request, urllib.error
+
+          def read_capped(*paths, cap=4000, default=""):
+              chunks = []
+              for p in paths:
+                  try:
+                      with open(p, "r", errors="ignore") as f:
+                          chunks.append(f.read())
+                  except OSError:
+                      continue
+              text = "\n".join(chunks).strip()
+              return text[:cap] if text else default
+
+          api_key = os.environ.get("GROQ_API_KEY")
+          target = os.environ.get("TARGET", "unknown-target")
+          rd = os.environ.get("RD")
+
+          if not api_key or not rd:
+              print("Missing GROQ_API_KEY or RD, skipping", file=sys.stderr)
+              sys.exit(0)
+
+          triage = read_capped(os.path.join(rd, "ai", "claude_triage.md"),
+                                os.path.join(rd, "ai", "openrouter_triage.md"),
+                                default="No triage available")
+          scan_date = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+
+          prompt = (
+              "You are writing a professional INFORMATION DISCLOSURE bug bounty "
+              "report for: " + target + "\nScan date: " + scan_date + "\n\n"
+              "Based on this triage:\n" + triage + "\n\n"
+              "Write a complete report with: Executive Summary, Scope & Methodology "
+              "(note: passive/read-only checks only), Findings (for each real finding "
+              "use: Weakness/Type - Information Disclosure subtype, Affected Asset, "
+              "Severity, Summary, Steps to Reproduce, Proof of Concept, Data Exposed, "
+              "Impact, Suggested Remediation), and top-5 recommendations. Only include "
+              "HIGH-confidence findings."
+          )
+
+          payload = json.dumps({
+              "model": "llama-3.3-70b-versatile",
+              "max_tokens": 8192,
+              "messages": [{"role": "user", "content": prompt}],
+          }).encode()
+
+          req = urllib.request.Request(
+              "https://api.groq.com/openai/v1/chat/completions",
+              data=payload,
+              headers={
+                  "Authorization": "Bearer " + api_key,
+                  "Content-Type": "application/json",
+              },
+              method="POST",
+          )
+
+          os.makedirs(os.path.join(rd, "ai"), exist_ok=True)
+
+          try:
+              with urllib.request.urlopen(req, timeout=120) as r:
+                  result = json.loads(r.read())
+              report = result["choices"][0]["message"]["content"]
+              with open(os.path.join(rd, "ai", "security_report.md"), "w") as f:
+                  f.write(report)
+              print("Groq report generated, length: " + str(len(report)))
+          except urllib.error.HTTPError as e:
+              print("Groq report HTTP error " + str(e.code) + ": " + e.read().decode(errors="ignore")[:500], file=sys.stderr)
+              sys.exit(1)
+          except Exception as e:
+              print("Groq report generation failed: " + str(e), file=sys.stderr)
+              sys.exit(1)
+          PYEOF
+          python3 /tmp/ai_report_groq.py
+
+      - name: "📋 Generate Full Report (Gemini Final Fallback)"
+        if: ${{ always() && needs.setup.outputs.gemini_key_set == 'true' && steps.claude_report.outcome != 'success' && steps.openrouter_report.outcome != 'success' && steps.groq_report.outcome != 'success' }}
+        continue-on-error: true
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TARGET: ${{ needs.setup.outputs.target }}
+          RD: ${{ needs.setup.outputs.results_dir }}
+        run: |
+          cat > /tmp/ai_report_gemini.py <<'PYEOF'
+          import datetime, json, os, sys, urllib.request, urllib.error
+
+          def read_capped(*paths, cap=4000, default=""):
+              chunks = []
+              for p in paths:
+                  try:
+                      with open(p, "r", errors="ignore") as f:
+                          chunks.append(f.read())
+                  except OSError:
+                      continue
+              text = "\n".join(chunks).strip()
+              return text[:cap] if text else default
+
+          api_key = os.environ.get("GEMINI_API_KEY")
+          target = os.environ.get("TARGET", "unknown-target")
+          rd = os.environ.get("RD")
+
+          if not api_key or not rd:
+              print("Missing GEMINI_API_KEY or RD, skipping", file=sys.stderr)
+              sys.exit(0)
+
+          triage = read_capped(os.path.join(rd, "ai", "claude_triage.md"),
+                                os.path.join(rd, "ai", "openrouter_triage.md"),
+                                default="No triage available")
+          scan_date = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+
+          prompt = (
+              "You are writing a professional INFORMATION DISCLOSURE bug bounty "
+              "report for: " + target + "\nScan date: " + scan_date + "\n\n"
+              "Based on this triage:\n" + triage + "\n\n"
+              "Write a complete report with: Executive Summary, Scope & Methodology "
+              "(note: passive/read-only checks only), Findings (for each real finding "
+              "use: Weakness/Type - Information Disclosure subtype, Affected Asset, "
+              "Severity, Summary, Steps to Reproduce, Proof of Concept, Data Exposed, "
+              "Impact, Suggested Remediation), and top-5 recommendations. Only include "
+              "HIGH-confidence findings."
+          )
+
+          payload = json.dumps({
+              "model": "gemini-2.5-flash",
+              "max_tokens": 8192,
+              "messages": [{"role": "user", "content": prompt}],
+          }).encode()
+
+          req = urllib.request.Request(
+              "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+              data=payload,
+              headers={
+                  "Authorization": "Bearer " + api_key,
+                  "Content-Type": "application/json",
+              },
+              method="POST",
+          )
+
+          os.makedirs(os.path.join(rd, "ai"), exist_ok=True)
+
+          try:
+              with urllib.request.urlopen(req, timeout=120) as r:
+                  result = json.loads(r.read())
+              report = result["choices"][0]["message"]["content"]
+              with open(os.path.join(rd, "ai", "security_report.md"), "w") as f:
+                  f.write(report)
+              print("Gemini report generated, length: " + str(len(report)))
+          except urllib.error.HTTPError as e:
+              print("Gemini report HTTP error " + str(e.code) + ": " + e.read().decode(errors="ignore")[:500], file=sys.stderr)
+              sys.exit(1)
+          except Exception as e:
+              print("Gemini report generation failed: " + str(e), file=sys.stderr)
+              sys.exit(1)
+          PYEOF
+          python3 /tmp/ai_report_gemini.py
+
+      - name: "💾 Commit Report to Results"
+        continue-on-error: true
+        run: |
+          RD="${{ needs.setup.outputs.results_dir }}"
+          TARGET="${{ needs.setup.outputs.target }}"
+          if [ -f "$RD/ai/security_report.md" ]; then
+            mkdir -p "results/infodisc/$TARGET"
+            cp "$RD/ai/security_report.md" \
+              "results/infodisc/$TARGET/report_$(date +%Y%m%d_%H%M).md"
+            git config user.name  "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add "results/infodisc/$TARGET/"
+            git diff --staged --quiet || \
+              git commit -m "Info Disclosure Report [$TARGET] $(date -u +'%Y-%m-%d %H:%M')"
+            git push || true
+            echo "✅ Report committed to repo"
+          fi
+
+      - name: "📤 Upload Report Artifacts"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-report-${{ env.TIMESTAMP }}
+          path: ${{ needs.setup.outputs.results_dir }}/ai/
+          retention-days: 30
+
+  # ============================================================
+  # STAGE 9: Discord Notification
+  # ============================================================
+
+  discord_notify:
+    name: "📣 Discord Notification"
+    needs: [setup, exposure_scan, js_secrets_scan, ai_triage, ai_report]
+    runs-on: ubuntu-latest
+    if: ${{ always() && github.event.inputs.discord_notify == 'true' }}
+    timeout-minutes: 5
+    steps:
+      - name: "📥 Download All Artifacts"
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "*-${{ env.TIMESTAMP }}"
+          merge-multiple: true
+          path: ${{ needs.setup.outputs.results_dir }}/
+        continue-on-error: true
+
+      - name: "📣 Send Discord Report"
+        run: |
+          TARGET="${{ needs.setup.outputs.target }}"
+          RD="${{ needs.setup.outputs.results_dir }}"
+
+          SENS=$(wc -l < "$RD/exposures/sensitive_files.txt" 2>/dev/null || echo 0)
+          NUCLEI_EXP=$(wc -l < "$RD/exposures/nuclei_exposures.txt" 2>/dev/null || echo 0)
+          MAPS=$(wc -l < "$RD/exposures/exposed_sourcemaps.txt" 2>/dev/null || echo 0)
+          DOCS=$(wc -l < "$RD/exposures/api_docs_exposed.txt" 2>/dev/null || echo 0)
+          GQL=$(wc -l < "$RD/exposures/graphql_introspection.txt" 2>/dev/null || echo 0)
+          LISTING=$(wc -l < "$RD/exposures/directory_listing.txt" 2>/dev/null || echo 0)
+          DEBUG=$(wc -l < "$RD/exposures/debug_endpoints.txt" 2>/dev/null || echo 0)
+          BUCKETS=$(wc -l < "$RD/cloud/open_buckets.txt" 2>/dev/null || echo 0)
+          JS_SECRETS=$(wc -l < "$RD/js/js_secrets.txt" 2>/dev/null || echo 0)
+          JWT=$(wc -l < "$RD/js/jwt_findings.txt" 2>/dev/null || echo 0)
+          AI_DONE=$([ -f "$RD/ai/security_report.md" ] && echo "✅ Done" || echo "⏭️ Skipped")
+
+          AI_SUMMARY=$(head -15 "$RD/ai/claude_triage.md" 2>/dev/null \
+            | grep -v "^#" | grep -v "^$" | head -5 \
+            | sed 's/^/> /' || echo "No AI summary available")
+          [ -z "$AI_SUMMARY" ] && AI_SUMMARY="No AI summary available"
+
+          COLOR=5814783
+          TITLE_PREFIX="🔍 Info Disclosure Scan Complete"
+          if [ "$MAPS" -gt 0 ] || [ "$DOCS" -gt 0 ] || [ "$LISTING" -gt 0 ] || [ "$DEBUG" -gt 0 ]; then
+            COLOR=16744192
+            TITLE_PREFIX="🔶 Info Disclosure Scan (findings to review)"
+          fi
+          if [ "$SENS" -gt 0 ] || [ "$JS_SECRETS" -gt 0 ] || [ "$BUCKETS" -gt 0 ]; then
+            COLOR=15158332
+            TITLE_PREFIX="🚨 Info Disclosure Scan (high-confidence leak)"
+          fi
+
+          jq -n \
+            --arg t        "$TARGET" \
+            --arg titlepx  "$TITLE_PREFIX" \
+            --arg sens     "$SENS" \
+            --arg nuclei   "$NUCLEI_EXP" \
+            --arg maps     "$MAPS" \
+            --arg docs     "$DOCS" \
+            --arg gql      "$GQL" \
+            --arg listing  "$LISTING" \
+            --arg debug    "$DEBUG" \
+            --arg buckets  "$BUCKETS" \
+            --arg jssecrets "$JS_SECRETS" \
+            --arg jwt      "$JWT" \
+            --arg ai       "$AI_DONE" \
+            --arg aisum    "$AI_SUMMARY" \
+            --arg run      "${{ github.run_number }}" \
+            --arg url      "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --argjson color "$COLOR" \
+          '{
+            username: "🔍 InfoDiscHunter",
+            embeds: [{
+              title: ($titlepx + ": " + $t),
+              color: $color,
+              url: $url,
+              fields: [
+                {name:"🛡️ Sensitive Files & Secrets",
+                 value:("Files: **"+$sens+"** | JS Secrets: **"+$jssecrets+"** | JWTs: **"+$jwt+"**"),
+                 inline:false},
+                {name:"☢️ Nuclei Exposure Templates",
+                 value:("Findings: **"+$nuclei+"**"),
+                 inline:false},
+                {name:"📖 Docs / Schema Leaks",
+                 value:("Source Maps: **"+$maps+"** | API Docs: **"+$docs+"** | GraphQL Schema: **"+$gql+"**"),
+                 inline:false},
+                {name:"📁 Server Misconfig",
+                 value:("Dir Listing: **"+$listing+"** | Debug Endpoints: **"+$debug+"** | Open Buckets: **"+$buckets+"**"),
+                 inline:false},
+                {name:"🤖 AI Report",
+                 value:$ai,
+                 inline:true},
+                {name:"🔗 Full Results",
+                 value:("[View Run]("+$url+")"),
+                 inline:true},
+                {name:"🧠 AI Summary",
+                 value:$aisum,
+                 inline:false}
+              ],
+              footer: {text: ("Run #"+$run+" | InfoDiscHunter")}
+            }]
+          }' | curl -s -X POST "${{ secrets.DISCORD_WEBHOOK }}" \
+                 -H "Content-Type: application/json" \
+                 -d @- || true
