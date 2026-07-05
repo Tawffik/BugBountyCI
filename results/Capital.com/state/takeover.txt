@@ -1,0 +1,1 @@
+[Wix Takeover Detection] www.1e7capital.com | DNS re-check: still resolves via CNAME (td-ccm-neg-87-45.wixdns.net) - confirmed
