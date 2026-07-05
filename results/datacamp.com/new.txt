@@ -1,5 +1,1 @@
-learn-api.datacamp.com
-math.datacamp.com
-multiplexer-prod-einstein.datacamp.com
-www.multiplexer-vinci.new.datacamp.com
-www.support.datacamp.com
+teach-browser.datacamp.com
