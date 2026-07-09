@@ -1,0 +1,114 @@
+# ============================================================
+# GitHub Actions AI Autonomous Bug Bounty Hunter v4.0
+# Full Methodology + AI-Driven Hunting + Autonomous Agent Loop
+# Enterprise-grade with Multi-Model AI (Claude → OpenRouter → Groq → Gemini)
+# ============================================================
+
+name: "🎯 Zero Track Trigger - AI Autonomous Hunter"
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Target domain (e.g., example.com)"
+        required: true
+        type: string
+      hunting_mode:
+        description: "Hunting intensity"
+        type: choice
+        options: [light, normal, aggressive]
+        default: "normal"
+      auto_exploitation:
+        description: "Enable safe automated exploitation attempts"
+        type: boolean
+        default: false
+      # ... (باقي الـ inputs القديمة مع إضافات)
+
+  workflow_call:
+    inputs:
+      target: { required: true, type: string }
+      hunting_mode: { type: string, default: "normal" }
+      auto_exploitation: { type: boolean, default: false }
+      # ... باقي الـ inputs
+
+env:
+  TARGET: ${{ inputs.target }}
+  HUNTING_MODE: ${{ inputs.hunting_mode }}
+  TIMESTAMP: ${{ github.run_id }}-${{ github.run_number }}-${{ inputs.target }}
+  RESULTS_DIR: results/output-${{ github.run_id }}-${{ github.run_number }}-${{ inputs.target }}
+
+jobs:
+
+  setup:
+    # ... (محسن مع دعم hunting_mode و pinned tools أحدث)
+
+  subdomain_enum:
+    # ... (محسن)
+
+  subdomain_takeover:
+    # ... (محسن)
+
+  httpx_probe:
+    # ... (محسن + WAF detection أقوى)
+
+  url_collection:
+    # ... 
+
+  js_analysis:
+    # ... (محسن + Semgrep integration لـ sink analysis)
+
+  # ============================================================
+  # NEW: AI-Driven Hunting Phase (المرحلة الأهم)
+  # ============================================================
+  ai_driven_hunting:
+    name: "🧠 AI-Driven Autonomous Hunting"
+    needs: [js_analysis, url_collection, httpx_probe]
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    steps:
+      - name: "📥 Download All Previous Artifacts"
+        uses: actions/download-artifact@v4
+        with: { pattern: "*-${{ env.TIMESTAMP }}", merge-multiple: true }
+
+      - name: "🧠 AI Agent Planning"
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # ... 
+        run: |
+          # AI يقرأ كل النتائج ويولد خطة هجوم + أوامر جديدة
+          python3 /tmp/ai_hunter_planner.py
+
+      - name: "🔍 Parameter Discovery (Arjun + ParamSpider + AI Wordlist)"
+        continue-on-error: true
+        run: |
+          # Arjun + ParamSpider + custom wordlist من AI
+
+      - name: "🕸️ Advanced GraphQL & API Hunting"
+        continue-on-error: true
+        run: |
+          # Introspection + Batching + Depth attacks
+
+      - name: "☢️ Custom Nuclei Templates (AI Generated)"
+        continue-on-error: true
+        run: |
+          # AI يولد templates مخصصة حسب tech stack
+
+      - name: "🔁 AI Hunting Loop (2-3 iterations)"
+        if: ${{ env.HUNTING_MODE == 'aggressive' }}
+        run: |
+          # Loop يركز على أعلى confidence findings
+
+  nuclei_scan:
+    # ... (محسن مع custom templates)
+
+  security_analysis:
+    # ... (موسع)
+
+  ai_triage:
+    # ... (محسن مع Chain-of-Thought + Confidence Score 0-100)
+
+  ai_report:
+    # ... (محسن جداً مع PoC generation + Chaining suggestions)
+
+  discord_notify:
+    # ... (محسن مع أولويات أذكى)
