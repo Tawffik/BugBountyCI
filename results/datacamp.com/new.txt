@@ -1,9 +1,4 @@
-a.datacamp.com
-comune.datacamp.com
-h2.datacamp.com
-multiplexer.datacamp.com
-my.datacamp.com
-slack-global.datacamp.comslack-global.datacamp.com
-top100.datacamp.com
-union.datacamp.com
-www5f.datacamp.com
+cn.datacamp.com
+h7.datacamp.com
+maven.datacamp.com
+terraform-apply.datacamp.com
