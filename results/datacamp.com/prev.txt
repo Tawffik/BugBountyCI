@@ -147,7 +147,6 @@ explorables.datacamp.com
 explore.datacamp.com
 external.ai-tutor.datacamp.com
 external.app.datacamp.com
-ff.datacamp.com
 files.content-authorization.datacamp.com
 files.home-hub.datacamp.com
 files.images.datacamp.com
@@ -220,7 +219,6 @@ int.learn-hub-api.datacamp.com
 intranet.datacamp.com
 jupyter-static.datacamp.com
 jupyterhub.datacamp.com
-k3.datacamp.com
 k8s.ai-tutor.datacamp.com
 k8s.campus-api.datacamp.com
 k8s.links.datacamp.com
@@ -371,6 +369,7 @@ public.compliancy.datacamp.com
 public.content-authorization.datacamp.com
 public.learn-hub-api.datacamp.com
 purchase.datacamp.com
+quantinsti.datacamp.com
 resources.new.datacamp.com
 rstudio-server.datacamp.com
 s3.assets.datacamp.com
@@ -473,7 +472,6 @@ track.images.datacamp.com
 track.pro.datacamp.com
 tracking-ads.datacamp.com
 trust.datacamp.com
-u.datacamp.com
 uc.datacamp.com
 um.datacamp.com
 uni.datacamp.com
@@ -535,7 +533,6 @@ www.styleguide-assets.datacamp.com
 www.support.datacamp.com
 www.videos.datacamp.com
 www2.datacamp.com
-www5c.datacamp.com
 www5d.datacamp.com
 www5f.datacamp.com
 wwww.datacamp.com
