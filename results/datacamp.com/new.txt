@@ -1,5 +1,1 @@
-assessment-api.new.datacamp.com
-coding-exercise-api.datacamp.com
-home.datacamp.com
-users.datacamp.com
-xroads.datacamp.com
+cs.datacamp.com
