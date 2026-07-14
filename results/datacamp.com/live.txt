@@ -161,6 +161,7 @@ http://pop.campaign-service.datacamp.com	404
 http://pop.learn-hub-api.datacamp.com	404	
 http://portal.ai-api.datacamp.com	404	
 http://portal.auth.datacamp.com	404	
+http://practice.datacamp.com	301	301 Moved Permanently
 http://preview.compliancy.datacamp.com	404	
 http://preview.home-hub.datacamp.com	404	
 http://private.ai-tutor.datacamp.com	404	
@@ -224,35 +225,38 @@ http://support.careerhub-api.datacamp.com	404
 http://support.cms.datacamp.com	404	
 http://support.collab-api.datacamp.com	404	
 http://support.gamification-api.datacamp.com	404	
-http://test.campaign-service.datacamp.com	404	
 http://test.compliance.datacamp.com	404	
 http://test.gsstm.datacamp.com	404	
-http://test.learn-hub-api.datacamp.com	404	
 http://track.campaign-service.datacamp.com	404	
+http://track.collab-api.datacamp.com	404	
 http://track.images.datacamp.com	404	
-http://upload.content-authorization.datacamp.com	404	
+http://tracking-ads.datacamp.com	301	301 Moved Permanently
+http://upload.gamification-api.datacamp.com	404	
 http://v1.collab-api.datacamp.com	404	
-http://v2.learn-hub-api.datacamp.com	404	
-http://v3.cms.datacamp.com	404	
 http://v3.learn-hub-api.datacamp.com	404	
 http://video.compliancy.datacamp.com	404	
-http://video.links.datacamp.com	404	
 http://vpn.ai-api.datacamp.com	404	
+http://vpn.content-authorization.datacamp.com	404	
+http://web.campus-api.datacamp.com	404	
 http://web.collab-api.datacamp.com	404	
 http://web.links.datacamp.com	404	
 http://webmail.careerhub-api.datacamp.com	404	
 http://webmail.kong.datacamp.com	530	
-http://wiki.cms.datacamp.com	404	
+http://wiki.campus-api.datacamp.com	404	
 http://wiki.compliancy.datacamp.com	404	
 http://wiki.learn-hub-api.datacamp.com	404	
 http://wildcard.fr.datacamp.com	404	
-http://wildcard.learn.datacamp.com	404	
-http://ww2.cdn.datacamp.com	530	
+http://wildcard.pt.datacamp.com	404	
 http://www.ai-tutor.datacamp.com	404	
 http://www.assets.datacamp.com	530	
 http://www.campus.datacamp.com	530	
+http://www.collab-api.datacamp.com	404	
+http://www.compliancy.datacamp.com	404	
 http://www.gsstm.datacamp.com	404	
+http://www.multiplexer-vinci.new.datacamp.com	404	
 http://www.styleguide-assets.datacamp.com	530	
+http://www.support.datacamp.com	404	
+http://www.videos.datacamp.com	530	
 https://ac.datacamp.com	404	
 https://acp.datacamp.com	404	
 https://ai-api-admin.datacamp.com	200	AI API Admin
@@ -395,7 +399,6 @@ https://people.datacamp.com	404
 https://poser.datacamp.com	200	Poser
 https://practice-web.datacamp.com	200	DataCamp Practice
 https://practice-web.new.datacamp.com	404	
-https://practice.datacamp.com	200	DataCamp Practice
 https://prbot.ops.datacamp.com	405	
 https://project-frontend.new.datacamp.com	404	
 https://projector.datacamp.com	400	
@@ -445,17 +448,16 @@ https://teach.datacamp.com	302
 https://tech.datacamp.com	404	
 https://timetracker.datacamp.com	404	
 https://timetracker.new.datacamp.com	404	
-https://track.pro.datacamp.com	200	Custom domain check
-https://tracking-ads.datacamp.com	200	DataCamp Ads
 https://trust.datacamp.com	200	DataCamp Trust Center
 https://uc.datacamp.com	404	404
+https://univ.datacamp.com	404	
+https://upsell.datacamp.com	404	
 https://users.datacamp.com	404	
+https://videos.datacamp.com	404	404 Not Found
 https://waffles-next.datacamp.com	301	
-https://wenku.datacamp.com	404	
+https://waffles.datacamp.com	200	
 https://wildcard.datacamp.com	404	
-https://workspace-docs.datacamp.com	400	
+https://wildcard.new.datacamp.com	404	
 https://workspace-sessions.datacamp.com	404	
-https://workspace.datacamp.com	302	302 Found
-https://www5d.datacamp.com	404	
-https://wwww.datacamp.com	404	
-https://z28rg4x8kh99-workspace-sessions.datacamp.com	404	
+https://www.datacamp.com	403	Just a moment...
+https://www2.datacamp.com	302	
