@@ -1,3 +1,4 @@
+ac.datacamp.com
 account.collab-api.datacamp.com
 acp.datacamp.com
 admin.compliancy.datacamp.com
@@ -14,7 +15,6 @@ alpha.content-authorization.datacamp.com
 alpha.images.datacamp.com
 analytics.links.datacamp.com
 api.ai-tutor.datacamp.com
-api.datacamp.com
 app.datacamp.com
 app.links.datacamp.com
 artifactory-proxy-public.ops.datacamp.com
@@ -29,7 +29,6 @@ assets.collab-api.datacamp.com
 assets.datacamp.com
 assets.images.datacamp.com
 ast-viewer.datacamp.com
-ast-viewer.new.datacamp.com
 auth.datacamp.com
 authoring.datacamp.com
 autoconfig.collab-api.datacamp.com
@@ -103,6 +102,7 @@ db.dcmfe.datacamp.com
 dccertified.datacamp.com
 dcmfe-dr.datacamp.com
 dcmfe.datacamp.com
+dd.datacamp.com
 de.datacamp.com
 dean.ops.datacamp.com
 demo.app.datacamp.com
@@ -187,6 +187,7 @@ home-hub.datacamp.com
 home.datacamp.com
 home.it.datacamp.com
 homepage2.datacamp.com
+host.datacamp.com
 hub.auth.datacamp.com
 hub.compliancy.datacamp.com
 hub.content-authorization.datacamp.com
@@ -260,7 +261,6 @@ mail1.careerhub-api.datacamp.com
 mail2.campus-api.datacamp.com
 mail2.compliancy.datacamp.com
 mail2.dcmfe.datacamp.com
-math.datacamp.com
 mb.datacamp.com
 mcp-docs.datacamp.com
 media.auth.datacamp.com
@@ -319,6 +319,7 @@ owa.auth.datacamp.com
 owa.campus-api.datacamp.com
 owa.content-authorization.datacamp.com
 owa.gsstm.datacamp.com
+people.datacamp.com
 pieter.ops.datacamp.com
 poc-next-marketing-app.datacamp.com
 pop.auth.datacamp.com
@@ -459,13 +460,12 @@ tracing-ops-us-east-1.ops.datacamp.com
 tracing.ops.datacamp.com
 track.campaign-service.datacamp.com
 track.collab-api.datacamp.com
-track.datacamp.com
 track.images.datacamp.com
 track.pro.datacamp.com
 tracking-ads.datacamp.com
 trust.datacamp.com
 uc.datacamp.com
-um.datacamp.com
+univ.datacamp.com
 upload.content-authorization.datacamp.com
 upload.gamification-api.datacamp.com
 upsell.datacamp.com
@@ -519,7 +519,6 @@ www.gsstm.datacamp.com
 www.links.datacamp.com
 www.multiplexer-vinci.new.datacamp.com
 www.new.datacamp.com
-www.projector.new.datacamp.com
 www.styleguide-assets.datacamp.com
 www.support.datacamp.com
 www.videos.datacamp.com
