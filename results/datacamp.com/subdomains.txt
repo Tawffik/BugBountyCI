@@ -1,4 +1,5 @@
 account.collab-api.datacamp.com
+acp.datacamp.com
 admin.compliancy.datacamp.com
 ads.auth.datacamp.com
 ads.compliancy.datacamp.com
@@ -85,7 +86,6 @@ community.datacamp.com
 competitions-app.datacamp.com
 compliance.datacamp.com
 compliancy.datacamp.com
-concourse-eks-test.ops.datacamp.com
 concourse.ops.datacamp.com
 concoursetest.ops.datacamp.com
 confluence.datacamp.com
@@ -444,7 +444,6 @@ support.datacamp.com
 support.gamification-api.datacamp.com
 system-check.datacamp.com
 tableau-api.datacamp.com
-teach-browser.datacamp.com
 teach.datacamp.com
 tech.datacamp.com
 test.campaign-service.datacamp.com
@@ -467,7 +466,6 @@ tracking-ads.datacamp.com
 trust.datacamp.com
 uc.datacamp.com
 um.datacamp.com
-uni.datacamp.com
 upload.content-authorization.datacamp.com
 upload.gamification-api.datacamp.com
 upsell.datacamp.com
@@ -512,6 +510,7 @@ workspace.datacamp.com
 ww1.dcmfe.datacamp.com
 ww2.cdn.datacamp.com
 www.ai-tutor.datacamp.com
+www.assets.datacamp.com
 www.campus.datacamp.com
 www.collab-api.datacamp.com
 www.compliancy.datacamp.com
