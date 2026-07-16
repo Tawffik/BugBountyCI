@@ -1,11 +1,3 @@
-cn.datacamp.com
-com.datacamp.com
-concourse-eks-test.ops.datacamp.com
-engineering-portal-new.ops.datacamp.com
-homepage3.datacamp.com
-kong-ingress-test.datacamp.com
-sitemap-frontend.datacamp.com
-strapi.datacamp.com
-teach-browser.datacamp.com
-tribunale.datacamp.com
-vpn.it.datacamp.com
+users.datacamp.com
+www.styleguide-assets.datacamp.com
+xroads.datacamp.com
