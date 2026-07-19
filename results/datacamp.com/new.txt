@@ -1,3 +1,12 @@
-aboutdatacampwww.datacamp.com
-manager.datacamp.com
-slovari.datacamp.com
+22www.datacamp.com
+api.datacamp.com
+blogs.datacamp.com
+h4.datacamp.com
+info.datacamp.com
+internal.datacamp.com
+k5.datacamp.com
+prof.datacamp.com
+projects-api.datacamp.com
+rfiddleapi.datacamp.com
+server1.datacamp.com
+www.multiplexer-paid-m5.new.datacamp.com
