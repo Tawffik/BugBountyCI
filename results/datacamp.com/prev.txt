@@ -1,3 +1,4 @@
+aboutdatacampwww.datacamp.com
 account.collab-api.datacamp.com
 admin.compliancy.datacamp.com
 ads.auth.datacamp.com
@@ -154,7 +155,6 @@ fonts.datacamp.com
 forum.cms.datacamp.com
 forum.collab-api.datacamp.com
 forum.learn-hub-api.datacamp.com
-forums.datacamp.com
 fr.datacamp.com
 ftp.auth.datacamp.com
 ftp.campus.datacamp.com
@@ -269,6 +269,7 @@ mail2.campus-api.datacamp.com
 mail2.compliancy.datacamp.com
 mail2.dcmfe.datacamp.com
 maintenance.datacamp.com
+manager.datacamp.com
 mb.datacamp.com
 mcp-docs.datacamp.com
 media.auth.datacamp.com
@@ -402,6 +403,7 @@ sl.datacamp.com
 slack-global.datacamp.com
 slack-usa.datacamp.com
 slides.datacamp.com
+slovari.datacamp.com
 smtp.datacamp.com
 smtp.home-hub.datacamp.com
 smtp.learn-hub-api.datacamp.com
@@ -521,7 +523,6 @@ workspace-sessions.datacamp.com
 workspace.datacamp.com
 ww1.dcmfe.datacamp.com
 ww2.cdn.datacamp.com
-ww5.datacamp.com
 www.ai-tutor.datacamp.com
 www.assets.datacamp.com
 www.campus.datacamp.com
