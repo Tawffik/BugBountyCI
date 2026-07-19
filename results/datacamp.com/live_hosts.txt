@@ -111,7 +111,6 @@ http://k8s.ai-tutor.datacamp.com
 http://k8s.campus-api.datacamp.com
 http://k8s.links.datacamp.com
 http://kubernetes.kong.datacamp.com
-http://learnsqlonline-ads.datacamp.com
 http://live.careerhub-api.datacamp.com
 http://live.compliancy.datacamp.com
 http://login.collab-api.datacamp.com
@@ -255,14 +254,19 @@ http://wiki.cms.datacamp.com
 http://wiki.compliancy.datacamp.com
 http://wiki.learn-hub-api.datacamp.com
 http://wildcard.de.datacamp.com
+http://wildcard.es.datacamp.com
 http://wildcard.fr.datacamp.com
 http://wildcard.learn.datacamp.com
+http://wildcard.pt.datacamp.com
+http://ww1.dcmfe.datacamp.com
 http://ww2.cdn.datacamp.com
 http://www.ai-tutor.datacamp.com
 http://www.campus.datacamp.com
+http://www.collab-api.datacamp.com
 http://www.compliancy.datacamp.com
 http://www.gsstm.datacamp.com
 http://www.links.datacamp.com
+http://www.new.datacamp.com
 https://ai-api-admin.datacamp.com
 https://ai-api.datacamp.com
 https://ai-tutor.datacamp.com
@@ -362,6 +366,7 @@ https://learn-mux-cluster-proxy.datacamp.com
 https://learn.datacamp.com
 https://learner-hub-static.datacamp.com
 https://learnpython-ads.datacamp.com
+https://learnsqlonline-ads.datacamp.com
 https://links.datacamp.com
 https://llm-proxy.optima.datacamp.com
 https://lms-assets.datacamp.com
@@ -443,9 +448,10 @@ https://waffles.datacamp.com
 https://wildcard.datacamp.com
 https://wildcard.new.datacamp.com
 https://wildcard.ops.datacamp.com
+https://workspace-docs.datacamp.com
 https://workspace-sessions.datacamp.com
+https://workspace.datacamp.com
 https://www.datacamp.com
-https://www.new.datacamp.com
 https://www2.datacamp.com
 https://wwww.datacamp.com
 https://z28rg4x8kh99-workspace-sessions.datacamp.com

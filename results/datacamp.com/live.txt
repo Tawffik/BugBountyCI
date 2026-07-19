@@ -111,7 +111,6 @@ http://k8s.ai-tutor.datacamp.com	404
 http://k8s.campus-api.datacamp.com	404	
 http://k8s.links.datacamp.com	404	
 http://kubernetes.kong.datacamp.com	530	
-http://learnsqlonline-ads.datacamp.com	301	301 Moved Permanently
 http://live.careerhub-api.datacamp.com	404	
 http://live.compliancy.datacamp.com	404	
 http://login.collab-api.datacamp.com	404	
@@ -255,14 +254,19 @@ http://wiki.cms.datacamp.com	404
 http://wiki.compliancy.datacamp.com	404	
 http://wiki.learn-hub-api.datacamp.com	404	
 http://wildcard.de.datacamp.com	404	
+http://wildcard.es.datacamp.com	404	
 http://wildcard.fr.datacamp.com	404	
 http://wildcard.learn.datacamp.com	404	
+http://wildcard.pt.datacamp.com	404	
+http://ww1.dcmfe.datacamp.com	530	
 http://ww2.cdn.datacamp.com	530	
 http://www.ai-tutor.datacamp.com	404	
 http://www.campus.datacamp.com	530	
+http://www.collab-api.datacamp.com	404	
 http://www.compliancy.datacamp.com	404	
 http://www.gsstm.datacamp.com	404	
 http://www.links.datacamp.com	404	
+http://www.new.datacamp.com	404	
 https://ai-api-admin.datacamp.com	200	AI API Admin
 https://ai-api.datacamp.com	404	
 https://ai-tutor.datacamp.com	200	
@@ -362,6 +366,7 @@ https://learn-mux-cluster-proxy.datacamp.com	403
 https://learn.datacamp.com	302	
 https://learner-hub-static.datacamp.com	200	
 https://learnpython-ads.datacamp.com	200	DataCamp Ads
+https://learnsqlonline-ads.datacamp.com	200	DataCamp Ads
 https://links.datacamp.com	404	
 https://llm-proxy.optima.datacamp.com	302	
 https://lms-assets.datacamp.com	403	403 Forbidden
@@ -443,9 +448,10 @@ https://waffles.datacamp.com	200
 https://wildcard.datacamp.com	404	
 https://wildcard.new.datacamp.com	404	
 https://wildcard.ops.datacamp.com	503	503 Service Temporarily Unavailable
+https://workspace-docs.datacamp.com	400	
 https://workspace-sessions.datacamp.com	404	
+https://workspace.datacamp.com	302	302 Found
 https://www.datacamp.com	403	Just a moment...
-https://www.new.datacamp.com	404	
 https://www2.datacamp.com	302	
 https://wwww.datacamp.com	404	
 https://z28rg4x8kh99-workspace-sessions.datacamp.com	404	
