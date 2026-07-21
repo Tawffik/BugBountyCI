@@ -1,6 +1,7 @@
-h3.datacamp.com
-help.datacamp.com
-learn-api.datacamp.com
-multiplexer-prod-3.datacamp.com
-music.datacamp.com
-xroads.datacamp.com
+1www.datacamp.com
+cse.datacamp.com
+dd.datacamp.com
+feeds.datacamp.com
+ku1720.datacamp.com
+local.datacamp.com
+univ.datacamp.com
