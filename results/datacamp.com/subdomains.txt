@@ -49,7 +49,6 @@ blog.compliancy.datacamp.com
 blog.datacamp.com
 blog.kong.datacamp.com
 blog.new.datacamp.com
-blogs.datacamp.com
 bokeh-server.datacamp.com
 bookmarks.datacamp.com
 boro.datacamp.com
@@ -188,9 +187,10 @@ grafana.ops.datacamp.com
 grc.it.datacamp.com
 groups.datacamp.com
 gsstm.datacamp.com
-h4.datacamp.com
+h3.datacamp.com
 help.campus-api.datacamp.com
 help.compliancy.datacamp.com
+help.datacamp.com
 home-hub.datacamp.com
 home.it.datacamp.com
 host.datacamp.com
@@ -206,7 +206,6 @@ images.datacamp.com
 images.learn-hub-api.datacamp.com
 images.links.datacamp.com
 img.links.datacamp.com
-info.datacamp.com
 informatik.datacamp.com
 infra-reporter.datacamp.com
 ingressgateway-datacamp-ops.ops.datacamp.com
@@ -248,6 +247,7 @@ kubecost-prom-app-cluster.datacamp.com
 kubecost-prom-learn-multiplexer.datacamp.com
 kubecost-prom-ops-us-east-1.ops.datacamp.com
 kubernetes.kong.datacamp.com
+learn-api.datacamp.com
 learn-docker-proxy.datacamp.com
 learn-hub-api.datacamp.com
 learn-mux-cluster-proxy.datacamp.com
@@ -289,9 +289,11 @@ mpk.datacamp.com
 multiplexer-paid-m5.new.datacamp.com
 multiplexer-paid.datacamp.com
 multiplexer-prod-2.datacamp.com
+multiplexer-prod-3.datacamp.com
 multiplexer-prod-einstein.datacamp.com
 multiplexer-prod.datacamp.com
 multiplexer.datacamp.com
+music.datacamp.com
 mvn.datacamp.com
 mx.campus-api.datacamp.com
 mx.collab-api.datacamp.com
@@ -389,7 +391,6 @@ purchase.datacamp.com
 rconsole.datacamp.com
 resources.new.datacamp.com
 resume.datacamp.com
-rfiddleapi.datacamp.com
 rstudio-server.datacamp.com
 s3.assets.datacamp.com
 s3.collab-api.datacamp.com
@@ -433,7 +434,6 @@ sql.ai-tutor.datacamp.com
 sql.app.datacamp.com
 sql.compliancy.datacamp.com
 sql.links.datacamp.com
-ss.datacamp.com
 staging.collab-api.datacamp.com
 staging.datacamp.com
 staging.gsstm.datacamp.com
@@ -497,7 +497,6 @@ union.datacamp.com
 upload.content-authorization.datacamp.com
 upload.gamification-api.datacamp.com
 upsell.datacamp.com
-user.datacamp.com
 users.datacamp.com
 v1.app.datacamp.com
 v1.auth.datacamp.com
@@ -548,7 +547,6 @@ www.documents.datacamp.com
 www.gsstm.datacamp.com
 www.linkedin.datacamp.com
 www.links.datacamp.com
-www.multiplexer-paid-m5.new.datacamp.com
 www.new.datacamp.com
 www.projector.new.datacamp.com
 www.videos.datacamp.com
@@ -556,4 +554,5 @@ www2.datacamp.com
 www2u.datacamp.com
 www5f.datacamp.com
 wwww.datacamp.com
+xroads.datacamp.com
 z28rg4x8kh99-workspace-sessions.datacamp.com

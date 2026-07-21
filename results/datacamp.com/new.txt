@@ -1,6 +1,6 @@
-admin.datacamp.com
-groups.datacamp.com
-k2.datacamp.com
-maven.datacamp.com
-mpk.datacamp.com
-www.projector.new.datacamp.com
+h3.datacamp.com
+help.datacamp.com
+learn-api.datacamp.com
+multiplexer-prod-3.datacamp.com
+music.datacamp.com
+xroads.datacamp.com
