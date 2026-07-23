@@ -1,0 +1,214 @@
+name: "🔬 Specialized - Single Combined Results"
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Target domain (e.g., example.com)"
+        required: true
+        type: string
+
+jobs:
+  single_report:
+    name: "Run passive scan and produce combined_results.json - ${{ inputs.target }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      TIMESTAMP: ${{ github.run_id }}-${{ github.run_number }}
+      TARGET: ${{ inputs.target }}
+      RESULTS_DIR: results/${{ env.TIMESTAMP }}
+
+    steps:
+      - name: "Checkout repository"
+        uses: actions/checkout@v4
+
+      - name: "Prepare directories"
+        run: |
+          mkdir -p "${{ env.RESULTS_DIR }}"/{subdomains,live,urls,js,bodies,nuclei,evidence,meta,report}
+
+      - name: "Tool smoke note"
+        run: |
+          echo "Run started at $(date -u)" > "${{ env.RESULTS_DIR }}/meta/run_meta.txt"
+          echo "Target: $TARGET" >> "${{ env.RESULTS_DIR }}/meta/run_meta.txt"
+
+      - name: "Collect passive subdomains (crt.sh)"
+        run: |
+          RD="${{ env.RESULTS_DIR }}"
+          T="$TARGET"
+          curl -s --max-time 20 "https://crt.sh/?q=%25.${T}&output=json" \
+            | jq -r '.[].name_value' 2>/dev/null \
+            | tr ',' '\n' \
+            | sed 's/^\*\.//' \
+            | sort -u > "$RD/subdomains/crtsh.txt" || true
+          # always include the base target
+          echo "$T" >> "$RD/subdomains/crtsh.txt"
+          sort -u "$RD/subdomains/crtsh.txt" -o "$RD/subdomains/all_subs.txt" || true
+          echo "Subdomains collected: $(wc -l < $RD/subdomains/all_subs.txt || true)" >> "$RD/meta/run_meta.txt"
+
+      - name: "Probe live hosts (HTTP(S) check)"
+        run: |
+          RD="${{ env.RESULTS_DIR }}"
+          : > "$RD/live/live.txt"
+          while IFS= read -r host; do
+            host="$(echo "$host" | tr -d '\r' | xargs)"; [ -z "$host" ] && continue
+            # Try HTTPS then HTTP
+            for proto in https http; do
+              url="${proto}://${host}"
+              code=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 8 "$url" 2>/dev/null || echo "000")
+              code="${code: -3}"
+              if [ "$code" != "000" ]; then
+                echo "$url" >> "$RD/live/live.txt"
+                break
+              fi
+            done
+          done < "$RD/subdomains/all_subs.txt"
+          sort -u "$RD/live/live.txt" -o "$RD/live/live.txt" || true
+          echo "Live hosts: $(wc -l < $RD/live/live.txt || true)" >> "$RD/meta/run_meta.txt"
+
+      - name: "Collect root pages & extract .js URLs"
+        run: |
+          RD="${{ env.RESULTS_DIR }}"
+          : > "$RD/urls/all.txt"
+          while IFS= read -r host; do
+            host="$(echo "$host" | tr -d '\r' | xargs)"; [ -z "$host" ] && continue
+            echo "[FETCH] $host" >> "$RD/meta/run_meta.txt"
+            # fetch homepage (short timeout)
+            curl -sk --max-time 10 "$host" -o "$RD/urls/host_page.tmp" || true
+            # robots/sitemap
+            curl -sk --max-time 6 "${host}/robots.txt" -o "$RD/urls/robots_${host#*://}.txt" || true
+            curl -sk --max-time 6 "${host}/sitemap.xml" -o "$RD/urls/sitemap_${host#*://}.xml" || true
+            # extract script src attributes and absolute/relative urls
+            grep -iEo '<script[^>]+src=["'"'"'][^"'"'"']+["'"'"']' "$RD/urls/host_page.tmp" \
+              | sed -E 's/.*src=["'"'"']([^"'"'"']+)["'"'"'].*/\1/i' \
+              | while read -r s; do
+                # convert relative to absolute if needed
+                if echo "$s" | grep -qE '^https?://'; then
+                  echo "$s"
+                else
+                  # build absolute
+                  base="$host"
+                  # remove trailing slash
+                  base="${base%/}"
+                  # if url starts with / keep host+path
+                  if echo "$s" | grep -q '^/'; then
+                    echo "${base}${s}"
+                  else
+                    # relative file in same dir
+                    echo "${base}/${s}"
+                  fi
+                fi
+              done >> "$RD/js/files.tmp"
+            # also append any links found on the page (href)
+            grep -iEo 'href=["'"'"'][^"'"'"']+["'"'"']' "$RD/urls/host_page.tmp" \
+              | sed -E 's/.*href=["'"'"']([^"'"'"']+)["'"'"'].*/\1/i' >> "$RD/urls/all.tmp" || true
+          done < "$RD/live/live.txt"
+          # normalize lists
+          cat "$RD/js/files.tmp" 2>/dev/null | sed 's/#.*$//' | tr -d '\r' | sort -u > "$RD/js/files.txt" || true
+          cat "$RD/urls/all.tmp" 2>/dev/null | sed 's/#.*$//' | tr -d '\r' | sort -u > "$RD/urls/all.txt" || true
+          # also include robots/sitemap entries if any
+          for f in "$RD"/urls/robots_*.txt "$RD"/urls/sitemap_*.xml; do
+            [ -f "$f" ] && grep -Eo 'https?://[^"'>[:space:]]+' "$f" >> "$RD/urls/all.txt" || true
+          done
+          sort -u "$RD/urls/all.txt" -o "$RD/urls/all.txt" || true
+          echo "JS files discovered: $(wc -l < $RD/js/files.txt || true)" >> "$RD/meta/run_meta.txt"
+          echo "URLs collected: $(wc -l < $RD/urls/all.txt || true)" >> "$RD/meta/run_meta.txt"
+
+      - name: "Download JS bodies (best-effort, timeout 8s)"
+        run: |
+          RD="${{ env.RESULTS_DIR }}"
+          mkdir -p "$RD/bodies"
+          if [ -s "$RD/js/files.txt" ]; then
+            # limit to first 200 to avoid long times
+            head -n 200 "$RD/js/files.txt" | while IFS= read -r js; do
+              [ -z "$js" ] && continue
+              fname="$(echo -n "$js" | sha1sum | cut -d' ' -f1).js"
+              curl -sk --max-time 8 "$js" -o "$RD/bodies/$fname" 2>/dev/null || true
+            done
+          fi
+          echo "Downloaded JS bodies: $(ls -1 "$RD/bodies" 2>/dev/null | wc -l || true)" >> "$RD/meta/run_meta.txt"
+
+      - name: "Extract API endpoints & potential secrets from JS bodies"
+        run: |
+          RD="${{ env.RESULTS_DIR }}"
+          : > "$RD/js/api_endpoints.txt"
+          : > "$RD/js/secrets.txt"
+          if [ -d "$RD/bodies" ]; then
+            grep -rhIioE "(api|graphql|rest)[_/a-zA-Z0-9\-\.\?=&%]{3,200}" "$RD/bodies" 2>/dev/null | sort -u > "$RD/js/api_endpoints.txt" || true
+            grep -rhIioE '(["'"'"']?(api[_-]?key|apikey|secret|token|jwt|bearer)["'"'"']?[:=]\\s*["'"'"'][^"'"'"']{6,200}["'"'"'])' "$RD/bodies" 2>/dev/null | sort -u > "$RD/js/secrets.txt" || true
+          fi
+          echo "API endpoints extracted: $(wc -l < $RD/js/api_endpoints.txt || true)" >> "$RD/meta/run_meta.txt"
+          echo "Potential secrets found: $(wc -l < $RD/js/secrets.txt || true)" >> "$RD/meta/run_meta.txt"
+
+      - name: "Run nuclei (if installed)"
+        run: |
+          RD="${{ env.RESULTS_DIR }}"
+          INPUT="$RD/live/live.txt"
+          if command -v nuclei >/dev/null 2>&1 && [ -s "$INPUT" ]; then
+            nuclei -l "$INPUT" -severity critical,high,medium -silent -jsonl -o "$RD/nuclei/findings.jsonl" || true
+            echo "nuclei run complete" >> "$RD/meta/run_meta.txt"
+          else
+            echo "nuclei not available or no live hosts" >> "$RD/meta/run_meta.txt"
+          fi
+
+      - name: "Build combined_results.json"
+        run: |
+          RD="${{ env.RESULTS_DIR }}"
+          OUT="$RD/combined_results.json"
+          python3 - <<'PY'
+import os, json
+rd = os.environ['RESULTS_DIR']
+def read_lines(p):
+  try:
+    with open(p) as f:
+      return [l.strip() for l in f if l.strip()]
+  except:
+    return []
+res = {}
+res['meta'] = {}
+try:
+  res['meta']['run_info'] = open(os.path.join(rd,'meta','run_meta.txt')).read()
+except:
+  res['meta']['run_info'] = ''
+res['subdomains'] = read_lines(os.path.join(rd,'subdomains','all_subs.txt'))
+res['live_hosts'] = read_lines(os.path.join(rd,'live','live.txt'))
+res['urls'] = read_lines(os.path.join(rd,'urls','all.txt'))
+res['js_files'] = read_lines(os.path.join(rd,'js','files.txt'))
+res['js_api_endpoints'] = read_lines(os.path.join(rd,'js','api_endpoints.txt'))
+res['js_secrets'] = read_lines(os.path.join(rd,'js','secrets.txt'))
+# nuclei findings
+nuc = []
+p = os.path.join(rd,'nuclei','findings.jsonl')
+if os.path.exists(p):
+  for line in open(p):
+    line = line.strip()
+    if not line: continue
+    try:
+      nuc.append(json.loads(line))
+    except:
+      continue
+res['nuclei_findings'] = nuc
+# evidence placeholder: include bodies list (filenames) for manual review
+bodies = []
+bd = os.path.join(rd,'bodies')
+if os.path.isdir(bd):
+  for fn in sorted(os.listdir(bd)):
+    bodies.append({'file': fn, 'path': os.path.join('bodies', fn)})
+res['js_bodies'] = bodies
+# write out
+with open(os.path.join(rd,'combined_results.json'), 'w') as f:
+  json.dump(res, f, indent=2)
+print('Wrote combined_results.json')
+PY
+
+      - name: "Upload combined results artifact"
+        uses: actions/upload-artifact@v4
+        with:
+          name: combined-results-${{ env.TIMESTAMP }}-${{ env.TARGET }}
+          path: results/${{ env.TIMESTAMP }}/combined_results.json
+          retention-days: 30
+
+      - name: "Done - quick listing"
+        run: |
+          RD="${{ env.RESULTS_DIR }}"
+          echo "Files produced:"
+          ls -la "$RD" || true
