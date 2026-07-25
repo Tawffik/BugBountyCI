@@ -1,4 +1,8 @@
-blogs.datacamp.com
-class.datacamp.com
-explorables.new.datacamp.com
-www7b.datacamp.com
+ast-viewer.new.datacamp.com
+cp.datacamp.com
+cse.datacamp.com
+httpswww.datacamp.com
+metamask.datacamp.com
+www.maintenance.datacamp.com
+www2s.datacamp.com
+www4b.datacamp.com
