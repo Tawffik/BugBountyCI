@@ -1,9 +1,1 @@
-challenges-api.new.datacamp.com
-cn.datacamp.com
-h7.datacamp.com
-terraform-apply.datacamp.com
-top100.datacamp.com
-union.datacamp.com
-www.cdn.datacamp.com
-www5b.datacamp.com
-www5f.datacamp.com
+maven.datacamp.com
