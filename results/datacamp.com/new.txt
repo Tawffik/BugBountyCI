@@ -1,1 +1,8 @@
-maven.datacamp.com
+comune.datacamp.com
+h2.datacamp.com
+k3.datacamp.com
+multiplexer.datacamp.com
+my.datacamp.com
+s.datacamp.com
+slack-global.datacamp.comslack-global.datacamp.com
+u.datacamp.com
