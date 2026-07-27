@@ -1,3 +1,7 @@
-nn.datacamp.com
-web.datacamp.com
-www.blog.datacamp.com
+assessment-api.new.datacamp.com
+games.datacamp.com
+h6.datacamp.com
+music.datacamp.com
+myhome.datacamp.com
+passport.datacamp.com
+session-server.datacamp.com
