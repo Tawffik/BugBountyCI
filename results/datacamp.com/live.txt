@@ -36,6 +36,7 @@ http://click.links.datacamp.com	404
 http://cloud.ai-api.datacamp.com	404	
 http://cloud.cms.datacamp.com	404	
 http://cloud.collab-api.datacamp.com	404	
+http://community.datacamp.com	404	
 http://concoursetest.ops.datacamp.com	404	
 http://data.compliancy.datacamp.com	404	
 http://db.collab-api.datacamp.com	404	
@@ -60,7 +61,6 @@ http://downloads.collab-api.datacamp.com	404
 http://downloads.links.datacamp.com	404	
 http://edge.cms.datacamp.com	404	
 http://edge.links.datacamp.com	404	
-http://enterprise-docs.datacamp.com	301	301 Moved Permanently
 http://external.ai-tutor.datacamp.com	404	
 http://external.app.datacamp.com	404	
 http://files.content-authorization.datacamp.com	404	
@@ -227,31 +227,40 @@ http://support.cms.datacamp.com	404
 http://support.collab-api.datacamp.com	404	
 http://support.gamification-api.datacamp.com	404	
 http://test.campaign-service.datacamp.com	404	
-http://test.gsstm.datacamp.com	404	
+http://test.compliance.datacamp.com	404	
+http://test.learn-hub-api.datacamp.com	404	
+http://track.collab-api.datacamp.com	404	
+http://track.images.datacamp.com	404	
 http://upload.content-authorization.datacamp.com	404	
+http://upload.gamification-api.datacamp.com	404	
+http://v1.auth.datacamp.com	404	
+http://v1.collab-api.datacamp.com	404	
 http://v2.learn-hub-api.datacamp.com	404	
 http://v3.cms.datacamp.com	404	
+http://v3.learn-hub-api.datacamp.com	404	
 http://video.compliancy.datacamp.com	404	
 http://video.links.datacamp.com	404	
+http://vpn.ai-api.datacamp.com	404	
 http://vpn.content-authorization.datacamp.com	404	
-http://web.collab-api.datacamp.com	404	
+http://web.links.datacamp.com	404	
+http://webmail.careerhub-api.datacamp.com	404	
 http://webmail.kong.datacamp.com	530	
 http://wiki.campus-api.datacamp.com	404	
+http://wiki.cdn.datacamp.com	530	
+http://wiki.cms.datacamp.com	404	
 http://wiki.compliancy.datacamp.com	404	
 http://wiki.learn-hub-api.datacamp.com	404	
-http://wildcard.es.datacamp.com	404	
+http://wildcard.de.datacamp.com	404	
+http://wildcard.fr.datacamp.com	404	
 http://wildcard.learn.datacamp.com	404	
+http://wildcard.pt.datacamp.com	404	
 http://ww1.dcmfe.datacamp.com	530	
 http://www.ai-tutor.datacamp.com	404	
+http://www.blog.datacamp.com	404	
 http://www.campus.datacamp.com	530	
 http://www.cdn.datacamp.com	530	
-http://www.collab-api.datacamp.com	404	
 http://www.compliancy.datacamp.com	404	
-http://www.gsstm.datacamp.com	404	
-http://www.linkedin.datacamp.com	404	
 http://www.links.datacamp.com	404	
-http://www.multiplexer-paid-m5.new.datacamp.com	404	
-https://1www.datacamp.com	404	
 https://admin.datacamp.com	404	
 https://ai-api-admin.datacamp.com	200	AI API Admin
 https://ai-api.datacamp.com	404	
@@ -295,7 +304,6 @@ https://cms.datacamp.com	200	Welcome to your Strapi app
 https://cn.datacamp.com	404	
 https://collab-api.datacamp.com	200	
 https://collab-cdn.datacamp.com	404	
-https://community.datacamp.com	404	
 https://competitions-app.datacamp.com	404	404 Not Found
 https://compliance.datacamp.com	200	
 https://compliancy.datacamp.com	404	
@@ -322,6 +330,7 @@ https://dr-docker-sessions.datacamp.com	404
 https://ekscluster.ops.datacamp.com	503	503 Service Temporarily Unavailable
 https://em.datacamp.com	404	404 Not Found
 https://en.datacamp.com	404	
+https://enterprise-docs.datacamp.com	200	Introduction | Enterprise Docs
 https://enterprise.datacamp.com	302	
 https://enterprise.new.datacamp.com	404	
 https://es.datacamp.com	404	
@@ -387,6 +396,7 @@ https://mx.datacamp.com	404
 https://my.datacamp.com	404	
 https://new.datacamp.com	301	
 https://next-marketing.datacamp.com	301	
+https://nn.datacamp.com	404	
 https://notifications-api.datacamp.com	200	
 https://ns1.datacamp.com	404	
 https://ns2.datacamp.com	404	
@@ -447,21 +457,20 @@ https://symposium.datacamp.com	404
 https://system-check.datacamp.com	200	System Check
 https://tableau-api.datacamp.com	404	
 https://teach-browser.datacamp.com	200	Teach Browser
-https://timetracker.new.datacamp.com	404	
-https://top100.datacamp.com	404	
+https://teach.datacamp.com	302	
+https://tech.datacamp.com	404	
 https://track.pro.datacamp.com	200	Custom domain check
 https://tracking-ads.datacamp.com	200	DataCamp Ads
 https://trust.datacamp.com	200	DataCamp Trust Center
+https://u.datacamp.com	404	
 https://uc.datacamp.com	404	404
 https://union.datacamp.com	404	
 https://videos.datacamp.com	404	404 Not Found
 https://waffles-next.datacamp.com	301	
-https://waffles.datacamp.com	200	
-https://wildcard.datacamp.com	404	
+https://web.datacamp.com	404	
 https://wildcard.new.datacamp.com	404	
-https://wildcard.ops.datacamp.com	503	503 Service Temporarily Unavailable
 https://workspace-docs.datacamp.com	400	
-https://www.new.datacamp.com	404	
-https://www2.datacamp.com	302	
 https://www5a.datacamp.com	404	
+https://www5b.datacamp.com	404	
+https://www5c.datacamp.com	404	
 https://www7a.datacamp.com	404	

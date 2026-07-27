@@ -1,4 +1,3 @@
-1www.datacamp.com
 account.collab-api.datacamp.com
 admin.compliancy.datacamp.com
 admin.datacamp.com
@@ -298,6 +297,7 @@ news.auth.datacamp.com
 news.collab-api.datacamp.com
 news.links.datacamp.com
 next-marketing.datacamp.com
+nn.datacamp.com
 notifications-api.datacamp.com
 ns1.auth.datacamp.com
 ns1.campus-api.datacamp.com
@@ -499,6 +499,7 @@ waffles-next.datacamp.com
 waffles.datacamp.com
 web.campus-api.datacamp.com
 web.collab-api.datacamp.com
+web.datacamp.com
 web.links.datacamp.com
 webmail.careerhub-api.datacamp.com
 webmail.kong.datacamp.com
@@ -521,6 +522,7 @@ workspace.datacamp.com
 ww1.dcmfe.datacamp.com
 ww2.cdn.datacamp.com
 www.ai-tutor.datacamp.com
+www.blog.datacamp.com
 www.campus.datacamp.com
 www.cdn.datacamp.com
 www.collab-api.datacamp.com
