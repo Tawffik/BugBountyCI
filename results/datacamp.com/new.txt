@@ -1,8 +1,5 @@
-comune.datacamp.com
-h2.datacamp.com
-k3.datacamp.com
-multiplexer.datacamp.com
-my.datacamp.com
-s.datacamp.com
-slack-global.datacamp.comslack-global.datacamp.com
-u.datacamp.com
+en.datacamp.com
+ff.datacamp.com
+resume.datacamp.com
+symposium.datacamp.com
+www5c.datacamp.com

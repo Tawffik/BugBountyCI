@@ -46,7 +46,6 @@ blog.datacamp.com
 blog.kong.datacamp.com
 blog.new.datacamp.com
 bokeh-server.datacamp.com
-bookmarks.datacamp.com
 boro.datacamp.com
 bounce.datacamp.com
 campaign-service.datacamp.com
@@ -134,6 +133,7 @@ edge.cms.datacamp.com
 edge.links.datacamp.com
 ekscluster.ops.datacamp.com
 em.datacamp.com
+en.datacamp.com
 engineering-portal.ops.datacamp.com
 enterprise-docs.datacamp.com
 enterprise.datacamp.com
@@ -146,6 +146,7 @@ explorables.datacamp.com
 explore.datacamp.com
 external.ai-tutor.datacamp.com
 external.app.datacamp.com
+ff.datacamp.com
 files.content-authorization.datacamp.com
 files.home-hub.datacamp.com
 files.images.datacamp.com
@@ -273,7 +274,6 @@ media.auth.datacamp.com
 media.content-authorization.datacamp.com
 media.datacamp.com
 media.links.datacamp.com
-metamask.datacamp.com
 mfe-import-maps.datacamp.com
 mobile-api.datacamp.com
 mobile-api.new.datacamp.com
@@ -372,11 +372,11 @@ public.auth.datacamp.com
 public.compliancy.datacamp.com
 public.content-authorization.datacamp.com
 public.learn-hub-api.datacamp.com
-pup.datacamp.com
 purchase.datacamp.com
 pusher.datacamp.com
 rconsole-backup.datacamp.com
 resources.new.datacamp.com
+resume.datacamp.com
 rstudio-server.datacamp.com
 s.datacamp.com
 s3.assets.datacamp.com
@@ -453,6 +453,7 @@ support.cms.datacamp.com
 support.collab-api.datacamp.com
 support.datacamp.com
 support.gamification-api.datacamp.com
+symposium.datacamp.com
 system-check.datacamp.com
 tableau-api.datacamp.com
 teach-browser.datacamp.com
@@ -531,12 +532,12 @@ www.dev.datacamp.com
 www.gsstm.datacamp.com
 www.linkedin.datacamp.com
 www.links.datacamp.com
-www.maintenance.datacamp.com
 www.multiplexer-paid.new.datacamp.com
 www.new.datacamp.com
 www2.datacamp.com
 www5a.datacamp.com
 www5b.datacamp.com
+www5c.datacamp.com
 www5d.datacamp.com
 www5f.datacamp.com
 wwww.datacamp.com
