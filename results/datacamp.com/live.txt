@@ -90,6 +90,7 @@ http://go.cms.datacamp.com	404
 http://grafana.ai-tutor.datacamp.com	404	
 http://grafana.collab-api.datacamp.com	404	
 http://grafana.compliancy.datacamp.com	404	
+http://groups.datacamp.com	302	302 Moved
 http://help.campus-api.datacamp.com	404	
 http://help.compliancy.datacamp.com	404	
 http://hub.auth.datacamp.com	404	
@@ -127,6 +128,7 @@ http://media.auth.datacamp.com	404
 http://media.content-authorization.datacamp.com	404	
 http://media.links.datacamp.com	404	
 http://monitor.ai-api.datacamp.com	404	
+http://multiplexer-paid.datacamp.com	301	
 http://mx.campus-api.datacamp.com	404	
 http://mx.collab-api.datacamp.com	404	
 http://mx.compliancy.datacamp.com	404	
@@ -215,15 +217,10 @@ http://storage.dcmfe.datacamp.com	530
 http://storage.images.datacamp.com	404	
 http://storage.links.datacamp.com	404	
 http://store.compliancy.datacamp.com	404	
-http://store.gamification-api.datacamp.com	404	
 http://store.links.datacamp.com	404	
-http://styleguide-assets.datacamp.com	404	404 Not Found
 http://support.auth.datacamp.com	404	
 http://support.campus-api.datacamp.com	404	
-http://support.careerhub-api.datacamp.com	404	
 http://support.cms.datacamp.com	404	
-http://support.collab-api.datacamp.com	404	
-http://support.gamification-api.datacamp.com	404	
 http://test.campaign-service.datacamp.com	404	
 http://test.compliance.datacamp.com	404	
 http://test.gsstm.datacamp.com	404	
@@ -269,6 +266,7 @@ http://www.cdn.datacamp.com	530
 http://www.collab-api.datacamp.com	404	
 http://www.compliancy.datacamp.com	404	
 http://www.gsstm.datacamp.com	404	
+http://www.linkedin.datacamp.com	404	
 http://www.links.datacamp.com	404	
 http://www.multiplexer-paid-m5.new.datacamp.com	404	
 https://admin.datacamp.com	404	
@@ -310,8 +308,8 @@ https://challenges-api.new.datacamp.com	404
 https://challenges.datacamp.com	301	
 https://ci.datacamp.com	404	
 https://clips.datacamp.com	302	Redirecting to https://datacamp.com
+https://club.datacamp.com	404	
 https://cms.datacamp.com	200	Welcome to your Strapi app
-https://cn.datacamp.com	404	
 https://collab-api.datacamp.com	200	
 https://collab-cdn.datacamp.com	404	
 https://community.datacamp.com	404	
@@ -358,13 +356,14 @@ https://gamification-api.datacamp.com	404
 https://grc.it.datacamp.com	503	503 Service Temporarily Unavailable
 https://gsstm.datacamp.com	400	
 https://h2.datacamp.com	404	
+https://h3.datacamp.com	404	
 https://h6.datacamp.com	404	
-https://h7.datacamp.com	404	
 https://home-hub.datacamp.com	200	
 https://home.it.datacamp.com	302	
 https://image-management-service-dev.datacamp.com	404	
 https://image-management-service.datacamp.com	404	
 https://images.datacamp.com	301	
+https://imb.datacamp.com	404	
 https://infra-reporter.datacamp.com	404	
 https://inst.datacamp.com	404	
 https://instructor-support.datacamp.com	302	
@@ -388,6 +387,7 @@ https://learner-hub-static.datacamp.com	200
 https://learnpython-ads.datacamp.com	200	DataCamp Ads
 https://learnsqlonline-ads.datacamp.com	200	DataCamp Ads
 https://links.datacamp.com	404	
+https://live.datacamp.com	404	
 https://llm-proxy.optima.datacamp.com	302	
 https://lms-assets.datacamp.com	403	403 Forbidden
 https://lms-docs.datacamp.com	404	
@@ -398,7 +398,6 @@ https://media.datacamp.com	404	404 Not Found
 https://mfe-import-maps.datacamp.com	404	Error: dcmfe
 https://mobile-api.datacamp.com	200	
 https://mobile-api.new.datacamp.com	404	
-https://multiplexer-paid.datacamp.com	404	
 https://multiplexer-prod-3.datacamp.com	404	
 https://multiplexer-prod.datacamp.com	404	
 https://multiplexer.datacamp.com	404	
@@ -416,6 +415,7 @@ https://okta.datacamp.com	302
 https://old-waffles.datacamp.com	404	
 https://onboarding.datacamp.com	200	DataCamp Onboarding
 https://optima.datacamp.com	200	
+https://order.datacamp.com	404	
 https://passport.datacamp.com	404	
 https://pay.datacamp.com	404	
 https://poser.datacamp.com	200	Poser
@@ -433,8 +433,10 @@ https://prometheus-aggregator.datacamp.com	404	Error
 https://prometheus-aggregator.new.datacamp.com	404	Error
 https://promo.datacamp.com	302	
 https://promo.new.datacamp.com	404	
+https://provincia.datacamp.com	404	
 https://pt.datacamp.com	404	
 https://purchase.datacamp.com	200	Subscribe | DataCamp
+https://rconsole-backup.datacamp.com	404	
 https://resources.new.datacamp.com	403	
 https://resume.datacamp.com	404	
 https://rstudio-server.datacamp.com	404	
@@ -466,21 +468,15 @@ https://storage.datacamp.com	404
 https://styleguide.datacamp.com	404	
 https://support.datacamp.com	302	
 https://symposium.datacamp.com	404	
-https://system-check.datacamp.com	200	System Check
-https://tableau-api.datacamp.com	404	
-https://teach-browser.datacamp.com	200	Teach Browser
 https://teach.datacamp.com	302	
 https://tech.datacamp.com	404	
-https://terraform-apply.datacamp.com	404	
 https://timetracker.datacamp.com	404	
 https://timetracker.new.datacamp.com	404	
-https://top100.datacamp.com	404	
 https://track.pro.datacamp.com	200	Custom domain check
 https://tracking-ads.datacamp.com	200	DataCamp Ads
 https://trust.datacamp.com	200	DataCamp Trust Center
 https://u.datacamp.com	404	
 https://uc.datacamp.com	404	404
-https://union.datacamp.com	404	
 https://upsell.datacamp.com	404	
 https://videos.datacamp.com	404	404 Not Found
 https://waffles-next.datacamp.com	301	
@@ -498,7 +494,6 @@ https://www2.datacamp.com	302
 https://www5a.datacamp.com	404	
 https://www5b.datacamp.com	404	
 https://www5c.datacamp.com	404	
-https://www5f.datacamp.com	404	
 https://www7a.datacamp.com	404	
 https://wwww.datacamp.com	404	
 https://z28rg4x8kh99-workspace-sessions.datacamp.com	404	
