@@ -1,5 +1,6 @@
 account.collab-api.datacamp.com
 admin.compliancy.datacamp.com
+admin.datacamp.com
 ads.auth.datacamp.com
 ads.compliancy.datacamp.com
 ai-api-admin.datacamp.com
@@ -27,6 +28,7 @@ assets.collab-api.datacamp.com
 assets.datacamp.com
 assets.images.datacamp.com
 ast-viewer.datacamp.com
+ast-viewer.new.datacamp.com
 auth.datacamp.com
 authoring.datacamp.com
 autoconfig.collab-api.datacamp.com
@@ -75,7 +77,6 @@ clips.datacamp.com
 cloud.ai-api.datacamp.com
 cloud.cms.datacamp.com
 cloud.collab-api.datacamp.com
-club.datacamp.com
 cms.datacamp.com
 cn.datacamp.com
 collab-api.datacamp.com
@@ -140,6 +141,7 @@ enterprise.new.datacamp.com
 es.datacamp.com
 events.datacamp.com
 evt.optima.datacamp.com
+excel-api.datacamp.com
 explorables.datacamp.com
 explore.datacamp.com
 external.ai-tutor.datacamp.com
@@ -198,7 +200,6 @@ images.compliancy.datacamp.com
 images.datacamp.com
 images.learn-hub-api.datacamp.com
 images.links.datacamp.com
-imb.datacamp.com
 img.links.datacamp.com
 infra-reporter.datacamp.com
 ingressgateway-datacamp-ops.ops.datacamp.com
@@ -248,7 +249,6 @@ learnsqlonline-ads.datacamp.com
 links.datacamp.com
 live.careerhub-api.datacamp.com
 live.compliancy.datacamp.com
-live.datacamp.com
 llm-proxy.optima.datacamp.com
 lms-assets.datacamp.com
 lms-docs.datacamp.com
@@ -319,7 +319,6 @@ okta.datacamp.com
 old-waffles.datacamp.com
 onboarding.datacamp.com
 optima.datacamp.com
-order.datacamp.com
 origin.ai-tutor.datacamp.com
 origin.content-authorization.datacamp.com
 origin.links.datacamp.com
@@ -337,6 +336,7 @@ pop.learn-hub-api.datacamp.com
 portal.ai-api.datacamp.com
 portal.auth.datacamp.com
 poser.datacamp.com
+pp.datacamp.com
 practice-web.datacamp.com
 practice-web.new.datacamp.com
 practice.datacamp.com
@@ -373,7 +373,6 @@ public.compliancy.datacamp.com
 public.content-authorization.datacamp.com
 public.learn-hub-api.datacamp.com
 purchase.datacamp.com
-rconsole-backup.datacamp.com
 resources.new.datacamp.com
 resume.datacamp.com
 rstudio-server.datacamp.com
@@ -530,7 +529,6 @@ www.collab-api.datacamp.com
 www.compliancy.datacamp.com
 www.datacamp.com
 www.gsstm.datacamp.com
-www.linkedin.datacamp.com
 www.links.datacamp.com
 www.multiplexer-paid-m5.new.datacamp.com
 www.new.datacamp.com

@@ -1,7 +1,4 @@
-assessment-api.new.datacamp.com
-games.datacamp.com
-h6.datacamp.com
-music.datacamp.com
-myhome.datacamp.com
-passport.datacamp.com
-session-server.datacamp.com
+admin.datacamp.com
+ast-viewer.new.datacamp.com
+excel-api.datacamp.com
+pp.datacamp.com
