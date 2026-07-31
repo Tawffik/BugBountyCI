@@ -1,4 +1,3 @@
-1www.datacamp.com
 a.datacamp.com
 account.collab-api.datacamp.com
 admin.compliancy.datacamp.com
@@ -183,14 +182,13 @@ grafana.ops.datacamp.com
 grc.it.datacamp.com
 gsstm.datacamp.com
 h2.datacamp.com
-h4.datacamp.com
 h6.datacamp.com
 h7.datacamp.com
 help.campus-api.datacamp.com
 help.compliancy.datacamp.com
-hh.datacamp.com
 home-hub.datacamp.com
 home.it.datacamp.com
+homepage2.datacamp.com
 hub.auth.datacamp.com
 hub.compliancy.datacamp.com
 hub.content-authorization.datacamp.com
@@ -352,7 +350,6 @@ prod.links.datacamp.com
 project-frontend.new.datacamp.com
 projector.datacamp.com
 projector.new.datacamp.com
-projects-api.new.datacamp.com
 projects.datacamp.com
 prometheus-aggregator.datacamp.com
 prometheus-aggregator.new.datacamp.com
@@ -406,6 +403,7 @@ slack-global.datacamp.com
 slack-global.datacamp.comslack-global.datacamp.com
 slack-usa.datacamp.com
 slides.datacamp.com
+slovari.datacamp.com
 smtp.datacamp.com
 smtp.home-hub.datacamp.com
 smtp.learn-hub-api.datacamp.com
@@ -501,7 +499,6 @@ waffles-next.datacamp.com
 waffles.datacamp.com
 web.campus-api.datacamp.com
 web.collab-api.datacamp.com
-web.datacamp.com
 web.links.datacamp.com
 webmail.careerhub-api.datacamp.com
 webmail.kong.datacamp.com
@@ -532,10 +529,10 @@ www.datacamp.com
 www.gsstm.datacamp.com
 www.links.datacamp.com
 www.multiplexer-paid-m5.new.datacamp.com
-www.multiplexer-paid.new.datacamp.com
 www.new.datacamp.com
 www2.datacamp.com
 www5c.datacamp.com
+www5d.datacamp.com
 www7a.datacamp.com
 wwww.datacamp.com
 z28rg4x8kh99-workspace-sessions.datacamp.com
