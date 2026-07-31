@@ -29,7 +29,6 @@ assets.collab-api.datacamp.com
 assets.datacamp.com
 assets.images.datacamp.com
 ast-viewer.datacamp.com
-ast-viewer.new.datacamp.com
 auth.datacamp.com
 authoring.datacamp.com
 autoconfig.collab-api.datacamp.com
@@ -182,7 +181,6 @@ grafana.collab-api.datacamp.com
 grafana.compliancy.datacamp.com
 grafana.ops.datacamp.com
 grc.it.datacamp.com
-grc2go.datacamp.com
 gsstm.datacamp.com
 h2.datacamp.com
 h4.datacamp.com
@@ -190,7 +188,6 @@ h6.datacamp.com
 h7.datacamp.com
 help.campus-api.datacamp.com
 help.compliancy.datacamp.com
-help.datacamp.com
 hh.datacamp.com
 home-hub.datacamp.com
 home.it.datacamp.com
@@ -375,7 +372,6 @@ public.compliancy.datacamp.com
 public.content-authorization.datacamp.com
 public.learn-hub-api.datacamp.com
 purchase.datacamp.com
-pusher.datacamp.com
 resources.new.datacamp.com
 resume.datacamp.com
 rstudio-server.datacamp.com
@@ -533,7 +529,6 @@ www.campus.datacamp.com
 www.collab-api.datacamp.com
 www.compliancy.datacamp.com
 www.datacamp.com
-www.dev.datacamp.com
 www.gsstm.datacamp.com
 www.links.datacamp.com
 www.multiplexer-paid-m5.new.datacamp.com
@@ -541,7 +536,6 @@ www.multiplexer-paid.new.datacamp.com
 www.new.datacamp.com
 www2.datacamp.com
 www5c.datacamp.com
-www5d.datacamp.com
 www7a.datacamp.com
 wwww.datacamp.com
 z28rg4x8kh99-workspace-sessions.datacamp.com
