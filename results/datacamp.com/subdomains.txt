@@ -47,7 +47,6 @@ blog.datacamp.com
 blog.kong.datacamp.com
 blog.new.datacamp.com
 bokeh-server.datacamp.com
-bookmarks.datacamp.com
 boro.datacamp.com
 bounce.datacamp.com
 campaign-service.datacamp.com
@@ -375,7 +374,6 @@ public.auth.datacamp.com
 public.compliancy.datacamp.com
 public.content-authorization.datacamp.com
 public.learn-hub-api.datacamp.com
-pup.datacamp.com
 purchase.datacamp.com
 pusher.datacamp.com
 resources.new.datacamp.com
@@ -391,8 +389,8 @@ secure.app.datacamp.com
 secure.assets.datacamp.com
 secure.campus.datacamp.com
 secure.content-authorization.datacamp.com
+secure.datacamp.com
 secure.kong.datacamp.com
-server.datacamp.com
 session-server.datacamp.com
 sessions-eu-central-1.datacamp.com
 sessions-us-east-1.datacamp.com
@@ -425,6 +423,7 @@ sql.ai-tutor.datacamp.com
 sql.app.datacamp.com
 sql.compliancy.datacamp.com
 sql.links.datacamp.com
+ss.datacamp.com
 staging.collab-api.datacamp.com
 staging.datacamp.com
 staging.gsstm.datacamp.com
