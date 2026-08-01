@@ -1,3 +1,1 @@
-homepage2.datacamp.com
-slovari.datacamp.com
-www5d.datacamp.com
+quantinsti.datacamp.com
