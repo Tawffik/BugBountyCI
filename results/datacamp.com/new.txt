@@ -1,1 +1,1 @@
-quantinsti.datacamp.com
+mcp-gateway-internal.datacamp.com
