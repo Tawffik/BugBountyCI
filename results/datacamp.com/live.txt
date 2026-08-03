@@ -234,13 +234,17 @@ http://track.images.datacamp.com	404
 http://upload.content-authorization.datacamp.com	404	
 http://upload.gamification-api.datacamp.com	404	
 http://v1.app.datacamp.com	404	
-http://v1.auth.datacamp.com	404	
 http://v2.learn-hub-api.datacamp.com	404	
 http://v3.cms.datacamp.com	404	
 http://v3.learn-hub-api.datacamp.com	404	
+http://video.compliancy.datacamp.com	404	
+http://video.links.datacamp.com	404	
+http://videos.datacamp.com	404	404 Not Found
 http://vpn.ai-api.datacamp.com	404	
 http://vpn.auth.datacamp.com	404	
 http://vpn.campus-api.datacamp.com	404	
+http://vpn.content-authorization.datacamp.com	404	
+http://web.campus-api.datacamp.com	404	
 http://web.collab-api.datacamp.com	404	
 http://web.links.datacamp.com	404	
 http://webmail.careerhub-api.datacamp.com	404	
@@ -249,14 +253,17 @@ http://wiki.campus-api.datacamp.com	404
 http://wiki.cdn.datacamp.com	530	
 http://wiki.cms.datacamp.com	404	
 http://wiki.compliancy.datacamp.com	404	
+http://wiki.learn-hub-api.datacamp.com	404	
 http://wildcard.de.datacamp.com	404	
 http://wildcard.es.datacamp.com	404	
 http://wildcard.fr.datacamp.com	404	
 http://wildcard.learn.datacamp.com	404	
-http://wildcard.ops.datacamp.com	503	503 Service Temporarily Unavailable
 http://wildcard.pt.datacamp.com	404	
 http://ww1.dcmfe.datacamp.com	530	
 http://ww2.cdn.datacamp.com	530	
+http://www.ai-tutor.datacamp.com	404	
+http://www.campus.datacamp.com	530	
+http://www.collab-api.datacamp.com	404	
 http://www.compliancy.datacamp.com	404	
 http://www.gsstm.datacamp.com	404	
 http://www.links.datacamp.com	404	
@@ -452,14 +459,21 @@ https://timetracker.datacamp.com	404
 https://timetracker.new.datacamp.com	404	
 https://top100.datacamp.com	404	
 https://track.pro.datacamp.com	200	Custom domain check
-https://trust.datacamp.com	200	DataCamp Trust Center
+https://tracking-ads.datacamp.com	200	DataCamp Ads
 https://uc.datacamp.com	404	404
 https://upsell.datacamp.com	404	
 https://waffles-next.datacamp.com	301	
 https://waffles.datacamp.com	200	
+https://wildcard.datacamp.com	404	
 https://wildcard.new.datacamp.com	404	
+https://wildcard.ops.datacamp.com	503	503 Service Temporarily Unavailable
 https://workspace-docs.datacamp.com	400	
+https://workspace-sessions.datacamp.com	404	
 https://workspace.datacamp.com	302	302 Found
+https://www.datacamp.com	403	Just a moment...
+https://www.new.datacamp.com	404	
 https://www2.datacamp.com	302	
 https://www5d.datacamp.com	404	
 https://www7a.datacamp.com	404	
+https://wwww.datacamp.com	404	
+https://z28rg4x8kh99-workspace-sessions.datacamp.com	404	
