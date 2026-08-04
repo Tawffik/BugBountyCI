@@ -127,7 +127,6 @@ http://media.auth.datacamp.com
 http://media.content-authorization.datacamp.com
 http://media.links.datacamp.com
 http://monitor.ai-api.datacamp.com
-http://multiplexer-paid.datacamp.com
 http://mx.campus-api.datacamp.com
 http://mx.collab-api.datacamp.com
 http://mx.compliancy.datacamp.com
@@ -237,10 +236,7 @@ http://upload.gamification-api.datacamp.com
 http://v1.app.datacamp.com
 http://v1.auth.datacamp.com
 http://v1.collab-api.datacamp.com
-http://v2.learn-hub-api.datacamp.com
 http://v3.cms.datacamp.com
-http://v3.learn-hub-api.datacamp.com
-http://video.compliancy.datacamp.com
 http://video.links.datacamp.com
 http://vpn.ai-api.datacamp.com
 http://vpn.auth.datacamp.com
@@ -390,6 +386,7 @@ https://media.datacamp.com
 https://mfe-import-maps.datacamp.com
 https://mobile-api.datacamp.com
 https://mobile-api.new.datacamp.com
+https://multiplexer-paid.datacamp.com
 https://multiplexer-prod-3.datacamp.com
 https://multiplexer-prod.datacamp.com
 https://mx.datacamp.com
@@ -461,6 +458,7 @@ https://timetracker.new.datacamp.com
 https://top100.datacamp.com
 https://track.pro.datacamp.com
 https://tracking-ads.datacamp.com
+https://trust.datacamp.com
 https://uc.datacamp.com
 https://upsell.datacamp.com
 https://videos.datacamp.com

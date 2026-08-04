@@ -127,7 +127,6 @@ http://media.auth.datacamp.com	404
 http://media.content-authorization.datacamp.com	404	
 http://media.links.datacamp.com	404	
 http://monitor.ai-api.datacamp.com	404	
-http://multiplexer-paid.datacamp.com	301	
 http://mx.campus-api.datacamp.com	404	
 http://mx.collab-api.datacamp.com	404	
 http://mx.compliancy.datacamp.com	404	
@@ -237,10 +236,7 @@ http://upload.gamification-api.datacamp.com	404
 http://v1.app.datacamp.com	404	
 http://v1.auth.datacamp.com	404	
 http://v1.collab-api.datacamp.com	404	
-http://v2.learn-hub-api.datacamp.com	404	
 http://v3.cms.datacamp.com	404	
-http://v3.learn-hub-api.datacamp.com	404	
-http://video.compliancy.datacamp.com	404	
 http://video.links.datacamp.com	404	
 http://vpn.ai-api.datacamp.com	404	
 http://vpn.auth.datacamp.com	404	
@@ -390,6 +386,7 @@ https://media.datacamp.com	404	404 Not Found
 https://mfe-import-maps.datacamp.com	404	Error: dcmfe
 https://mobile-api.datacamp.com	200	
 https://mobile-api.new.datacamp.com	404	
+https://multiplexer-paid.datacamp.com	404	
 https://multiplexer-prod-3.datacamp.com	404	
 https://multiplexer-prod.datacamp.com	404	
 https://mx.datacamp.com	404	
@@ -461,6 +458,7 @@ https://timetracker.new.datacamp.com	404
 https://top100.datacamp.com	404	
 https://track.pro.datacamp.com	200	Custom domain check
 https://tracking-ads.datacamp.com	200	DataCamp Ads
+https://trust.datacamp.com	200	DataCamp Trust Center
 https://uc.datacamp.com	404	404
 https://upsell.datacamp.com	404	
 https://videos.datacamp.com	404	404 Not Found
