@@ -236,12 +236,13 @@ http://upload.gamification-api.datacamp.com	404
 http://v1.app.datacamp.com	404	
 http://v1.auth.datacamp.com	404	
 http://v1.collab-api.datacamp.com	404	
-http://v3.cms.datacamp.com	404	
+http://v2.learn-hub-api.datacamp.com	404	
+http://v3.learn-hub-api.datacamp.com	404	
 http://video.links.datacamp.com	404	
-http://vpn.ai-api.datacamp.com	404	
 http://vpn.auth.datacamp.com	404	
 http://vpn.campus-api.datacamp.com	404	
 http://vpn.content-authorization.datacamp.com	404	
+http://waffles.datacamp.com	200	
 http://web.campus-api.datacamp.com	404	
 http://web.collab-api.datacamp.com	404	
 http://web.links.datacamp.com	404	
@@ -463,7 +464,6 @@ https://uc.datacamp.com	404	404
 https://upsell.datacamp.com	404	
 https://videos.datacamp.com	404	404 Not Found
 https://waffles-next.datacamp.com	301	
-https://waffles.datacamp.com	200	
 https://wildcard.datacamp.com	404	
 https://wildcard.new.datacamp.com	404	
 https://wildcard.ops.datacamp.com	503	503 Service Temporarily Unavailable

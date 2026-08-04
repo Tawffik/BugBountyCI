@@ -236,12 +236,13 @@ http://upload.gamification-api.datacamp.com
 http://v1.app.datacamp.com
 http://v1.auth.datacamp.com
 http://v1.collab-api.datacamp.com
-http://v3.cms.datacamp.com
+http://v2.learn-hub-api.datacamp.com
+http://v3.learn-hub-api.datacamp.com
 http://video.links.datacamp.com
-http://vpn.ai-api.datacamp.com
 http://vpn.auth.datacamp.com
 http://vpn.campus-api.datacamp.com
 http://vpn.content-authorization.datacamp.com
+http://waffles.datacamp.com
 http://web.campus-api.datacamp.com
 http://web.collab-api.datacamp.com
 http://web.links.datacamp.com
@@ -463,7 +464,6 @@ https://uc.datacamp.com
 https://upsell.datacamp.com
 https://videos.datacamp.com
 https://waffles-next.datacamp.com
-https://waffles.datacamp.com
 https://wildcard.datacamp.com
 https://wildcard.new.datacamp.com
 https://wildcard.ops.datacamp.com
