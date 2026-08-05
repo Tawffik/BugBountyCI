@@ -1,0 +1,225 @@
+# ================================================================
+# STRIX‑TEFA v3.0 – نسخة مبسطة ومستقرة
+# ================================================================
+name: "STRIX-TEFA Security Agent"
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Target domain (e.g., example.com)"
+        required: true
+        type: string
+      simulate:
+        description: "Run in simulation mode (test without real requests)"
+        required: false
+        default: false
+        type: boolean
+      hunting_mode:
+        description: "Scan intensity"
+        required: false
+        default: "normal"
+        type: choice
+        options:
+          - light
+          - normal
+          - aggressive
+
+permissions:
+  contents: read
+  actions: write
+
+env:
+  TARGET: ${{ inputs.target }}
+  SIMULATE: ${{ inputs.simulate == 'true' }}
+  TIMESTAMP: ${{ github.run_id }}-${{ github.run_number }}
+  HUNTING_MODE: ${{ inputs.hunting_mode }}
+
+jobs:
+  # =============================================================
+  # JOB 1: الإعداد والتجهيز
+  # =============================================================
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      target_norm: ${{ steps.norm.outputs.target }}
+    steps:
+      - name: "Normalize Target"
+        id: norm
+        run: |
+          TARGET="${{ env.TARGET }}"
+          TARGET="$(echo "$TARGET" | tr '[:upper:]' '[:lower:]' | xargs)"
+          if [[ "${{ env.SIMULATE }}" == "true" ]]; then
+            TARGET="example.com"
+            echo "🧪 Simulation mode activated."
+          fi
+          echo "target=$TARGET" >> $GITHUB_OUTPUT
+          echo "TARGET=$TARGET" >> $GITHUB_ENV
+          echo "✅ Target: $TARGET"
+
+      - name: "Setup Tools"
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: "Install Dependencies"
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq git curl wget unzip jq dnsutils libpcap-dev
+
+      - name: "Cache & Install Go Tools"
+        id: cache-go
+        uses: actions/cache@v4
+        with:
+          path: /tmp/toolbin
+          key: tools-${{ github.run_id }}
+      - name: "Install Go Tools"
+        if: steps.cache-go.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p /tmp/toolbin
+          export GOBIN=/tmp/toolbin
+          export PATH=/tmp/toolbin:$PATH
+          echo "/tmp/toolbin" >> $GITHUB_PATH
+          go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
+          go install github.com/projectdiscovery/httpx/cmd/httpx@latest
+          go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
+          go install github.com/projectdiscovery/dnsx/cmd/dnsx@latest
+          go install github.com/tomnomnom/assetfinder@latest
+          go install github.com/lc/gau/v2/cmd/gau@latest
+          pip install uro
+
+      - name: "Create Results Directory"
+        run: |
+          mkdir -p results/${{ env.TIMESTAMP }}/{subdomains,live,urls,nuclei,reports}
+
+  # =============================================================
+  # JOB 2: الاستطلاع (Reconnaissance)
+  # =============================================================
+  recon:
+    runs-on: ubuntu-latest
+    needs: setup
+    strategy:
+      fail-fast: false
+      matrix:
+        task: [subdomains, httpx]
+    steps:
+      - name: "Restore Tools"
+        run: |
+          export PATH=/tmp/toolbin:$PATH
+          echo "/tmp/toolbin" >> $GITHUB_PATH
+
+      - name: "Subdomain Enumeration"
+        if: matrix.task == 'subdomains'
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          TARGET="${{ env.TARGET }}"
+          subfinder -d "$TARGET" -silent -all -o "$RD/subdomains/subfinder.txt" || true
+          assetfinder --subs-only "$TARGET" > "$RD/subdomains/assetfinder.txt" || true
+          curl -s "https://crt.sh/?q=%25.${TARGET}&output=json" | jq -r '.[].name_value' 2>/dev/null | sed 's/^\*\.//' >> "$RD/subdomains/crtsh.txt" || true
+          cat "$RD"/subdomains/*.txt 2>/dev/null | sort -u | dnsx -silent -a -resp | awk '{print $1}' > "$RD/subdomains/resolved.txt"
+          echo "Found: $(wc -l < "$RD/subdomains/resolved.txt") subdomains"
+
+      - name: "HTTP Probing"
+        if: matrix.task == 'httpx'
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          INPUT="$RD/subdomains/resolved.txt"
+          if [ ! -s "$INPUT" ]; then echo "${{ env.TARGET }}" > "$INPUT"; fi
+          httpx -l "$INPUT" -silent -status-code -title -tech-detect -json -o "$RD/live/live.json" || true
+          jq -r '.url' "$RD/live/live.json" 2>/dev/null > "$RD/live/live.txt"
+          echo "Live hosts: $(wc -l < "$RD/live/live.txt")"
+
+  # =============================================================
+  # JOB 3: URL جمع و تحليل JavaScript
+  # =============================================================
+  intel:
+    runs-on: ubuntu-latest
+    needs: recon
+    steps:
+      - name: "Restore Tools"
+        run: |
+          export PATH=/tmp/toolbin:$PATH
+          echo "/tmp/toolbin" >> $GITHUB_PATH
+
+      - name: "Collect URLs"
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          INPUT="$RD/live/live.txt"
+          if [ ! -s "$INPUT" ]; then echo "https://${{ env.TARGET }}" > "$INPUT"; fi
+          cat "$INPUT" | waybackurls > "$RD/urls/wayback.txt" 2>/dev/null || true
+          gau "${{ env.TARGET }}" --subs --o "$RD/urls/gau.txt" 2>/dev/null || true
+          cat "$RD"/urls/*.txt 2>/dev/null | sort -u > "$RD/urls/all.txt"
+          echo "URLs: $(wc -l < "$RD/urls/all.txt")"
+
+      - name: "JavaScript Secrets"
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          grep -iE '\.js' "$RD/urls/all.txt" | head -100 > "$RD/js_files.txt" || true
+          if [ -s "$RD/js_files.txt" ]; then
+            cat "$RD/js_files.txt" | while read -r url; do
+              curl -sk --max-time 5 "$url" | grep -Eio 'AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{35}|[sp]k_live_[A-Za-z0-9]{16,}|eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}' >> "$RD/js/secrets.txt" || true
+            done
+          fi
+          echo "Secrets: $(wc -l < "$RD/js/secrets.txt" 2>/dev/null || echo 0)"
+
+  # =============================================================
+  # JOB 4: فحص الثغرات (Nuclei)
+  # =============================================================
+  scan:
+    runs-on: ubuntu-latest
+    needs: intel
+    steps:
+      - name: "Restore Tools"
+        run: |
+          export PATH=/tmp/toolbin:$PATH
+          echo "/tmp/toolbin" >> $GITHUB_PATH
+
+      - name: "Run Nuclei"
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          INPUT="$RD/live/live.txt"
+          if [ ! -s "$INPUT" ]; then echo "https://${{ env.TARGET }}" > "$INPUT"; fi
+          nuclei -l "$INPUT" -severity critical,high,medium -tags exposure,panel,config -jsonl -o "$RD/nuclei/findings.jsonl" || true
+          echo "Findings: $(wc -l < "$RD/nuclei/findings.jsonl" 2>/dev/null || echo 0)"
+
+  # =============================================================
+  # JOB 5: التقرير النهائي
+  # =============================================================
+  report:
+    runs-on: ubuntu-latest
+    needs: scan
+    if: always()
+    steps:
+      - name: "Generate Summary"
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          FINDINGS=$(wc -l < "$RD/nuclei/findings.jsonl" 2>/dev/null || echo 0)
+          SUBS=$(wc -l < "$RD/subdomains/resolved.txt" 2>/dev/null || echo 0)
+          SECRETS=$(wc -l < "$RD/js/secrets.txt" 2>/dev/null || echo 0)
+          cat << EOF > "$RD/reports/summary.md"
+          # Security Assessment Report
+          **Target:** ${{ env.TARGET }}
+          **Mode:** ${{ env.HUNTING_MODE }}
+          **Date:** $(date -u)
+
+          ## Summary
+          - Subdomains: $SUBS
+          - Secrets Found: $SECRETS
+          - Nuclei Findings: $FINDINGS
+
+          ## Next Steps
+          - Review findings in '$RD/nuclei/findings.jsonl'
+          - Check secrets in '$RD/js/secrets.txt'
+          EOF
+          echo "✅ Report generated"
+
+      - name: "Upload Results"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: strix-results-${{ env.TIMESTAMP }}
+          path: results/${{ env.TIMESTAMP }}/
+          retention-days: 30
