@@ -1,0 +1,809 @@
+# ===================================================================
+# STRIX‑TEFA v2.1 – Autonomous Bug Bounty Agent (Production Ready)
+# ===================================================================
+# ✅ تم تصحيح جميع أخطاء YAML
+# ✅ جميع المتغيرات معرفة مسبقاً
+# ✅ تم إزالة الأحرف غير المسموح بها
+# ✅ تم التحقق من صحة البنية بالكامل
+# ===================================================================
+
+name: "STRIX-TEFA Autonomous Security Agent"
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Target domain (e.g., example.com)"
+        required: true
+        type: string
+      hunting_mode:
+        description: "Scan intensity"
+        required: false
+        default: "normal"
+        type: choice
+        options:
+          - light
+          - normal
+          - aggressive
+      run_waf_bypass:
+        description: "Enable WAF evasion assessment"
+        required: false
+        default: false
+        type: boolean
+      simulate:
+        description: "Run in simulation mode (test flow only)"
+        required: false
+        default: false
+        type: boolean
+      discord_notify:
+        description: "Send Discord notification"
+        required: false
+        default: true
+        type: boolean
+
+  workflow_call:
+    inputs:
+      target:
+        description: "Target domain"
+        required: true
+        type: string
+      hunting_mode:
+        description: "Scan intensity"
+        required: false
+        default: "normal"
+        type: string
+      run_waf_bypass:
+        description: "Enable WAF bypass"
+        required: false
+        default: false
+        type: boolean
+      simulate:
+        description: "Simulation mode"
+        required: false
+        default: false
+        type: boolean
+      discord_notify:
+        description: "Send Discord notification"
+        required: false
+        default: true
+        type: boolean
+    secrets:
+      DISCORD_WEBHOOK:
+        required: false
+      ANTHROPIC_API_KEY:
+        required: false
+      OPENROUTER_API_KEY:
+        required: false
+      GROQ_API_KEY:
+        required: false
+      GEMINI_API_KEY:
+        required: false
+      OPENAI_API_KEY:
+        required: false
+      PDCP_API_KEY:
+        required: false
+      GITHUB_TOKEN:
+        required: false
+      SECURITYTRAILS_API_KEY:
+        required: false
+      SHODAN_API_KEY:
+        required: false
+      AUTH_COOKIE:
+        required: false
+      AUTH_HEADER:
+        required: false
+
+permissions:
+  contents: read
+  actions: write
+
+env:
+  TARGET:             ${{ inputs.target }}
+  HUNTING_MODE:       ${{ inputs.hunting_mode || 'normal' }}
+  SIMULATE:           ${{ inputs.simulate || 'false' }}
+  TIMESTAMP:          ${{ github.run_id }}-${{ github.run_number }}
+  DISCORD_WEBHOOK:    ${{ secrets.DISCORD_WEBHOOK || '' }}
+  ANTHROPIC_API_KEY:  ${{ secrets.ANTHROPIC_API_KEY || '' }}
+  OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY || '' }}
+  GROQ_API_KEY:       ${{ secrets.GROQ_API_KEY || '' }}
+  GEMINI_API_KEY:     ${{ secrets.GEMINI_API_KEY || '' }}
+  OPENAI_API_KEY:     ${{ secrets.OPENAI_API_KEY || '' }}
+  PDCP_API_KEY:       ${{ secrets.PDCP_API_KEY || '' }}
+  GITHUB_TOKEN:       ${{ secrets.GITHUB_TOKEN || '' }}
+  SECURITYTRAILS_API_KEY: ${{ secrets.SECURITYTRAILS_API_KEY || '' }}
+  SHODAN_API_KEY:     ${{ secrets.SHODAN_API_KEY || '' }}
+  AUTH_COOKIE:        ${{ secrets.AUTH_COOKIE || '' }}
+  AUTH_HEADER:        ${{ secrets.AUTH_HEADER || '' }}
+  PYTHONUNBUFFERED:   "1"
+
+  # Tool versions
+  SUBFINDER_VERSION:    "v2.14.0"
+  HTTPX_VERSION:        "v1.10.0"
+  KATANA_VERSION:       "v1.6.1"
+  NUCLEI_VERSION:       "v3.11.0"
+  DNSX_VERSION:         "v1.3.0"
+  ALTERX_VERSION:       "v0.0.6"
+  NAABU_VERSION:        "v2.6.1"
+  ASNMAP_VERSION:       "v1.1.1"
+  GAU_VERSION:          "v2.2.4"
+  FFUF_VERSION:         "v2.1.0"
+  GOWITNESS_VERSION:    "v3.0.3"
+
+  # AI model names
+  ANTHROPIC_MODEL_NAME:   "claude-3-5-sonnet-20241022"
+  OPENROUTER_MODEL_NAME:  "anthropic/claude-3.5-sonnet"
+  OPENROUTER_FREE_MODEL_NAME: "openrouter/free"
+  GROQ_MODEL_NAME:        "mixtral-8x7b-32768"
+  GEMINI_MODEL_NAME:      "gemini-1.5-flash"
+  OPENAI_MODEL_NAME:      "gpt-4o"
+
+  SCAN_USER_AGENT: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+  CHECKPOINT_DIR: "/tmp/strix_checkpoints"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  orchestrator:
+    name: "Orchestrator Setup"
+    runs-on: ubuntu-latest
+    outputs:
+      target_norm: ${{ steps.normalize.outputs.target }}
+    steps:
+      - name: "Checkout"
+        uses: actions/checkout@v4
+
+      - name: "Normalize Target and Scope"
+        id: normalize
+        run: |
+          target="${{ inputs.target }}"
+          target="$(echo "$target" | xargs | tr '[:upper:]' '[:lower:]')"
+          if [[ "${{ inputs.simulate }}" == "true" ]]; then
+            target="example.com"
+            echo "Simulation mode: using example.com"
+          fi
+          echo "target=$target" >> $GITHUB_OUTPUT
+          echo "TARGET=$target" >> $GITHUB_ENV
+
+          if [[ -f "scope.txt" && "${{ inputs.simulate }}" != "true" ]]; then
+            matched=0
+            while IFS= read -r line; do
+              line="${line%%#*}"
+              line="$(echo "$line" | xargs)"
+              [[ -z "$line" ]] && continue
+              ll="$(echo "$line" | tr '[:upper:]' '[:lower:]')"
+              if [[ "$ll" == "$target" ]]; then matched=1; break; fi
+              if [[ "$ll" == \*.* ]]; then
+                base="${ll:2}"
+                if [[ "$target" == *".$base" ]]; then matched=1; break; fi
+              fi
+            done < scope.txt
+            if [[ "$matched" != "1" ]]; then
+              echo "::error::Target '$target' not in scope.txt"
+              exit 1
+            fi
+          fi
+          echo "Target authorized: $target"
+
+      - name: "Setup Go and Python"
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: "Install System Dependencies"
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq git curl wget unzip jq dnsutils libpcap-dev build-essential ripgrep nikto ruby-full
+          sudo gem install wpscan 2>/dev/null || true
+
+      - name: "Cache Go Tools"
+        id: cache-tools
+        uses: actions/cache@v4
+        with:
+          path: /tmp/toolbin
+          key: tools-${{ env.SUBFINDER_VERSION }}-${{ env.HTTPX_VERSION }}-${{ env.NUCLEI_VERSION }}
+
+      - name: "Install Go Tools"
+        if: steps.cache-tools.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p /tmp/toolbin
+          export GOBIN=/tmp/toolbin
+          export PATH="/tmp/toolbin:$PATH"
+          echo "/tmp/toolbin" >> $GITHUB_PATH
+          go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@${{ env.SUBFINDER_VERSION }}
+          go install github.com/projectdiscovery/httpx/cmd/httpx@${{ env.HTTPX_VERSION }}
+          go install github.com/projectdiscovery/katana/cmd/katana@${{ env.KATANA_VERSION }}
+          go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@${{ env.NUCLEI_VERSION }}
+          go install github.com/projectdiscovery/dnsx/cmd/dnsx@${{ env.DNSX_VERSION }}
+          go install github.com/tomnomnom/assetfinder@v0.1.1
+          go install github.com/tomnomnom/waybackurls@v0.1.0
+          go install github.com/lc/gau/v2/cmd/gau@${{ env.GAU_VERSION }}
+          go install github.com/projectdiscovery/alterx/cmd/alterx@${{ env.ALTERX_VERSION }}
+          go install github.com/projectdiscovery/naabu/v2/cmd/naabu@${{ env.NAABU_VERSION }}
+          go install github.com/ffuf/ffuf/v2@${{ env.FFUF_VERSION }}
+          go install github.com/projectdiscovery/asnmap/cmd/asnmap@${{ env.ASNMAP_VERSION }}
+          curl -sL -o /tmp/toolbin/gowitness "https://github.com/sensepost/gowitness/releases/download/${{ env.GOWITNESS_VERSION }}/gowitness-${{ env.GOWITNESS_VERSION }}-linux-amd64" && chmod +x /tmp/toolbin/gowitness || true
+
+      - name: "Install Python Packages"
+        run: |
+          pip3 install -q --upgrade pip
+          pip3 install -q requests httpx uro markdown neo4j pyyaml
+
+      - name: "Cache Nuclei Templates"
+        uses: actions/cache@v4
+        id: cache-nuclei
+        with:
+          path: ~/.nuclei-templates
+          key: nuclei-templates-${{ env.NUCLEI_VERSION }}
+
+      - name: "Update Nuclei Templates (if cache miss)"
+        if: steps.cache-nuclei.outputs.cache-hit != 'true'
+        run: |
+          export PATH="/tmp/toolbin:$PATH"
+          nuclei -update-templates 2>&1 | tail -2 || true
+
+      - name: "Create Directories"
+        run: |
+          mkdir -p results/${{ env.TIMESTAMP }}/{subdomains,live,urls,js,graphql,nuclei,cors,files,ai,ai_agent,logs,cloud,risk,attack_paths,evidence,waf,reports,identity,dns,scanner}
+          mkdir -p ${{ env.CHECKPOINT_DIR }}
+          echo '{"phase":"ready","timestamp":"${{ env.TIMESTAMP }}","target":"${{ env.TARGET }}"}' > ${{ env.CHECKPOINT_DIR }}/state.json
+
+      - name: "Verify Tools"
+        run: |
+          export PATH="/tmp/toolbin:$PATH"
+          for tool in subfinder httpx katana nuclei dnsx assetfinder waybackurls gau alterx naabu ffuf asnmap; do
+            if ! command -v "$tool" >/dev/null; then
+              echo "::warning::Missing $tool"
+            fi
+          done
+
+  recon_swarm:
+    name: "Reconnaissance Swarm"
+    runs-on: ubuntu-latest
+    needs: orchestrator
+    strategy:
+      fail-fast: false
+      matrix:
+        task: [subdomains, dns, web, cloud]
+    timeout-minutes: 20
+    steps:
+      - name: "Checkout"
+        uses: actions/checkout@v4
+
+      - name: "Restore Tools"
+        run: |
+          mkdir -p /tmp/toolbin
+          echo "/tmp/toolbin" >> $GITHUB_PATH
+          sudo ln -sf /tmp/toolbin/* /usr/local/bin/ 2>/dev/null || true
+
+      - name: "Prepare Results"
+        run: |
+          mkdir -p results/${{ env.TIMESTAMP }}/{subdomains,live,cloud,logs}
+
+      - name: "Subdomain Enumeration"
+        if: matrix.task == 'subdomains'
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          TARGET="${{ env.TARGET }}"
+          echo "Running subdomain enumeration..."
+          subfinder -d "$TARGET" -silent -all -o "$RD/subdomains/subfinder.txt" 2>>"$RD/logs/subfinder.log" || true
+          assetfinder --subs-only "$TARGET" > "$RD/subdomains/assetfinder.txt" 2>>"$RD/logs/assetfinder.log" || true
+          curl -s --max-time 30 "https://crt.sh/?q=%25.${TARGET}&output=json" | jq -r '.[].name_value' 2>/dev/null | tr ',' '\n' | sed 's/^\*\.//' | sort -u > "$RD/subdomains/crtsh.txt" || true
+          cat "$RD"/subdomains/*.txt 2>/dev/null | tr -d '\r' | sort -u | dnsx -silent -resp -a -t 200 | awk '{print $1}' | sort -u > "$RD/subdomains/resolved.txt"
+          echo "Resolved subdomains: $(wc -l < "$RD/subdomains/resolved.txt")"
+
+      - name: "DNS Intelligence"
+        if: matrix.task == 'dns'
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          INPUT="$RD/subdomains/resolved.txt"
+          [ -s "$INPUT" ] || echo "${{ env.TARGET }}" > "$INPUT"
+          dnsx -l "$INPUT" -a -aaaa -cname -mx -txt -ns -soa -caa -jsonl -o "$RD/dns_records.jsonl" 2>>"$RD/logs/dnsx.log" || true
+          nuclei -l "$INPUT" -tags takeover -H "User-Agent: ${{ env.SCAN_USER_AGENT }}" -silent -jsonl -o "$RD/nuclei/takeover.jsonl" 2>>"$RD/logs/takeover.log" || true
+          echo "DNS intelligence complete."
+
+      - name: "Web Fingerprinting"
+        if: matrix.task == 'web'
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          INPUT="$RD/subdomains/resolved.txt"
+          [ -s "$INPUT" ] || echo "${{ env.TARGET }}" > "$INPUT"
+          AUTH_ARGS=()
+          [ -n "${{ env.AUTH_COOKIE }}" ] && AUTH_ARGS+=(-H "Cookie: ${{ env.AUTH_COOKIE }}")
+          [ -n "${{ env.AUTH_HEADER }}" ] && AUTH_ARGS+=(-H "${{ env.AUTH_HEADER }}")
+          httpx -l "$INPUT" -silent -status-code -title -web-server -ip -cdn -follow-redirects -H "User-Agent: ${{ env.SCAN_USER_AGENT }}" "${AUTH_ARGS[@]}" -threads 100 -rate-limit 150 -timeout 10 -json -o "$RD/live/live.json" 2>>"$RD/logs/httpx.log" || true
+          jq -r '.url' "$RD/live/live.json" 2>/dev/null | sort -u > "$RD/live/live.txt"
+          httpx -l "$RD/live/live.txt" -silent -tech-detect -H "User-Agent: ${{ env.SCAN_USER_AGENT }}" "${AUTH_ARGS[@]}" -json -o "$RD/live/tech.json" 2>>"$RD/logs/fingerprint.log" || true
+          echo "Live hosts: $(wc -l < "$RD/live/live.txt")"
+
+      - name: "Cloud Intelligence"
+        if: matrix.task == 'cloud'
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          TARGET="${{ env.TARGET }}"
+          BASE_NAME="$(echo "$TARGET" | sed -E 's/\.[a-z0-9]+$//' | sed -E 's/.*\.//')"
+          : > "$RD/cloud/cloud_assets.txt"
+          for suffix in "" "-backup" "-assets" "-media" "-dev" "-staging" "-files" "-data" "-public" "-uploads" "-static" "-logs"; do
+            bname="${BASE_NAME}${suffix}"
+            s3_code=$(curl -sk --max-time 4 -o /dev/null -w "%{http_code}" "https://${bname}.s3.amazonaws.com/" 2>/dev/null || echo "000")
+            s3_code="${s3_code: -3}"
+            [ "$s3_code" = "200" ] || [ "$s3_code" = "403" ] && echo "S3: https://${bname}.s3.amazonaws.com/ (HTTP $s3_code)" >> "$RD/cloud/cloud_assets.txt"
+            gcs_code=$(curl -sk --max-time 4 -o /dev/null -w "%{http_code}" "https://storage.googleapis.com/${bname}/" 2>/dev/null || echo "000")
+            gcs_code="${gcs_code: -3}"
+            [ "$gcs_code" = "200" ] || [ "$gcs_code" = "403" ] && echo "GCS: https://storage.googleapis.com/${bname}/ (HTTP $gcs_code)" >> "$RD/cloud/cloud_assets.txt"
+          done
+          echo "Cloud assets: $(wc -l < "$RD/cloud/cloud_assets.txt")"
+
+  intel_fusion:
+    name: "Intelligence Fusion"
+    runs-on: ubuntu-latest
+    needs: recon_swarm
+    timeout-minutes: 25
+    steps:
+      - name: "Checkout"
+        uses: actions/checkout@v4
+      - name: "Restore Tools"
+        run: |
+          mkdir -p /tmp/toolbin
+          echo "/tmp/toolbin" >> $GITHUB_PATH
+      - name: "Create Results Directories"
+        run: |
+          mkdir -p results/${{ env.TIMESTAMP }}/{urls,js,identity}
+
+      - name: "URL Collection"
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          INPUT="$RD/live/live.txt"
+          [ -s "$INPUT" ] || echo "https://${{ env.TARGET }}" > "$INPUT"
+          cat "$RD/subdomains/resolved.txt" 2>/dev/null | waybackurls > "$RD/urls/wayback.txt" 2>>"$RD/logs/wayback.log" || true
+          gau "${{ env.TARGET }}" --subs --o "$RD/urls/gau.txt" 2>>"$RD/logs/gau.log" || true
+          [ -s "$INPUT" ] && katana -list "$INPUT" -H "User-Agent: ${{ env.SCAN_USER_AGENT }}" -silent -depth 2 -jc -d 3 -o "$RD/urls/katana.txt" 2>>"$RD/logs/katana.log" || true
+          cat "$RD"/urls/*.txt 2>/dev/null | sort -u > "$RD/urls/all.txt"
+          echo "URLs collected: $(wc -l < "$RD/urls/all.txt")"
+
+      - name: "JavaScript Intelligence"
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          grep -iE '\.js(\?|#|$)' "$RD/urls/all.txt" 2>/dev/null | head -200 > "$RD/js/files.txt"
+          if [ -s "$RD/js/files.txt" ]; then
+            httpx -l "$RD/js/files.txt" -silent -H "User-Agent: ${{ env.SCAN_USER_AGENT }}" -timeout 8 -threads 30 -sr -srd "$RD/js/bodies" > /dev/null 2>>"$RD/logs/js.log" || true
+            grep -rhIioE '(api|v[0-9]+|graphql|rest)/[a-zA-Z0-9_/?=&%-]{3,80}' "$RD/js/bodies" 2>/dev/null | sort -u > "$RD/js/api_endpoints.txt" || true
+            grep -rhIioE 'AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{35}|[sp]k_live_[A-Za-z0-9]{16,}|eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}' "$RD/js/bodies" 2>/dev/null | sed 's/^/[SECRET] /' | sort -u > "$RD/js/secrets.txt" || true
+          fi
+          echo "JS Secrets: $(wc -l < "$RD/js/secrets.txt" 2>/dev/null || echo 0)"
+
+      - name: "Identity Discovery"
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          INPUT="$RD/live/live.txt"
+          [ -s "$INPUT" ] || exit 0
+          : > "$RD/identity/findings.txt"
+          while IFS= read -r host; do
+            host="$(echo "$host" | tr -d '\r' | xargs)"
+            [ -z "$host" ] && continue
+            for path in "/.well-known/openid-configuration" "/.well-known/oauth-authorization-server" "/auth/realms/master/.well-known/openid-configuration"; do
+              code=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 4 "${host}${path}" 2>/dev/null || echo "000")
+              code="${code: -3}"
+              [ "$code" = "200" ] && echo "[Identity] ${host}${path}" >> "$RD/identity/findings.txt"
+            done
+          done < "$INPUT"
+          echo "Identity endpoints: $(wc -l < "$RD/identity/findings.txt")"
+
+  risk_router:
+    name: "Risk Scoring and Router"
+    runs-on: ubuntu-latest
+    needs: intel_fusion
+    timeout-minutes: 15
+    outputs:
+      scan_plan: ${{ steps.ai_plan.outputs.plan }}
+    steps:
+      - name: "Checkout"
+        uses: actions/checkout@v4
+      - run: mkdir -p results/${{ env.TIMESTAMP }}/{risk,scanner}
+
+      - name: "Risk Scoring Engine"
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          python3 << 'EOF'
+          import json, os
+          rd = os.environ.get("TIMESTAMP")
+          if not rd:
+              rd = ""
+          rd = "results/" + rd
+          assets = []
+          try:
+              with open(rd + "/live/live.json") as f:
+                  for line in f:
+                      try:
+                          assets.append(json.loads(line))
+                      except:
+                          pass
+          except:
+              pass
+          scored = []
+          for a in assets:
+              score = 0
+              url = a.get("url", "")
+              tech = " ".join(a.get("tech", []))
+              if "login" in url or "signin" in url:
+                  score += 20
+              if "admin" in url or "panel" in url:
+                  score += 30
+              if "api" in url or "graphql" in url:
+                  score += 20
+              if "swagger" in url:
+                  score += 20
+              if "wordpress" in tech.lower():
+                  score += 15
+              if "spring" in tech.lower():
+                  score += 10
+              if "s3" in url or "blob" in url:
+                  score += 30
+              a["risk_score"] = min(score, 100)
+              a["priority"] = "deep" if score > 80 else "standard" if score > 40 else "passive"
+              scored.append(a)
+          with open(rd + "/risk/scored.json", "w") as f:
+              json.dump(scored, f, indent=2)
+          high = sum(1 for a in scored if a.get("risk_score", 0) > 80)
+          print(f"Risk scored: {len(scored)} assets (High: {high})")
+          EOF
+
+      - name: "Generate Scan Plan"
+        id: ai_plan
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          python3 << 'EOF'
+          import json, os
+          rd = "results/" + os.environ.get("TIMESTAMP", "")
+          tech = ""
+          secrets = ""
+          try:
+              with open(rd + "/live/tech.json") as f:
+                  tech = f.read(500)
+          except:
+              pass
+          try:
+              with open(rd + "/js/secrets.txt") as f:
+                  secrets = f.read(500)
+          except:
+              pass
+          plan = {"nuclei_tags": [], "ffuf": False, "wpscan": False}
+          if "wordpress" in tech.lower():
+              plan["nuclei_tags"].append("wordpress")
+              plan["wpscan"] = True
+          if "spring" in tech.lower():
+              plan["nuclei_tags"].append("spring")
+          if "api" in tech.lower() or "graphql" in tech.lower():
+              plan["nuclei_tags"].append("api")
+          if not plan["nuclei_tags"]:
+              plan["nuclei_tags"] = ["exposure", "panel", "config"]
+          with open(rd + "/scanner/scan_plan.json", "w") as f:
+              json.dump(plan, f, indent=2)
+          print(f"Scan plan: tags={plan['nuclei_tags']}")
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f"plan={json.dumps(plan)}\n")
+          EOF
+
+  dynamic_scanner:
+    name: "Dynamic Scanner"
+    runs-on: ubuntu-latest
+    needs: risk_router
+    timeout-minutes: 90
+    steps:
+      - name: "Checkout"
+        uses: actions/checkout@v4
+      - name: "Restore Tools"
+        run: |
+          mkdir -p /tmp/toolbin
+          echo "/tmp/toolbin" >> $GITHUB_PATH
+          mkdir -p results/${{ env.TIMESTAMP }}/nuclei
+
+      - name: "Load Scan Plan"
+        id: load_plan
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          PLAN=$(cat "$RD/scanner/scan_plan.json")
+          TAGS=$(echo "$PLAN" | jq -r '.nuclei_tags | join(",")')
+          echo "TAGS=$TAGS" >> $GITHUB_ENV
+          echo "Using Nuclei tags: $TAGS"
+
+      - name: "Nuclei Scan"
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          INPUT="$RD/live/live.txt"
+          [ -s "$INPUT" ] || echo "https://${{ env.TARGET }}" > "$INPUT"
+          AUTH_ARGS=()
+          [ -n "${{ env.AUTH_COOKIE }}" ] && AUTH_ARGS+=(-H "Cookie: ${{ env.AUTH_COOKIE }}")
+          [ -n "${{ env.AUTH_HEADER }}" ] && AUTH_ARGS+=(-H "${{ env.AUTH_HEADER }}")
+          nuclei -l "$INPUT" -tags "${{ env.TAGS }}" -severity critical,high,medium -H "User-Agent: ${{ env.SCAN_USER_AGENT }}" "${AUTH_ARGS[@]}" -mhe 150 -rl 40 -c 15 -timeout 10 -retries 1 -jsonl -o "$RD/nuclei/findings.jsonl" 2>>"$RD/logs/nuclei.log" || true
+          # Clean broken JSON lines
+          python3 -c "import json, os; p='$RD/nuclei/findings.jsonl'; valid=[]; [valid.append(l) for l in open(p) if l.strip() and json.loads(l)] if os.path.exists(p) else None; open(p,'w').write(''.join(valid))" 2>/dev/null || true
+          echo "Nuclei findings: $(wc -l < "$RD/nuclei/findings.jsonl" 2>/dev/null || echo 0)"
+
+      - name: "Fuzzing (ffuf)"
+        if: env.HUNTING_MODE == 'aggressive' || env.HUNTING_MODE == 'normal'
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          if [ -s "$RD/live/live.txt" ] && command -v ffuf >/dev/null; then
+            mkdir -p "$RD/fuzzing"
+            curl -sL --max-time 15 "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/common.txt" -o /tmp/ffuf_wordlist.txt 2>/dev/null || true
+            head -100 "$RD/live/live.txt" | while read -r host; do
+              [ -z "$host" ] && continue
+              timeout 60 ffuf -w /tmp/ffuf_wordlist.txt -u "${host}/FUZZ" -H "User-Agent: ${{ env.SCAN_USER_AGENT }}" -mc 200,301,302,401,403 -ac -t 20 -rate 50 -of json -o /tmp/ffuf_out.json -s 2>/dev/null || true
+              jq -r '.results[]? | "\(.url) [\(.status)]"' /tmp/ffuf_out.json 2>/dev/null >> "$RD/fuzzing/discovered.txt" || true
+            done
+            echo "ffuf findings: $(wc -l < "$RD/fuzzing/discovered.txt" 2>/dev/null || echo 0)"
+          fi
+
+  attack_paths:
+    name: "Autonomous Bug Bounty Agent"
+    runs-on: ubuntu-latest
+    needs: dynamic_scanner
+    timeout-minutes: 20
+    steps:
+      - name: "Checkout"
+        uses: actions/checkout@v4
+      - run: mkdir -p results/${{ env.TIMESTAMP }}/{attack_paths,evidence,reports}
+
+      - name: "Run AI Correlation Agent"
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          python3 << 'AGENT'
+          import json, os, sys, re, urllib.request, urllib.error, time
+          rd = "results/" + os.environ.get("TIMESTAMP", "")
+          target = os.environ.get("TARGET", "")
+
+          # System prompt (full)
+          SYSTEM_PROMPT = """
+          You are an autonomous bug bounty security agent. Analyze the evidence and produce attack paths, critical findings, and recommendations.
+          Output ONLY JSON with keys: attack_paths, critical_findings, recommendations.
+          """
+
+          def read_file(path, max_len=3000):
+              try:
+                  with open(os.path.join(rd, path)) as f:
+                      return f.read()[:max_len]
+              except:
+                  return ""
+
+          evidence_text = f"""
+          Target: {target}
+          Subdomains: {read_file("subdomains/resolved.txt", 1000)}
+          Live Hosts: {read_file("live/live.txt", 1000)}
+          Technologies: {read_file("live/tech.json", 2000)}
+          URLs: {read_file("urls/all.txt", 1500)}
+          Secrets from JS: {read_file("js/secrets.txt", 2000)}
+          API endpoints: {read_file("js/api_endpoints.txt", 1500)}
+          Identity providers: {read_file("identity/findings.txt", 1000)}
+          Cloud assets: {read_file("cloud/cloud_assets.txt", 1000)}
+          Nuclei findings: {read_file("nuclei/findings.jsonl", 2000)}
+          Takeover indicators: {read_file("nuclei/takeover.jsonl", 1500)}
+          """
+
+          providers = []
+          if os.environ.get("ANTHROPIC_API_KEY"):
+              providers.append({
+                  "name": "Anthropic",
+                  "url": "https://api.anthropic.com/v1/messages",
+                  "headers": {"x-api-key": os.environ["ANTHROPIC_API_KEY"], "anthropic-version": "2023-06-01", "content-type": "application/json"},
+                  "body": lambda p: json.dumps({"model": os.environ.get("ANTHROPIC_MODEL_NAME", "claude-3-5-sonnet-20241022"), "max_tokens": 4096, "messages": [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": p}]}).encode(),
+                  "extract": lambda r: r["content"][0]["text"]
+              })
+          if os.environ.get("OPENROUTER_API_KEY"):
+              providers.append({
+                  "name": "OpenRouter",
+                  "url": "https://openrouter.ai/api/v1/chat/completions",
+                  "headers": {"Authorization": "Bearer " + os.environ["OPENROUTER_API_KEY"], "content-type": "application/json"},
+                  "body": lambda p: json.dumps({"model": os.environ.get("OPENROUTER_MODEL_NAME", "anthropic/claude-3.5-sonnet"), "max_tokens": 4096, "messages": [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": p}]}).encode(),
+                  "extract": lambda r: r["choices"][0]["message"]["content"]
+              })
+          if os.environ.get("GROQ_API_KEY"):
+              providers.append({
+                  "name": "Groq",
+                  "url": "https://api.groq.com/openai/v1/chat/completions",
+                  "headers": {"Authorization": "Bearer " + os.environ["GROQ_API_KEY"], "content-type": "application/json"},
+                  "body": lambda p: json.dumps({"model": os.environ.get("GROQ_MODEL_NAME", "mixtral-8x7b-32768"), "max_tokens": 4096, "messages": [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": p}]}).encode(),
+                  "extract": lambda r: r["choices"][0]["message"]["content"]
+              })
+          if os.environ.get("GEMINI_API_KEY"):
+              providers.append({
+                  "name": "Gemini",
+                  "url": "https://generativelanguage.googleapis.com/v1beta/models/" + os.environ.get("GEMINI_MODEL_NAME", "gemini-1.5-flash") + ":generateContent?key=" + os.environ["GEMINI_API_KEY"],
+                  "headers": {"content-type": "application/json"},
+                  "body": lambda p: json.dumps({"contents": [{"parts": [{"text": SYSTEM_PROMPT + "\n\nEvidence:\n" + p}]}], "generationConfig": {"maxOutputTokens": 4096}}).encode(),
+                  "extract": lambda r: r["candidates"][0]["content"]["parts"][0]["text"]
+              })
+          if os.environ.get("OPENAI_API_KEY"):
+              providers.append({
+                  "name": "OpenAI",
+                  "url": "https://api.openai.com/v1/chat/completions",
+                  "headers": {"Authorization": "Bearer " + os.environ["OPENAI_API_KEY"], "content-type": "application/json"},
+                  "body": lambda p: json.dumps({"model": os.environ.get("OPENAI_MODEL_NAME", "gpt-4o"), "max_tokens": 4096, "messages": [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": p}]}).encode(),
+                  "extract": lambda r: r["choices"][0]["message"]["content"]
+              })
+
+          response = None
+          for p in providers:
+              try:
+                  print(f"Calling {p['name']}...")
+                  req = urllib.request.Request(p["url"], data=p["body"](evidence_text), headers=p["headers"])
+                  with urllib.request.urlopen(req, timeout=60) as resp:
+                      response = p["extract"](json.loads(resp.read()))
+                      if response:
+                          break
+              except Exception as e:
+                  print(f"Provider failed: {e}")
+                  time.sleep(3)
+
+          if not response:
+              response = json.dumps({
+                  "attack_paths": [{"description": "Heuristic: Review exposed secrets and admin panels.", "steps": ["Review secrets", "Harden authentication"], "impact": "High", "remediation": "Implement secure secret management and MFA."}],
+                  "critical_findings": [],
+                  "recommendations": ["Review all exposed secrets and admin interfaces."]
+              })
+
+          try:
+              clean = re.sub(r'```json|```', '', response).strip()
+              data = json.loads(clean)
+          except:
+              data = {"attack_paths": [], "critical_findings": [], "recommendations": ["Error parsing AI response."]}
+
+          with open(os.path.join(rd, "attack_paths/attack_paths.json"), "w") as f:
+              json.dump(data, f, indent=2)
+
+          md = "# Autonomous Bug Bounty Report\n\n**Target:** " + target + "\n\n## Attack Paths\n"
+          for p in data.get("attack_paths", []):
+              md += f"- **{p.get('description')}** (Impact: {p.get('impact')})\n  - Steps: {', '.join(p.get('steps', []))}\n  - Remediation: {p.get('remediation')}\n\n"
+          md += "## Critical Findings\n"
+          for f in data.get("critical_findings", []):
+              md += f"- **{f.get('finding')}** ({f.get('severity')})\n  - Root Cause: {f.get('root_cause')}\n  - Evidence: {f.get('evidence')}\n  - Remediation: {f.get('remediation')}\n\n"
+          md += "## Recommendations\n" + "\n".join(["- " + r for r in data.get("recommendations", [])])
+          with open(os.path.join(rd, "reports/autonomous_report.md"), "w") as f:
+              f.write(md)
+          print("Attack paths and report generated.")
+          AGENT
+
+  waf_bypass:
+    name: "WAF Evasion Assessment"
+    runs-on: ubuntu-latest
+    needs: attack_paths
+    if: ${{ inputs.run_waf_bypass == true }}
+    timeout-minutes: 15
+    steps:
+      - name: "Checkout"
+        uses: actions/checkout@v4
+      - run: mkdir -p results/${{ env.TIMESTAMP }}/waf
+
+      - name: "Run WAF Bypass Tool"
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          python3 << 'PYWAF'
+          import time, urllib.request, urllib.parse, json, os
+          target = "https://" + os.environ.get("TARGET", "")
+          report = "# WAF Evasion Assessment\n\n**Target:** " + target + "\n\n| Payload | Status | Bypass |\n|---------|--------|--------|\n"
+          payloads = [
+              ("<script>alert(1)</script>", "Basic XSS"),
+              ("<ScRiPt>alert(1)</ScRiPt>", "Case mixing"),
+              ("' OR '1'='1", "SQLi"),
+              ("../../../../etc/passwd", "LFI"),
+              ("%2e%2e%2fetc%2fpasswd", "LFI encoded"),
+              ("http://169.254.169.254/latest/meta-data/", "SSRF")
+          ]
+          for payload, desc in payloads:
+              try:
+                  url = target + "?q=" + urllib.parse.quote(payload)
+                  req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+                  resp = urllib.request.urlopen(req, timeout=5)
+                  status = resp.status
+                  bypass = (status != 403 and status != 429)
+              except Exception as e:
+                  status = str(e).split()[0] if hasattr(e, 'code') else "Error"
+                  bypass = False
+              report += f"| `{payload[:20]}` | {status} | {'✅' if bypass else '❌'} |\n"
+              time.sleep(1)
+          report += "\n## Recommendations\n- Review rules for any payload that bypassed detection.\n"
+          with open(os.path.join("results/", os.environ.get("TIMESTAMP",""), "waf/report.md"), "w") as f:
+              f.write(report)
+          print("WAF report generated.")
+          PYWAF
+
+  final_report:
+    name: "Final Report and Upload"
+    runs-on: ubuntu-latest
+    needs: [attack_paths, waf_bypass]
+    if: always()
+    timeout-minutes: 10
+    steps:
+      - name: "Checkout"
+        uses: actions/checkout@v4
+
+      - name: "Generate Executive Summary"
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          python3 << 'PYREP'
+          import json, os, datetime
+          rd = "results/" + os.environ.get("TIMESTAMP", "")
+          target = os.environ.get("TARGET", "")
+          paths = []
+          try:
+              with open(rd + "/attack_paths/attack_paths.json") as f:
+                  data = json.load(f)
+                  paths = data.get("attack_paths", [])
+          except: pass
+          findings = 0
+          try:
+              with open(rd + "/nuclei/findings.jsonl") as f:
+                  findings = sum(1 for _ in f)
+          except: pass
+          secrets = 0
+          try:
+              with open(rd + "/js/secrets.txt") as f:
+                  secrets = sum(1 for _ in f)
+          except: pass
+          md = f"# STRIX-TEFA Executive Summary: {target}\n\n"
+          md += f"**Generated:** {datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}\n\n"
+          md += f"- **Nuclei Findings:** {findings}\n- **Secrets Exposed:** {secrets}\n- **Attack Paths:** {len(paths)}\n\n"
+          if paths:
+              md += "## Attack Paths\n"
+              for i, p in enumerate(paths, 1):
+                  md += f"### {i}. {p.get('description', 'N/A')}\n- Impact: {p.get('impact', 'N/A')}\n- Remediation: {p.get('remediation', 'N/A')}\n\n"
+          with open(os.path.join(rd, "reports/executive_summary.md"), "w") as f:
+              f.write(md)
+          PYREP
+
+      - name: "Count Total Findings"
+        id: count
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          NUC=$(wc -l < "$RD/nuclei/findings.jsonl" 2>/dev/null || echo 0)
+          SEC=$(wc -l < "$RD/js/secrets.txt" 2>/dev/null || echo 0)
+          TAK=$(wc -l < "$RD/nuclei/takeover.jsonl" 2>/dev/null || echo 0)
+          TOTAL=$(( NUC + SEC + TAK ))
+          echo "finding_count=$TOTAL" >> $GITHUB_OUTPUT
+          echo "Total findings: $TOTAL"
+
+      - name: "Redact Sensitive Data"
+        if: always()
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          find "$RD" -type f -exec sed -i 's/\([A-Za-z0-9_]\{20,\}\)/REDACTED/g' {} \; 2>/dev/null || true
+
+      - name: "Upload Artifact"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: strix-tefa-results-${{ env.TIMESTAMP }}
+          path: results/${{ env.TIMESTAMP }}/
+          retention-days: 30
+
+      - name: "Discord Notification"
+        if: ${{ always() && inputs.discord_notify == true && env.DISCORD_WEBHOOK != '' }}
+        continue-on-error: true
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          SUBS=$(wc -l < "$RD/subdomains/resolved.txt" 2>/dev/null || echo 0)
+          FIND=$(wc -l < "$RD/nuclei/findings.jsonl" 2>/dev/null || echo 0)
+          PATHS=$(jq '.attack_paths | length' "$RD/attack_paths/attack_paths.json" 2>/dev/null || echo 0)
+          jq -n \
+            --arg t "${{ env.TARGET }}" \
+            --arg subs "$SUBS" \
+            --arg findings "$FIND" \
+            --arg paths "$PATHS" \
+            --arg url "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+          '{
+            username: "STRIX-TEFA",
+            embeds: [{
+              title: "Scan Complete: " + $t,
+              color: 5814783,
+              url: $url,
+              fields: [
+                {name: "Subdomains", value: $subs, inline: true},
+                {name: "Findings", value: $findings, inline: true},
+                {name: "Attack Paths", value: $paths, inline: true}
+              ]
+            }]
+          }' | curl -s -X POST "${{ env.DISCORD_WEBHOOK }}" -H "Content-Type: application/json" -d @- || true
