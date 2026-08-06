@@ -1,5 +1,0 @@
-acp.datacamp.com
-dd.datacamp.com
-people.datacamp.com
-univ.datacamp.com
-www.assets.datacamp.com
