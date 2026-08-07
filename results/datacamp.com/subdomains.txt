@@ -255,7 +255,6 @@ mail1.careerhub-api.datacamp.com
 mail2.campus-api.datacamp.com
 mail2.compliancy.datacamp.com
 mail2.dcmfe.datacamp.com
-maintenance.datacamp.com
 mb.datacamp.com
 mcp-docs.datacamp.com
 mcp-gateway-internal.datacamp.com
@@ -268,7 +267,6 @@ mobile-api.datacamp.com
 mobile-api.new.datacamp.com
 monitor.ai-api.datacamp.com
 multiplexer-paid.datacamp.com
-multiplexer-prod-3.datacamp.com
 multiplexer-prod.datacamp.com
 mx.campus-api.datacamp.com
 mx.collab-api.datacamp.com

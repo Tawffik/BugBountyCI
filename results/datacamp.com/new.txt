@@ -1,7 +1,0 @@
-ac.datacamp.com
-acp.datacamp.com
-h6.datacamp.com
-light.datacamp.com
-ss.datacamp.com
-top100.datacamp.com
-ww5.datacamp.com
