@@ -1,8 +1,7 @@
-a.datacamp.com
-en.datacamp.com
-ff.datacamp.com
-forums.datacamp.com
-h7.datacamp.com
-symposium.datacamp.com
-u.datacamp.com
-up.datacamp.com
+ac.datacamp.com
+acp.datacamp.com
+h6.datacamp.com
+light.datacamp.com
+ss.datacamp.com
+top100.datacamp.com
+ww5.datacamp.com
