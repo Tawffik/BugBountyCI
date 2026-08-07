@@ -89,6 +89,7 @@ concoursetest.ops.datacamp.com
 confluence.datacamp.com
 content-authorization.datacamp.com
 content-n8n-hosting.datacamp.com
+cs.datacamp.com
 dashboard.datacamp.com
 dashboards-external.datacamp.com
 dashboards.datacamp.com
@@ -111,6 +112,7 @@ dev.collab-api.datacamp.com
 dev.compliancy.datacamp.com
 dev.dcmfe.datacamp.com
 diff-viewer.datacamp.com
+digilander.datacamp.com
 directory.datacamp.com
 dns.cdn.datacamp.com
 dns.cms.datacamp.com
@@ -358,6 +360,7 @@ public.content-authorization.datacamp.com
 public.learn-hub-api.datacamp.com
 purchase.datacamp.com
 quantinsti.datacamp.com
+regione.datacamp.com
 resources.new.datacamp.com
 rstudio-server.datacamp.com
 s3.assets.datacamp.com
@@ -369,7 +372,6 @@ secure.app.datacamp.com
 secure.assets.datacamp.com
 secure.campus.datacamp.com
 secure.content-authorization.datacamp.com
-secure.datacamp.com
 secure.kong.datacamp.com
 sessions-eu-central-1.datacamp.com
 sessions-us-east-1.datacamp.com
@@ -401,7 +403,6 @@ sql.ai-tutor.datacamp.com
 sql.app.datacamp.com
 sql.compliancy.datacamp.com
 sql.links.datacamp.com
-ss.datacamp.com
 staging.collab-api.datacamp.com
 staging.datacamp.com
 staging.gsstm.datacamp.com
@@ -511,7 +512,6 @@ www.compliancy.datacamp.com
 www.datacamp.com
 www.gsstm.datacamp.com
 www.links.datacamp.com
-www.multiplexer-paid-m5.new.datacamp.com
 www.new.datacamp.com
 www2.datacamp.com
 www5d.datacamp.com
