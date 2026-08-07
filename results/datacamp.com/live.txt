@@ -228,13 +228,13 @@ http://test.campaign-service.datacamp.com	404
 http://test.compliance.datacamp.com	404	
 http://test.gsstm.datacamp.com	404	
 http://test.learn-hub-api.datacamp.com	404	
-http://track.campaign-service.datacamp.com	404	
-http://track.collab-api.datacamp.com	404	
 http://track.images.datacamp.com	404	
 http://upload.content-authorization.datacamp.com	404	
 http://upload.gamification-api.datacamp.com	404	
+http://upsell.datacamp.com	404	
 http://v1.app.datacamp.com	404	
 http://v1.auth.datacamp.com	404	
+http://v1.collab-api.datacamp.com	404	
 http://v2.learn-hub-api.datacamp.com	404	
 http://v3.cms.datacamp.com	404	
 http://v3.learn-hub-api.datacamp.com	404	
@@ -269,8 +269,7 @@ http://www.compliancy.datacamp.com	404
 http://www.gsstm.datacamp.com	404	
 http://www.links.datacamp.com	404	
 http://www.multiplexer-paid-m5.new.datacamp.com	404	
-https://ac.datacamp.com	404	
-https://acp.datacamp.com	404	
+https://a.datacamp.com	404	
 https://ai-api-admin.datacamp.com	200	AI API Admin
 https://ai-api.datacamp.com	404	
 https://ai-tutor.datacamp.com	200	
@@ -303,7 +302,6 @@ https://certification-docs.datacamp.com	200	Overview | Certification Docs
 https://certification.datacamp.com	301	
 https://certification2022-docs.datacamp.com	301	
 https://challenge-frontend.new.datacamp.com	404	
-https://challenges-api.datacamp.com	404	
 https://challenges-api.new.datacamp.com	404	
 https://challenges.datacamp.com	301	
 https://ci.datacamp.com	404	
@@ -338,6 +336,7 @@ https://docs.datacamp.com	404
 https://dr-docker-sessions.datacamp.com	404	
 https://ekscluster.ops.datacamp.com	503	503 Service Temporarily Unavailable
 https://em.datacamp.com	404	404 Not Found
+https://en.datacamp.com	404	
 https://enterprise-docs.datacamp.com	200	Introduction | Enterprise Docs
 https://enterprise.datacamp.com	302	
 https://enterprise.new.datacamp.com	404	
@@ -346,12 +345,14 @@ https://events.datacamp.com	200	DataCamp Production
 https://evt.optima.datacamp.com	403	403 Forbidden
 https://explorables.datacamp.com	404	404 Not Found
 https://explore.datacamp.com	404	
+https://ff.datacamp.com	404	
 https://fonts.datacamp.com	404	404 Not Found
+https://forums.datacamp.com	404	
 https://fr.datacamp.com	404	
 https://gamification-api.datacamp.com	404	
 https://grc.it.datacamp.com	503	503 Service Temporarily Unavailable
 https://gsstm.datacamp.com	400	
-https://h6.datacamp.com	404	
+https://h7.datacamp.com	404	
 https://home-hub.datacamp.com	200	
 https://home.it.datacamp.com	302	
 https://homepage2.datacamp.com	404	
@@ -421,7 +422,6 @@ https://promo.new.datacamp.com	404
 https://pt.datacamp.com	404	
 https://purchase.datacamp.com	200	Subscribe | DataCamp
 https://resources.new.datacamp.com	403	
-https://resume.datacamp.com	404	
 https://rstudio-server.datacamp.com	404	
 https://sandbox.datacamp.com	404	
 https://secure.datacamp.com	404	
@@ -443,7 +443,6 @@ https://slovari.datacamp.com	404
 https://smtp.datacamp.com	404	
 https://spreadsheets.datacamp.com	200	Spreadsheets
 https://spreadsheets.new.datacamp.com	404	
-https://ss.datacamp.com	404	
 https://staging.datacamp.com	404	
 https://stats.datacamp.com	404	
 https://status.datacamp.com	200	DataCamp Status
@@ -451,6 +450,7 @@ https://stg.optima.datacamp.com	200
 https://storage.datacamp.com	404	
 https://styleguide.datacamp.com	404	
 https://support.datacamp.com	302	
+https://symposium.datacamp.com	404	
 https://system-check.datacamp.com	200	System Check
 https://tableau-api.datacamp.com	404	
 https://teach-browser.datacamp.com	200	Teach Browser
@@ -458,12 +458,11 @@ https://teach.datacamp.com	302
 https://tech.datacamp.com	404	
 https://timetracker.datacamp.com	404	
 https://timetracker.new.datacamp.com	404	
-https://top100.datacamp.com	404	
 https://track.pro.datacamp.com	200	Custom domain check
-https://tracking-ads.datacamp.com	200	DataCamp Ads
+https://u.datacamp.com	404	
 https://uc.datacamp.com	404	404
 https://univ.datacamp.com	404	
-https://upsell.datacamp.com	404	
+https://up.datacamp.com	404	
 https://videos.datacamp.com	404	404 Not Found
 https://waffles-next.datacamp.com	301	
 https://waffles.datacamp.com	200	

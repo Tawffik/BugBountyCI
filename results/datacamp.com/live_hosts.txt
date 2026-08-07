@@ -228,13 +228,13 @@ http://test.campaign-service.datacamp.com
 http://test.compliance.datacamp.com
 http://test.gsstm.datacamp.com
 http://test.learn-hub-api.datacamp.com
-http://track.campaign-service.datacamp.com
-http://track.collab-api.datacamp.com
 http://track.images.datacamp.com
 http://upload.content-authorization.datacamp.com
 http://upload.gamification-api.datacamp.com
+http://upsell.datacamp.com
 http://v1.app.datacamp.com
 http://v1.auth.datacamp.com
+http://v1.collab-api.datacamp.com
 http://v2.learn-hub-api.datacamp.com
 http://v3.cms.datacamp.com
 http://v3.learn-hub-api.datacamp.com
@@ -269,8 +269,7 @@ http://www.compliancy.datacamp.com
 http://www.gsstm.datacamp.com
 http://www.links.datacamp.com
 http://www.multiplexer-paid-m5.new.datacamp.com
-https://ac.datacamp.com
-https://acp.datacamp.com
+https://a.datacamp.com
 https://ai-api-admin.datacamp.com
 https://ai-api.datacamp.com
 https://ai-tutor.datacamp.com
@@ -303,7 +302,6 @@ https://certification-docs.datacamp.com
 https://certification.datacamp.com
 https://certification2022-docs.datacamp.com
 https://challenge-frontend.new.datacamp.com
-https://challenges-api.datacamp.com
 https://challenges-api.new.datacamp.com
 https://challenges.datacamp.com
 https://ci.datacamp.com
@@ -338,6 +336,7 @@ https://docs.datacamp.com
 https://dr-docker-sessions.datacamp.com
 https://ekscluster.ops.datacamp.com
 https://em.datacamp.com
+https://en.datacamp.com
 https://enterprise-docs.datacamp.com
 https://enterprise.datacamp.com
 https://enterprise.new.datacamp.com
@@ -346,12 +345,14 @@ https://events.datacamp.com
 https://evt.optima.datacamp.com
 https://explorables.datacamp.com
 https://explore.datacamp.com
+https://ff.datacamp.com
 https://fonts.datacamp.com
+https://forums.datacamp.com
 https://fr.datacamp.com
 https://gamification-api.datacamp.com
 https://grc.it.datacamp.com
 https://gsstm.datacamp.com
-https://h6.datacamp.com
+https://h7.datacamp.com
 https://home-hub.datacamp.com
 https://home.it.datacamp.com
 https://homepage2.datacamp.com
@@ -421,7 +422,6 @@ https://promo.new.datacamp.com
 https://pt.datacamp.com
 https://purchase.datacamp.com
 https://resources.new.datacamp.com
-https://resume.datacamp.com
 https://rstudio-server.datacamp.com
 https://sandbox.datacamp.com
 https://secure.datacamp.com
@@ -443,7 +443,6 @@ https://slovari.datacamp.com
 https://smtp.datacamp.com
 https://spreadsheets.datacamp.com
 https://spreadsheets.new.datacamp.com
-https://ss.datacamp.com
 https://staging.datacamp.com
 https://stats.datacamp.com
 https://status.datacamp.com
@@ -451,6 +450,7 @@ https://stg.optima.datacamp.com
 https://storage.datacamp.com
 https://styleguide.datacamp.com
 https://support.datacamp.com
+https://symposium.datacamp.com
 https://system-check.datacamp.com
 https://tableau-api.datacamp.com
 https://teach-browser.datacamp.com
@@ -458,12 +458,11 @@ https://teach.datacamp.com
 https://tech.datacamp.com
 https://timetracker.datacamp.com
 https://timetracker.new.datacamp.com
-https://top100.datacamp.com
 https://track.pro.datacamp.com
-https://tracking-ads.datacamp.com
+https://u.datacamp.com
 https://uc.datacamp.com
 https://univ.datacamp.com
-https://upsell.datacamp.com
+https://up.datacamp.com
 https://videos.datacamp.com
 https://waffles-next.datacamp.com
 https://waffles.datacamp.com
