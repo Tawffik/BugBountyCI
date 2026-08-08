@@ -1,3 +1,5 @@
-cs.datacamp.com
-digilander.datacamp.com
-regione.datacamp.com
+ast-viewer.new.datacamp.com
+ku1720.datacamp.com
+linkedin.datacamp.com
+news.datacamp.com
+tribunale.datacamp.com
