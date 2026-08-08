@@ -1,2 +1,8 @@
-com.datacamp.com
-homepage3.datacamp.com
+concourse-eks-test.ops.datacamp.com
+discover.new.datacamp.com
+engineering-portal-new.ops.datacamp.com
+kong-ingress-test.datacamp.com
+sitemap-frontend.datacamp.com
+static.new.datacamp.com
+strapi.datacamp.com
+vpn.it.datacamp.com
