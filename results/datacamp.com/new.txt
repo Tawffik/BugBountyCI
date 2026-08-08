@@ -1,5 +1,2 @@
-ast-viewer.new.datacamp.com
-ku1720.datacamp.com
-linkedin.datacamp.com
-news.datacamp.com
-tribunale.datacamp.com
+com.datacamp.com
+homepage3.datacamp.com
