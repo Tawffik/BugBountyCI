@@ -209,10 +209,8 @@ http://stats.learn-hub-api.datacamp.com	404
 http://stats.links.datacamp.com	404	
 http://status.auth.datacamp.com	404	
 http://status.links.datacamp.com	404	
-http://stg.optima.datacamp.com	301	
 http://storage.campaign-service.datacamp.com	404	
 http://storage.content-authorization.datacamp.com	404	
-http://storage.datacamp.com	404	
 http://storage.dcmfe.datacamp.com	530	
 http://storage.images.datacamp.com	404	
 http://storage.links.datacamp.com	404	
@@ -230,6 +228,7 @@ http://test.campaign-service.datacamp.com	404
 http://test.compliance.datacamp.com	404	
 http://test.gsstm.datacamp.com	404	
 http://test.learn-hub-api.datacamp.com	404	
+http://timetracker.datacamp.com	301	301 Moved Permanently
 http://track.campaign-service.datacamp.com	404	
 http://track.collab-api.datacamp.com	404	
 http://track.images.datacamp.com	404	
@@ -459,15 +458,14 @@ https://staging.datacamp.com	404
 https://static.new.datacamp.com	404	
 https://stats.datacamp.com	404	
 https://status.datacamp.com	200	DataCamp Status
+https://stg.optima.datacamp.com	200	
+https://storage.datacamp.com	404	
 https://strapi.datacamp.com	404	
 https://styleguide.datacamp.com	404	
-https://support.datacamp.com	302	
-https://system-check.datacamp.com	200	System Check
 https://tableau-api.datacamp.com	404	
 https://teach-browser.datacamp.com	200	Teach Browser
 https://teach.datacamp.com	302	
 https://tech.datacamp.com	404	
-https://timetracker.datacamp.com	404	
 https://timetracker.new.datacamp.com	404	
 https://top100.datacamp.com	404	
 https://track.pro.datacamp.com	200	Custom domain check

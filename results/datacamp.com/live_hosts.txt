@@ -209,10 +209,8 @@ http://stats.learn-hub-api.datacamp.com
 http://stats.links.datacamp.com
 http://status.auth.datacamp.com
 http://status.links.datacamp.com
-http://stg.optima.datacamp.com
 http://storage.campaign-service.datacamp.com
 http://storage.content-authorization.datacamp.com
-http://storage.datacamp.com
 http://storage.dcmfe.datacamp.com
 http://storage.images.datacamp.com
 http://storage.links.datacamp.com
@@ -230,6 +228,7 @@ http://test.campaign-service.datacamp.com
 http://test.compliance.datacamp.com
 http://test.gsstm.datacamp.com
 http://test.learn-hub-api.datacamp.com
+http://timetracker.datacamp.com
 http://track.campaign-service.datacamp.com
 http://track.collab-api.datacamp.com
 http://track.images.datacamp.com
@@ -459,15 +458,14 @@ https://staging.datacamp.com
 https://static.new.datacamp.com
 https://stats.datacamp.com
 https://status.datacamp.com
+https://stg.optima.datacamp.com
+https://storage.datacamp.com
 https://strapi.datacamp.com
 https://styleguide.datacamp.com
-https://support.datacamp.com
-https://system-check.datacamp.com
 https://tableau-api.datacamp.com
 https://teach-browser.datacamp.com
 https://teach.datacamp.com
 https://tech.datacamp.com
-https://timetracker.datacamp.com
 https://timetracker.new.datacamp.com
 https://top100.datacamp.com
 https://track.pro.datacamp.com
