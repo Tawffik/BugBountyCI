@@ -211,18 +211,20 @@ http://status.auth.datacamp.com	404
 http://status.links.datacamp.com	404	
 http://storage.campaign-service.datacamp.com	404	
 http://storage.content-authorization.datacamp.com	404	
+http://storage.datacamp.com	404	
 http://storage.dcmfe.datacamp.com	530	
 http://storage.images.datacamp.com	404	
 http://storage.links.datacamp.com	404	
+http://store.compliancy.datacamp.com	404	
 http://store.gamification-api.datacamp.com	404	
+http://store.links.datacamp.com	404	
 http://styleguide-assets.datacamp.com	404	404 Not Found
+http://support.auth.datacamp.com	404	
 http://support.campus-api.datacamp.com	404	
 http://support.careerhub-api.datacamp.com	404	
+http://support.cms.datacamp.com	404	
 http://support.collab-api.datacamp.com	404	
 http://support.gamification-api.datacamp.com	404	
-http://tableau-api.datacamp.com	301	301 Moved Permanently
-http://teach.datacamp.com	301	301 Moved Permanently
-http://tech.datacamp.com	404	
 http://test.campaign-service.datacamp.com	404	
 http://test.compliance.datacamp.com	404	
 http://test.gsstm.datacamp.com	404	
@@ -457,12 +459,14 @@ https://static.new.datacamp.com	404
 https://stats.datacamp.com	404	
 https://status.datacamp.com	200	DataCamp Status
 https://stg.optima.datacamp.com	200	
-https://storage.datacamp.com	404	
 https://strapi.datacamp.com	404	
 https://styleguide.datacamp.com	404	
 https://support.datacamp.com	302	
 https://system-check.datacamp.com	200	System Check
+https://tableau-api.datacamp.com	404	
 https://teach-browser.datacamp.com	200	Teach Browser
+https://teach.datacamp.com	302	
+https://tech.datacamp.com	404	
 https://timetracker.datacamp.com	404	
 https://timetracker.new.datacamp.com	404	
 https://top100.datacamp.com	404	
