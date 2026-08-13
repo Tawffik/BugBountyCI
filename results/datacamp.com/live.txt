@@ -210,46 +210,43 @@ http://stats.links.datacamp.com	404
 http://status.auth.datacamp.com	404	
 http://status.links.datacamp.com	404	
 http://storage.campaign-service.datacamp.com	404	
-http://storage.content-authorization.datacamp.com	404	
-http://storage.images.datacamp.com	404	
+http://storage.links.datacamp.com	404	
 http://store.compliancy.datacamp.com	404	
-http://store.gamification-api.datacamp.com	404	
 http://store.links.datacamp.com	404	
 http://support.auth.datacamp.com	404	
 http://support.campus-api.datacamp.com	404	
 http://support.careerhub-api.datacamp.com	404	
-http://support.cms.datacamp.com	404	
-http://support.gamification-api.datacamp.com	404	
+http://test.campaign-service.datacamp.com	404	
 http://test.compliance.datacamp.com	404	
+http://test.gsstm.datacamp.com	404	
 http://test.learn-hub-api.datacamp.com	404	
 http://track.campaign-service.datacamp.com	404	
 http://track.collab-api.datacamp.com	404	
-http://upload.gamification-api.datacamp.com	404	
+http://track.images.datacamp.com	404	
+http://upload.content-authorization.datacamp.com	404	
 http://v1.app.datacamp.com	404	
-http://v1.auth.datacamp.com	404	
-http://v1.collab-api.datacamp.com	404	
-http://v3.cms.datacamp.com	404	
-http://v3.learn-hub-api.datacamp.com	404	
+http://v2.learn-hub-api.datacamp.com	404	
 http://video.compliancy.datacamp.com	404	
 http://video.links.datacamp.com	404	
-http://vpn.ai-api.datacamp.com	404	
-http://waffles-next.datacamp.com	301	
-http://web.campus-api.datacamp.com	404	
-http://web.collab-api.datacamp.com	404	
+http://vpn.content-authorization.datacamp.com	404	
+http://waffles.datacamp.com	200	
 http://web.links.datacamp.com	404	
 http://webmail.careerhub-api.datacamp.com	404	
-http://webmail.kong.datacamp.com	530	
+http://wiki.campus-api.datacamp.com	404	
 http://wiki.cdn.datacamp.com	530	
+http://wiki.cms.datacamp.com	404	
 http://wiki.compliancy.datacamp.com	404	
-http://wiki.learn-hub-api.datacamp.com	404	
 http://wildcard.de.datacamp.com	404	
+http://wildcard.es.datacamp.com	404	
 http://wildcard.fr.datacamp.com	404	
+http://wildcard.learn.datacamp.com	404	
 http://wildcard.pt.datacamp.com	404	
 http://ww1.dcmfe.datacamp.com	530	
 http://ww2.cdn.datacamp.com	530	
 http://www.assets.datacamp.com	530	
 http://www.campus.datacamp.com	530	
-http://www.collab-api.datacamp.com	404	
+http://www.compliancy.datacamp.com	404	
+http://www.gsstm.datacamp.com	404	
 http://www.links.datacamp.com	404	
 https://ac.datacamp.com	404	
 https://acp.datacamp.com	404	
@@ -343,6 +340,7 @@ https://home-hub.datacamp.com	200
 https://home.it.datacamp.com	302	
 https://homepage2.datacamp.com	404	
 https://homepage3.datacamp.com	404	
+https://host.datacamp.com	404	
 https://image-management-service-dev.datacamp.com	404	
 https://image-management-service.datacamp.com	404	
 https://images.datacamp.com	301	
@@ -441,24 +439,26 @@ https://stats.datacamp.com	404
 https://status.datacamp.com	200	DataCamp Status
 https://stg.optima.datacamp.com	200	
 https://strapi.datacamp.com	404	
+https://styleguide.datacamp.com	404	
 https://support.datacamp.com	302	
 https://system-check.datacamp.com	200	System Check
-https://tableau-api.datacamp.com	404	
-https://teach-browser.datacamp.com	200	Teach Browser
 https://teach.datacamp.com	302	
 https://tech.datacamp.com	404	
-https://timetracker.new.datacamp.com	404	
+https://timetracker.datacamp.com	404	
 https://top100.datacamp.com	404	
 https://tracking-ads.datacamp.com	200	DataCamp Ads
 https://tribunale.datacamp.com	404	
-https://uc.datacamp.com	404	404
-https://up.datacamp.com	404	
+https://trust.datacamp.com	200	DataCamp Trust Center
+https://univ.datacamp.com	404	
 https://videos.datacamp.com	404	404 Not Found
-https://waffles.datacamp.com	200	
+https://waffles-next.datacamp.com	301	
 https://wildcard.datacamp.com	404	
 https://wildcard.new.datacamp.com	404	
-https://workspace-docs.datacamp.com	400	
+https://wildcard.ops.datacamp.com	503	503 Service Temporarily Unavailable
+https://workspace.datacamp.com	302	302 Found
 https://ww5.datacamp.com	404	
 https://www.datacamp.com	403	Just a moment...
 https://www2.datacamp.com	302	
 https://www5d.datacamp.com	404	
+https://wwww.datacamp.com	404	
+https://z28rg4x8kh99-workspace-sessions.datacamp.com	404	

@@ -192,6 +192,7 @@ home-hub.datacamp.com
 home.it.datacamp.com
 homepage2.datacamp.com
 homepage3.datacamp.com
+host.datacamp.com
 hub.auth.datacamp.com
 hub.compliancy.datacamp.com
 hub.content-authorization.datacamp.com
