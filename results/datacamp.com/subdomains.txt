@@ -20,7 +20,6 @@ app.links.datacamp.com
 artifactory-proxy-public.ops.datacamp.com
 artifactory-proxy.ops.datacamp.com
 assessment-api.datacamp.com
-assessment-api.new.datacamp.com
 assessment-v2.datacamp.com
 assets-azure.datacamp.com
 assets.auth.datacamp.com
@@ -104,7 +103,6 @@ db.dcmfe.datacamp.com
 dccertified.datacamp.com
 dcmfe-dr.datacamp.com
 dcmfe.datacamp.com
-dd.datacamp.com
 de.datacamp.com
 dean.ops.datacamp.com
 demo.app.datacamp.com
@@ -191,7 +189,6 @@ help.compliancy.datacamp.com
 home-hub.datacamp.com
 home.it.datacamp.com
 homepage2.datacamp.com
-homepage3.datacamp.com
 host.datacamp.com
 hub.auth.datacamp.com
 hub.compliancy.datacamp.com
@@ -370,7 +367,6 @@ public.compliancy.datacamp.com
 public.content-authorization.datacamp.com
 public.learn-hub-api.datacamp.com
 purchase.datacamp.com
-quantinsti.datacamp.com
 regione.datacamp.com
 resources.new.datacamp.com
 rstudio-server.datacamp.com
