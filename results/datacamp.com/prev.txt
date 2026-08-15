@@ -1,3 +1,4 @@
+aboutdatacampwww.datacamp.com
 ac.datacamp.com
 account.collab-api.datacamp.com
 acp.datacamp.com
@@ -92,6 +93,7 @@ concoursetest.ops.datacamp.com
 confluence.datacamp.com
 content-authorization.datacamp.com
 content-n8n-hosting.datacamp.com
+corp.datacamp.com
 cs.datacamp.com
 dashboard.datacamp.com
 dashboards-external.datacamp.com
@@ -149,6 +151,7 @@ explorables.datacamp.com
 explore.datacamp.com
 external.ai-tutor.datacamp.com
 external.app.datacamp.com
+ff.datacamp.com
 files.content-authorization.datacamp.com
 files.home-hub.datacamp.com
 files.images.datacamp.com
@@ -186,6 +189,7 @@ grafana.compliancy.datacamp.com
 grafana.ops.datacamp.com
 grc.it.datacamp.com
 gsstm.datacamp.com
+h2.datacamp.com
 h6.datacamp.com
 help.campus-api.datacamp.com
 help.compliancy.datacamp.com
@@ -204,6 +208,7 @@ images.compliancy.datacamp.com
 images.datacamp.com
 images.learn-hub-api.datacamp.com
 images.links.datacamp.com
+imb.datacamp.com
 img.links.datacamp.com
 infra-reporter.datacamp.com
 ingressgateway-datacamp-ops.ops.datacamp.com
@@ -269,6 +274,7 @@ mail1.careerhub-api.datacamp.com
 mail2.campus-api.datacamp.com
 mail2.compliancy.datacamp.com
 mail2.dcmfe.datacamp.com
+manager.datacamp.com
 mb.datacamp.com
 mcp-docs.datacamp.com
 mcp-gateway-internal.datacamp.com
@@ -276,6 +282,7 @@ media.auth.datacamp.com
 media.content-authorization.datacamp.com
 media.datacamp.com
 media.links.datacamp.com
+members.datacamp.com
 mfe-import-maps.datacamp.com
 mobile-api.datacamp.com
 mobile-api.new.datacamp.com
@@ -386,6 +393,7 @@ secure.campus.datacamp.com
 secure.content-authorization.datacamp.com
 secure.datacamp.com
 secure.kong.datacamp.com
+session-server.datacamp.com
 sessions-eu-central-1.datacamp.com
 sessions-us-east-1.datacamp.com
 sessions.datacamp.com
@@ -483,6 +491,7 @@ up.datacamp.com
 upload.content-authorization.datacamp.com
 upload.gamification-api.datacamp.com
 upsell.datacamp.com
+user.datacamp.com
 v1.app.datacamp.com
 v1.auth.datacamp.com
 v1.collab-api.datacamp.com
@@ -534,5 +543,6 @@ www.links.datacamp.com
 www.new.datacamp.com
 www2.datacamp.com
 www5d.datacamp.com
+www7a.datacamp.com
 wwww.datacamp.com
 z28rg4x8kh99-workspace-sessions.datacamp.com
