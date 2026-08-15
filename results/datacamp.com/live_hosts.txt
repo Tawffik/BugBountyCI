@@ -211,11 +211,13 @@ http://status.links.datacamp.com
 http://storage.campaign-service.datacamp.com
 http://storage.content-authorization.datacamp.com
 http://storage.dcmfe.datacamp.com
-http://storage.images.datacamp.com
-http://store.compliancy.datacamp.com
+http://storage.links.datacamp.com
 http://store.gamification-api.datacamp.com
+http://styleguide-assets.datacamp.com
 http://support.auth.datacamp.com
+http://support.campus-api.datacamp.com
 http://support.cms.datacamp.com
+http://support.collab-api.datacamp.com
 http://support.gamification-api.datacamp.com
 http://test.campaign-service.datacamp.com
 http://test.compliance.datacamp.com
@@ -271,6 +273,7 @@ https://alm.ops.datacamp.com
 https://app.datacamp.com
 https://artifactory-proxy-public.ops.datacamp.com
 https://assessment-api.datacamp.com
+https://assessment-api.new.datacamp.com
 https://assessment-v2.datacamp.com
 https://assets-azure.datacamp.com
 https://assets.datacamp.com
@@ -321,6 +324,7 @@ https://datacamp-mcp-frontend.datacamp.com
 https://datalab-docs.datacamp.com
 https://dccertified.datacamp.com
 https://dcmfe.datacamp.com
+https://dd.datacamp.com
 https://de.datacamp.com
 https://dean.ops.datacamp.com
 https://diff-viewer.datacamp.com
@@ -351,6 +355,7 @@ https://h6.datacamp.com
 https://home-hub.datacamp.com
 https://home.it.datacamp.com
 https://homepage2.datacamp.com
+https://homepage3.datacamp.com
 https://host.datacamp.com
 https://image-management-service-dev.datacamp.com
 https://image-management-service.datacamp.com
@@ -452,6 +457,7 @@ https://stg.optima.datacamp.com
 https://storage.datacamp.com
 https://strapi.datacamp.com
 https://styleguide.datacamp.com
+https://support.datacamp.com
 https://system-check.datacamp.com
 https://tableau-api.datacamp.com
 https://teach-browser.datacamp.com
