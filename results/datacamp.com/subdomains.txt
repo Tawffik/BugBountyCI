@@ -359,6 +359,7 @@ prod.links.datacamp.com
 project-frontend.new.datacamp.com
 projector.datacamp.com
 projector.new.datacamp.com
+projects-api.datacamp.com
 projects-api.new.datacamp.com
 projects.datacamp.com
 prometheus-aggregator.datacamp.com
@@ -381,6 +382,7 @@ public.learn-hub-api.datacamp.com
 purchase.datacamp.com
 regione.datacamp.com
 resources.new.datacamp.com
+rfiddleapi.datacamp.com
 rstudio-server.datacamp.com
 s3.assets.datacamp.com
 s3.collab-api.datacamp.com
@@ -425,7 +427,6 @@ sql.ai-tutor.datacamp.com
 sql.app.datacamp.com
 sql.compliancy.datacamp.com
 sql.links.datacamp.com
-ss.datacamp.com
 staging.collab-api.datacamp.com
 staging.datacamp.com
 staging.gsstm.datacamp.com

@@ -1,10 +1,2 @@
-aboutdatacampwww.datacamp.com
-corp.datacamp.com
-ff.datacamp.com
-h2.datacamp.com
-imb.datacamp.com
-manager.datacamp.com
-members.datacamp.com
-session-server.datacamp.com
-user.datacamp.com
-www7a.datacamp.com
+projects-api.datacamp.com
+rfiddleapi.datacamp.com

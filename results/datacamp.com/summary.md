@@ -1,10 +1,10 @@
 # Recon Summary: datacamp.com
-Last Updated: Sat Aug 15 12:23:48 UTC 2026
+Last Updated: Sat Aug 15 18:19:13 UTC 2026
 
 | Metric | Count |
 |--------|-------|
-| Total Subdomains | 548 |
-| Live Hosts | 473 |
-| New (this run) | 10 |
-| Removed | 0 |
+| Total Subdomains | 549 |
+| Live Hosts | 503 |
+| New (this run) | 2 |
+| Removed | 1 |
 | Confirmed Takeovers | 0 |
