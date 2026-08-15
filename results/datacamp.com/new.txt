@@ -1,3 +1,2 @@
-assessment-api.new.datacamp.com
-dd.datacamp.com
-homepage3.datacamp.com
+go2.datacamp.com
+k4.datacamp.com

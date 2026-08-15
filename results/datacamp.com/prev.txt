@@ -178,6 +178,7 @@ gitlab.cms.datacamp.com
 gitlab.links.datacamp.com
 go.careerhub-api.datacamp.com
 go.cms.datacamp.com
+go2.datacamp.com
 grafana-ops-us-east-1.ops.datacamp.com
 grafana.ai-tutor.datacamp.com
 grafana.collab-api.datacamp.com
@@ -220,6 +221,7 @@ int.learn-hub-api.datacamp.com
 intranet.datacamp.com
 jupyter-static.datacamp.com
 jupyterhub.datacamp.com
+k4.datacamp.com
 k8s.ai-tutor.datacamp.com
 k8s.campus-api.datacamp.com
 k8s.links.datacamp.com
