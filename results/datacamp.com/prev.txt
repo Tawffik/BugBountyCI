@@ -94,6 +94,7 @@ concoursetest.ops.datacamp.com
 confluence.datacamp.com
 content-authorization.datacamp.com
 content-n8n-hosting.datacamp.com
+corona88.datacamp.com
 corp.datacamp.com
 cs.datacamp.com
 dashboard.datacamp.com
@@ -198,6 +199,7 @@ home-hub.datacamp.com
 home.it.datacamp.com
 homepage3.datacamp.com
 host.datacamp.com
+httpswww.datacamp.com
 hub.auth.datacamp.com
 hub.compliancy.datacamp.com
 hub.content-authorization.datacamp.com
@@ -264,6 +266,7 @@ linkedin.datacamp.com
 links.datacamp.com
 live.careerhub-api.datacamp.com
 live.compliancy.datacamp.com
+live.datacamp.com
 llm-proxy.optima.datacamp.com
 lms-assets.datacamp.com
 lms-docs.datacamp.com
@@ -277,6 +280,7 @@ mail1.careerhub-api.datacamp.com
 mail2.campus-api.datacamp.com
 mail2.compliancy.datacamp.com
 mail2.dcmfe.datacamp.com
+maintenance.datacamp.com
 manager.datacamp.com
 mb.datacamp.com
 mcp-docs.datacamp.com
@@ -375,7 +379,6 @@ prometheus.ops.datacamp.com
 promo.datacamp.com
 promo.new.datacamp.com
 pt.datacamp.com
-public-ingressgateway-learn-multiplexer.datacamp.com
 public-ingressgateway-ops.ops.datacamp.com
 public-ingressgateway-workspace-multiplexer.datacamp.com
 public-ingressgateway-workspace.datacamp.com
@@ -541,6 +544,7 @@ ww5.datacamp.com
 www.ai-tutor.datacamp.com
 www.assets.datacamp.com
 www.campus.datacamp.com
+www.cdn.datacamp.com
 www.collab-api.datacamp.com
 www.compliancy.datacamp.com
 www.datacamp.com
