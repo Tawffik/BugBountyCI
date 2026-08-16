@@ -189,12 +189,9 @@ http://secure.content-authorization.datacamp.com	404
 http://secure.kong.datacamp.com	530	
 http://shop.ai-tutor.datacamp.com	404	
 http://shop.compliancy.datacamp.com	404	
-http://slack-usa.datacamp.com	503	Application Error
 http://smtp.home-hub.datacamp.com	404	
 http://smtp.links.datacamp.com	404	
-http://sql.app.datacamp.com	404	
-http://sql.links.datacamp.com	404	
-http://staging.collab-api.datacamp.com	404	
+http://sql.ai-tutor.datacamp.com	404	
 http://staging.gsstm.datacamp.com	404	
 http://staging.links.datacamp.com	404	
 http://static.campus-api.datacamp.com	404	
@@ -311,7 +308,6 @@ https://clips.datacamp.com	302	Redirecting to https://datacamp.com
 https://cms.datacamp.com	200	Welcome to your Strapi app
 https://collab-api.datacamp.com	200	
 https://collab-cdn.datacamp.com	404	
-https://com.datacamp.com	404	
 https://community.datacamp.com	404	
 https://competitions-app.datacamp.com	404	404 Not Found
 https://compliance.datacamp.com	200	
@@ -367,7 +363,7 @@ https://h2.datacamp.com	404
 https://h4.datacamp.com	404	
 https://home-hub.datacamp.com	200	
 https://home.it.datacamp.com	302	
-https://homepage3.datacamp.com	404	
+https://homepage.datacamp.com	404	
 https://host.datacamp.com	404	
 https://httpswww.datacamp.com	404	
 https://iimahd.datacamp.com	404	
@@ -467,6 +463,9 @@ https://skill-assessment-frontend-v2.new.datacamp.com	200	Skill Assessment
 https://skill-audit.datacamp.com	307	
 https://sl.datacamp.com	204	
 https://slack-global.datacamp.com	503	Application Error
+https://slides.datacamp.com	403	
+https://slovari.datacamp.com	404	
+https://smtp.datacamp.com	404	
 https://spreadsheets.datacamp.com	200	Spreadsheets
 https://spreadsheets.new.datacamp.com	404	
 https://ss.datacamp.com	404	

@@ -189,12 +189,9 @@ http://secure.content-authorization.datacamp.com
 http://secure.kong.datacamp.com
 http://shop.ai-tutor.datacamp.com
 http://shop.compliancy.datacamp.com
-http://slack-usa.datacamp.com
 http://smtp.home-hub.datacamp.com
 http://smtp.links.datacamp.com
-http://sql.app.datacamp.com
-http://sql.links.datacamp.com
-http://staging.collab-api.datacamp.com
+http://sql.ai-tutor.datacamp.com
 http://staging.gsstm.datacamp.com
 http://staging.links.datacamp.com
 http://static.campus-api.datacamp.com
@@ -311,7 +308,6 @@ https://clips.datacamp.com
 https://cms.datacamp.com
 https://collab-api.datacamp.com
 https://collab-cdn.datacamp.com
-https://com.datacamp.com
 https://community.datacamp.com
 https://competitions-app.datacamp.com
 https://compliance.datacamp.com
@@ -367,7 +363,7 @@ https://h2.datacamp.com
 https://h4.datacamp.com
 https://home-hub.datacamp.com
 https://home.it.datacamp.com
-https://homepage3.datacamp.com
+https://homepage.datacamp.com
 https://host.datacamp.com
 https://httpswww.datacamp.com
 https://iimahd.datacamp.com
@@ -467,6 +463,9 @@ https://skill-assessment-frontend-v2.new.datacamp.com
 https://skill-audit.datacamp.com
 https://sl.datacamp.com
 https://slack-global.datacamp.com
+https://slides.datacamp.com
+https://slovari.datacamp.com
+https://smtp.datacamp.com
 https://spreadsheets.datacamp.com
 https://spreadsheets.new.datacamp.com
 https://ss.datacamp.com

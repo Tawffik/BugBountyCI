@@ -82,7 +82,6 @@ cms.datacamp.com
 collab-api.datacamp.com
 collab-cdn.datacamp.com
 collab-sessions-blue.datacamp.com
-com.datacamp.com
 community.datacamp.com
 competitions-app.datacamp.com
 compliance.datacamp.com
@@ -199,7 +198,7 @@ help.campus-api.datacamp.com
 help.compliancy.datacamp.com
 home-hub.datacamp.com
 home.it.datacamp.com
-homepage3.datacamp.com
+homepage.datacamp.com
 host.datacamp.com
 httpswww.datacamp.com
 hub.auth.datacamp.com
