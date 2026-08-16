@@ -1,5 +1,8 @@
-corona88.datacamp.com
-httpswww.datacamp.com
-live.datacamp.com
-maintenance.datacamp.com
-www.cdn.datacamp.com
+comune.datacamp.com
+content.datacamp.com
+explorables.new.datacamp.com
+iimahd.datacamp.com
+infolab.datacamp.com
+static.datacamp.com
+wenku.datacamp.com
+www.multiplexer-paid.new.datacamp.com
