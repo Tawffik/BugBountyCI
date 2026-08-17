@@ -1,5 +1,11 @@
-bookmarks.datacamp.com
-kk.datacamp.com
-math.datacamp.com
-pup.datacamp.com
-tribunale.datacamp.com
+baidu.datacamp.com
+cs.datacamp.com
+multiplexer-paid-m5.new.datacamp.com
+multiplexer-paid.new.datacamp.com
+my.datacamp.com
+rconsole.datacamp.com
+resume.datacamp.com
+uni.datacamp.com
+www.blog.datacamp.com
+www.videos.datacamp.com
+www2u.datacamp.com
