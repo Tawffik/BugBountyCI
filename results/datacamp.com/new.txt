@@ -1,5 +1,5 @@
-en.datacamp.com
-games.datacamp.com
-grc2go.datacamp.com
-www.styleguide-assets.datacamp.com
-www7b.datacamp.com
+mpk.datacamp.com
+provincia.datacamp.com
+upsell-dialogs.datacamp.com
+webmail.datacamp.com
+www.quantinsti.datacamp.com
