@@ -1,6 +1,5 @@
 22www.datacamp.com
 aboutdatacampwww.datacamp.com
-ac.datacamp.com
 account.collab-api.datacamp.com
 admin.compliancy.datacamp.com
 ads.auth.datacamp.com
@@ -48,6 +47,7 @@ blog.datacamp.com
 blog.kong.datacamp.com
 blog.new.datacamp.com
 bokeh-server.datacamp.com
+bookmarks.datacamp.com
 boro.datacamp.com
 bounce.datacamp.com
 campaign-service.datacamp.com
@@ -95,7 +95,6 @@ content-n8n-hosting.datacamp.com
 content.datacamp.com
 corona88.datacamp.com
 corp.datacamp.com
-cs.datacamp.com
 dashboard.datacamp.com
 dashboards-external.datacamp.com
 dashboards.datacamp.com
@@ -232,7 +231,6 @@ internal.datacamp.com
 intranet.datacamp.com
 jupyter-static.datacamp.com
 jupyterhub.datacamp.com
-k4.datacamp.com
 k5.datacamp.com
 k8s.ai-tutor.datacamp.com
 k8s.campus-api.datacamp.com
@@ -242,6 +240,7 @@ keycloak-b.ops.datacamp.com
 keycloak.ops.datacamp.com
 kiali-ops-us-east-1.ops.datacamp.com
 kiali.ops.datacamp.com
+kk.datacamp.com
 kong-ingress-test.datacamp.com
 kong-ingress.datacamp.com
 kong-internal.datacamp.com
@@ -282,6 +281,7 @@ mail2.compliancy.datacamp.com
 mail2.dcmfe.datacamp.com
 maintenance.datacamp.com
 manager.datacamp.com
+math.datacamp.com
 mb.datacamp.com
 mcp-docs.datacamp.com
 mcp-gateway-internal.datacamp.com
@@ -386,8 +386,8 @@ public.auth.datacamp.com
 public.compliancy.datacamp.com
 public.content-authorization.datacamp.com
 public.learn-hub-api.datacamp.com
+pup.datacamp.com
 purchase.datacamp.com
-regione.datacamp.com
 resources.new.datacamp.com
 rfiddleapi.datacamp.com
 rstudio-server.datacamp.com
@@ -492,6 +492,7 @@ track.collab-api.datacamp.com
 track.images.datacamp.com
 track.pro.datacamp.com
 tracking-ads.datacamp.com
+tribunale.datacamp.com
 trust.datacamp.com
 uc.datacamp.com
 up.datacamp.com

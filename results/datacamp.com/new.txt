@@ -1,5 +1,5 @@
-mpk.datacamp.com
-provincia.datacamp.com
-upsell-dialogs.datacamp.com
-webmail.datacamp.com
-www.quantinsti.datacamp.com
+bookmarks.datacamp.com
+kk.datacamp.com
+math.datacamp.com
+pup.datacamp.com
+tribunale.datacamp.com
