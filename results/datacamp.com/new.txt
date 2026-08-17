@@ -1,1 +1,5 @@
-homepage.datacamp.com
+en.datacamp.com
+games.datacamp.com
+grc2go.datacamp.com
+www.styleguide-assets.datacamp.com
+www7b.datacamp.com

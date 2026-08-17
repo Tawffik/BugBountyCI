@@ -189,9 +189,18 @@ http://secure.content-authorization.datacamp.com	404
 http://secure.kong.datacamp.com	530	
 http://shop.ai-tutor.datacamp.com	404	
 http://shop.compliancy.datacamp.com	404	
+http://sitemap.datacamp.com	200	
+http://sl.datacamp.com	308	308 Permanent Redirect
+http://slovari.datacamp.com	404	
 http://smtp.home-hub.datacamp.com	404	
+http://smtp.learn-hub-api.datacamp.com	404	
 http://smtp.links.datacamp.com	404	
+http://spreadsheets.datacamp.com	301	301 Moved Permanently
 http://sql.ai-tutor.datacamp.com	404	
+http://sql.app.datacamp.com	404	
+http://sql.compliancy.datacamp.com	404	
+http://sql.links.datacamp.com	404	
+http://staging.collab-api.datacamp.com	404	
 http://staging.gsstm.datacamp.com	404	
 http://staging.links.datacamp.com	404	
 http://static.campus-api.datacamp.com	404	
@@ -265,6 +274,7 @@ http://www.gsstm.datacamp.com	404
 http://www.links.datacamp.com	404	
 http://www.multiplexer-paid-m5.new.datacamp.com	404	
 http://www.multiplexer-paid.new.datacamp.com	404	
+http://www.styleguide-assets.datacamp.com	530	
 https://22www.datacamp.com	404	
 https://aboutdatacampwww.datacamp.com	404	
 https://ac.datacamp.com	404	
@@ -317,7 +327,7 @@ https://concourse-eks-test.ops.datacamp.com	503	503 Service Temporarily Unavaila
 https://concourse.ops.datacamp.com	200	Concourse
 https://confluence.datacamp.com	302	
 https://content-authorization.datacamp.com	404	Error
-https://content-n8n-hosting.datacamp.com	200	n8n.io - Workflow Automation
+https://content-n8n-hosting.datacamp.com	204	
 https://content.datacamp.com	404	
 https://corona88.datacamp.com	404	
 https://corp.datacamp.com	404	
@@ -342,6 +352,7 @@ https://docs.datacamp.com	404
 https://dr-docker-sessions.datacamp.com	404	
 https://ekscluster.ops.datacamp.com	503	503 Service Temporarily Unavailable
 https://em.datacamp.com	404	404 Not Found
+https://en.datacamp.com	404	
 https://enterprise-docs.datacamp.com	200	Introduction | Enterprise Docs
 https://enterprise.datacamp.com	302	
 https://enterprise.new.datacamp.com	404	
@@ -353,11 +364,12 @@ https://explorables.new.datacamp.com	404
 https://explore.datacamp.com	404	
 https://ff.datacamp.com	404	
 https://fonts.datacamp.com	404	404 Not Found
-https://forums.datacamp.com	404	
 https://fr.datacamp.com	404	
+https://games.datacamp.com	404	
 https://gamification-api.datacamp.com	404	
 https://go2.datacamp.com	200	404 - Page not found
 https://grc.it.datacamp.com	503	503 Service Temporarily Unavailable
+https://grc2go.datacamp.com	404	
 https://gsstm.datacamp.com	400	
 https://h2.datacamp.com	404	
 https://h4.datacamp.com	404	
@@ -458,15 +470,12 @@ https://shiny.datacamp.com	404
 https://signature.datacamp.com	200	Signature – DataCamp
 https://sitemap-frontend.datacamp.com	404	
 https://sitemap-generator.datacamp.com	404	DataCamp
-https://sitemap.datacamp.com	200	
 https://skill-assessment-frontend-v2.new.datacamp.com	200	Skill Assessment
 https://skill-audit.datacamp.com	307	
-https://sl.datacamp.com	204	
 https://slack-global.datacamp.com	503	Application Error
+https://slack-usa.datacamp.com	503	Application Error
 https://slides.datacamp.com	403	
-https://slovari.datacamp.com	404	
 https://smtp.datacamp.com	404	
-https://spreadsheets.datacamp.com	200	Spreadsheets
 https://spreadsheets.new.datacamp.com	404	
 https://ss.datacamp.com	404	
 https://staging.datacamp.com	404	
@@ -509,5 +518,6 @@ https://www.datacamp.com	403	Just a moment...
 https://www.new.datacamp.com	404	
 https://www2.datacamp.com	302	
 https://www7a.datacamp.com	404	
+https://www7b.datacamp.com	404	
 https://wwww.datacamp.com	404	
 https://z28rg4x8kh99-workspace-sessions.datacamp.com	404	

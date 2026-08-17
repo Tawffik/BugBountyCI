@@ -141,6 +141,7 @@ edge.cms.datacamp.com
 edge.links.datacamp.com
 ekscluster.ops.datacamp.com
 em.datacamp.com
+en.datacamp.com
 engineering-portal-new.ops.datacamp.com
 engineering-portal.ops.datacamp.com
 enterprise-docs.datacamp.com
@@ -163,10 +164,10 @@ fonts.datacamp.com
 forum.cms.datacamp.com
 forum.collab-api.datacamp.com
 forum.learn-hub-api.datacamp.com
-forums.datacamp.com
 fr.datacamp.com
 ftp.auth.datacamp.com
 ftp.campus.datacamp.com
+games.datacamp.com
 gamification-api.datacamp.com
 gateway.gamification-api.datacamp.com
 gcp.careerhub-api.datacamp.com
@@ -191,6 +192,7 @@ grafana.collab-api.datacamp.com
 grafana.compliancy.datacamp.com
 grafana.ops.datacamp.com
 grc.it.datacamp.com
+grc2go.datacamp.com
 gsstm.datacamp.com
 h2.datacamp.com
 h4.datacamp.com
@@ -553,7 +555,9 @@ www.links.datacamp.com
 www.multiplexer-paid-m5.new.datacamp.com
 www.multiplexer-paid.new.datacamp.com
 www.new.datacamp.com
+www.styleguide-assets.datacamp.com
 www2.datacamp.com
 www7a.datacamp.com
+www7b.datacamp.com
 wwww.datacamp.com
 z28rg4x8kh99-workspace-sessions.datacamp.com
