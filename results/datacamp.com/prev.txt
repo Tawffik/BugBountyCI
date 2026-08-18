@@ -209,7 +209,6 @@ images.datacamp.com
 images.learn-hub-api.datacamp.com
 images.links.datacamp.com
 img.links.datacamp.com
-info.datacamp.com
 infolab.datacamp.com
 informatik.datacamp.com
 infra-reporter.datacamp.com

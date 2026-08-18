@@ -110,7 +110,6 @@ http://int.learn-hub-api.datacamp.com	404
 http://k8s.ai-tutor.datacamp.com	404	
 http://k8s.campus-api.datacamp.com	404	
 http://k8s.links.datacamp.com	404	
-http://kong.new.datacamp.com	404	
 http://kubernetes.kong.datacamp.com	530	
 http://live.careerhub-api.datacamp.com	404	
 http://live.compliancy.datacamp.com	404	
@@ -190,15 +189,20 @@ http://secure.content-authorization.datacamp.com	404
 http://secure.kong.datacamp.com	530	
 http://shop.ai-tutor.datacamp.com	404	
 http://shop.compliancy.datacamp.com	404	
+http://skill-assessment-frontend-v2.new.datacamp.com	301	301 Moved Permanently
+http://skill-audit.datacamp.com	301	301 Moved Permanently
+http://slack-global.datacamp.com	503	Application Error
+http://smtp.home-hub.datacamp.com	404	
 http://smtp.learn-hub-api.datacamp.com	404	
 http://smtp.links.datacamp.com	404	
+http://sql.ai-tutor.datacamp.com	404	
 http://sql.app.datacamp.com	404	
 http://sql.compliancy.datacamp.com	404	
+http://sql.links.datacamp.com	404	
 http://staging.collab-api.datacamp.com	404	
 http://staging.gsstm.datacamp.com	404	
 http://staging.links.datacamp.com	404	
 http://static.campus-api.datacamp.com	404	
-http://static.datacamp.com	404	
 http://static.images.datacamp.com	404	
 http://stats.ai-tutor.datacamp.com	404	
 http://stats.content-authorization.datacamp.com	404	
@@ -373,7 +377,6 @@ https://iimahd.datacamp.com	404
 https://image-management-service-dev.datacamp.com	404	
 https://image-management-service.datacamp.com	404	
 https://images.datacamp.com	301	
-https://info.datacamp.com	404	
 https://infolab.datacamp.com	404	
 https://informatik.datacamp.com	404	
 https://infra-reporter.datacamp.com	404	
@@ -388,6 +391,7 @@ https://kk.datacamp.com	404
 https://kong-ingress-test.datacamp.com	404	
 https://kong-ingress.datacamp.com	404	
 https://kong.datacamp.com	404	
+https://kong.new.datacamp.com	404	
 https://kubecost-app-cluster.datacamp.com	404	
 https://kubecost-learn-multiplexer.datacamp.com	404	
 https://kubecost-prom-app-cluster.datacamp.com	404	
@@ -464,16 +468,16 @@ https://sheets.datacamp.com	404
 https://shiny.datacamp.com	404	
 https://signature.datacamp.com	200	Signature – DataCamp
 https://sitemap-frontend.datacamp.com	404	
+https://sitemap-generator.datacamp.com	404	DataCamp
 https://sitemap.datacamp.com	200	
-https://skill-audit.datacamp.com	307	
 https://sl.datacamp.com	204	
-https://slack-global.datacamp.com	503	Application Error
 https://slack-usa.datacamp.com	503	Application Error
 https://slides.datacamp.com	403	
 https://smtp.datacamp.com	404	
 https://spreadsheets.datacamp.com	200	Spreadsheets
 https://spreadsheets.new.datacamp.com	404	
 https://staging.datacamp.com	404	
+https://static.datacamp.com	404	
 https://static.new.datacamp.com	404	
 https://stats.datacamp.com	404	
 https://status.datacamp.com	200	DataCamp Status
