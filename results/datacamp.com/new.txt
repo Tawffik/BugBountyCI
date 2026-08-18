@@ -1,0 +1,5 @@
+a.datacamp.com
+admin.datacamp.com
+groups.datacamp.com
+maven.datacamp.com
+www.projector.new.datacamp.com

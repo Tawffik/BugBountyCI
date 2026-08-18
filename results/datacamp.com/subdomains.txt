@@ -1,6 +1,7 @@
-22www.datacamp.com
+a.datacamp.com
 account.collab-api.datacamp.com
 admin.compliancy.datacamp.com
+admin.datacamp.com
 ads.auth.datacamp.com
 ads.compliancy.datacamp.com
 ai-api-admin.datacamp.com
@@ -190,6 +191,7 @@ grafana.compliancy.datacamp.com
 grafana.ops.datacamp.com
 grc.it.datacamp.com
 grc2go.datacamp.com
+groups.datacamp.com
 gsstm.datacamp.com
 help.campus-api.datacamp.com
 help.compliancy.datacamp.com
@@ -228,7 +230,6 @@ internal.datacamp.com
 intranet.datacamp.com
 jupyter-static.datacamp.com
 jupyterhub.datacamp.com
-k5.datacamp.com
 k8s.ai-tutor.datacamp.com
 k8s.campus-api.datacamp.com
 k8s.links.datacamp.com
@@ -261,7 +262,6 @@ learnsqlonline-ads.datacamp.com
 links.datacamp.com
 live.careerhub-api.datacamp.com
 live.compliancy.datacamp.com
-live.datacamp.com
 llm-proxy.optima.datacamp.com
 lms-assets.datacamp.com
 lms-docs.datacamp.com
@@ -278,6 +278,7 @@ mail2.dcmfe.datacamp.com
 maintenance.datacamp.com
 manager.datacamp.com
 math.datacamp.com
+maven.datacamp.com
 mb.datacamp.com
 mcp-docs.datacamp.com
 mcp-gateway-internal.datacamp.com
@@ -390,7 +391,6 @@ purchase.datacamp.com
 rconsole.datacamp.com
 resources.new.datacamp.com
 resume.datacamp.com
-rfiddleapi.datacamp.com
 rstudio-server.datacamp.com
 s3.assets.datacamp.com
 s3.collab-api.datacamp.com
@@ -500,7 +500,6 @@ upload.content-authorization.datacamp.com
 upload.gamification-api.datacamp.com
 upsell-dialogs.datacamp.com
 upsell.datacamp.com
-user.datacamp.com
 v1.app.datacamp.com
 v1.auth.datacamp.com
 v1.collab-api.datacamp.com
@@ -554,6 +553,7 @@ www.linkedin.datacamp.com
 www.links.datacamp.com
 www.multiplexer-paid.new.datacamp.com
 www.new.datacamp.com
+www.projector.new.datacamp.com
 www.quantinsti.datacamp.com
 www.styleguide-assets.datacamp.com
 www.videos.datacamp.com
