@@ -1,5 +1,5 @@
-a.datacamp.com
-admin.datacamp.com
-groups.datacamp.com
-maven.datacamp.com
-www.projector.new.datacamp.com
+h3.datacamp.com
+help.datacamp.com
+multiplexer-prod-3.datacamp.com
+music.datacamp.com
+xroads.datacamp.com

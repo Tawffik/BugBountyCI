@@ -93,8 +93,6 @@ concoursetest.ops.datacamp.com
 confluence.datacamp.com
 content-authorization.datacamp.com
 content-n8n-hosting.datacamp.com
-content.datacamp.com
-corona88.datacamp.com
 corp.datacamp.com
 cs.datacamp.com
 dashboard.datacamp.com
@@ -118,7 +116,6 @@ dev.collab-api.datacamp.com
 dev.compliancy.datacamp.com
 dev.dcmfe.datacamp.com
 diff-viewer.datacamp.com
-digilander.datacamp.com
 directory.datacamp.com
 discover.new.datacamp.com
 dns.cdn.datacamp.com
@@ -193,12 +190,13 @@ grc.it.datacamp.com
 grc2go.datacamp.com
 groups.datacamp.com
 gsstm.datacamp.com
+h3.datacamp.com
 help.campus-api.datacamp.com
 help.compliancy.datacamp.com
+help.datacamp.com
 home-hub.datacamp.com
 home.it.datacamp.com
 homepage.datacamp.com
-httpswww.datacamp.com
 hub.auth.datacamp.com
 hub.compliancy.datacamp.com
 hub.content-authorization.datacamp.com
@@ -275,7 +273,6 @@ mail1.careerhub-api.datacamp.com
 mail2.campus-api.datacamp.com
 mail2.compliancy.datacamp.com
 mail2.dcmfe.datacamp.com
-maintenance.datacamp.com
 manager.datacamp.com
 math.datacamp.com
 maven.datacamp.com
@@ -295,8 +292,10 @@ multiplexer-paid-m5.new.datacamp.com
 multiplexer-paid.datacamp.com
 multiplexer-paid.new.datacamp.com
 multiplexer-prod-2.datacamp.com
+multiplexer-prod-3.datacamp.com
 multiplexer-prod.datacamp.com
 multiplexer.datacamp.com
+music.datacamp.com
 mx.campus-api.datacamp.com
 mx.collab-api.datacamp.com
 mx.compliancy.datacamp.com
@@ -544,7 +543,6 @@ ww2.cdn.datacamp.com
 www.ai-tutor.datacamp.com
 www.blog.datacamp.com
 www.campus.datacamp.com
-www.cdn.datacamp.com
 www.collab-api.datacamp.com
 www.compliancy.datacamp.com
 www.datacamp.com
@@ -562,4 +560,5 @@ www2u.datacamp.com
 www5f.datacamp.com
 www7b.datacamp.com
 wwww.datacamp.com
+xroads.datacamp.com
 z28rg4x8kh99-workspace-sessions.datacamp.com
