@@ -1,9 +1,6 @@
-22www.datacamp.com
-ac.datacamp.com
-cse.datacamp.com
-host.datacamp.com
-mvn.datacamp.com
-passport.datacamp.com
-server.datacamp.com
-sites.datacamp.com
-union.datacamp.com
+acp.datacamp.com
+challenges-api.datacamp.com
+collect.datacamp.com
+forums.datacamp.com
+pp.datacamp.com
+www.documents.datacamp.com

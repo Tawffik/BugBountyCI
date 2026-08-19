@@ -191,10 +191,9 @@ http://secure.kong.datacamp.com	530
 http://shop.ai-tutor.datacamp.com	404	
 http://shop.compliancy.datacamp.com	404	
 http://sites.datacamp.com	301	
-http://smtp.datacamp.com	404	
-http://smtp.home-hub.datacamp.com	404	
+http://slack-usa.datacamp.com	503	Application Error
+http://smtp.learn-hub-api.datacamp.com	404	
 http://smtp.links.datacamp.com	404	
-http://spreadsheets.new.datacamp.com	404	
 http://sql.ai-tutor.datacamp.com	404	
 http://sql.app.datacamp.com	404	
 http://sql.compliancy.datacamp.com	404	
@@ -268,16 +267,17 @@ http://www.blog.datacamp.com	404
 http://www.campus.datacamp.com	530	
 http://www.collab-api.datacamp.com	404	
 http://www.compliancy.datacamp.com	404	
+http://www.documents.datacamp.com	404	
 http://www.gsstm.datacamp.com	404	
 http://www.linkedin.datacamp.com	404	
 http://www.links.datacamp.com	404	
 http://www.projector.new.datacamp.com	404	
-http://www.quantinsti.datacamp.com	404	
 http://www.videos.datacamp.com	530	
 https://1www.datacamp.com	404	
 https://22www.datacamp.com	404	
 https://a.datacamp.com	404	
 https://ac.datacamp.com	404	
+https://acp.datacamp.com	404	
 https://admin.datacamp.com	404	
 https://ai-api-admin.datacamp.com	200	AI API Admin
 https://ai-api.datacamp.com	404	
@@ -298,7 +298,6 @@ https://bip.datacamp.com	404
 https://blog.datacamp.com	301	
 https://blog.new.datacamp.com	404	
 https://bokeh-server.datacamp.com	404	
-https://bookmarks.datacamp.com	404	
 https://boro.datacamp.com	404	
 https://campaign-service.datacamp.com	404	
 https://campus-api.datacamp.com	404	
@@ -314,6 +313,7 @@ https://certification-docs.datacamp.com	200	Overview | Certification Docs
 https://certification.datacamp.com	301	
 https://certification2022-docs.datacamp.com	301	
 https://challenge-frontend.new.datacamp.com	404	
+https://challenges-api.datacamp.com	404	
 https://challenges-api.new.datacamp.com	404	
 https://challenges.datacamp.com	301	
 https://ci.datacamp.com	404	
@@ -321,6 +321,7 @@ https://clips.datacamp.com	302	Redirecting to https://datacamp.com
 https://cms.datacamp.com	200	Welcome to your Strapi app
 https://collab-api.datacamp.com	200	
 https://collab-cdn.datacamp.com	404	
+https://collect.datacamp.com	404	
 https://community.datacamp.com	404	
 https://competitions-app.datacamp.com	404	404 Not Found
 https://compliance.datacamp.com	200	
@@ -362,6 +363,7 @@ https://explorables.datacamp.com	404	404 Not Found
 https://explore.datacamp.com	404	
 https://feeds.datacamp.com	404	
 https://fonts.datacamp.com	404	404 Not Found
+https://forums.datacamp.com	404	
 https://fr.datacamp.com	404	
 https://gamification-api.datacamp.com	404	
 https://grc.it.datacamp.com	503	503 Service Temporarily Unavailable
@@ -406,7 +408,6 @@ https://lms-assets.datacamp.com	403	403 Forbidden
 https://lms-docs.datacamp.com	404	
 https://local.datacamp.com	404	
 https://manager.datacamp.com	404	
-https://math.datacamp.com	404	
 https://maven.datacamp.com	404	
 https://mcp-docs.datacamp.com	200	Introduction | MCP Docs
 https://mcp-gateway-internal.datacamp.com	404	
@@ -438,6 +439,7 @@ https://optima.datacamp.com	200
 https://passport.datacamp.com	404	
 https://people.datacamp.com	404	
 https://poser.datacamp.com	200	Poser
+https://pp.datacamp.com	404	
 https://practice-web.datacamp.com	200	DataCamp Practice
 https://practice-web.new.datacamp.com	404	
 https://practice.datacamp.com	200	DataCamp Practice
@@ -451,7 +453,6 @@ https://prometheus-aggregator.new.datacamp.com	404	Error
 https://promo.datacamp.com	302	
 https://promo.new.datacamp.com	404	
 https://pt.datacamp.com	404	
-https://pup.datacamp.com	404	
 https://purchase.datacamp.com	200	Subscribe | DataCamp
 https://rconsole.datacamp.com	404	
 https://resources.new.datacamp.com	403	
@@ -468,10 +469,15 @@ https://shiny.datacamp.com	404
 https://signature.datacamp.com	200	Signature – DataCamp
 https://sitemap-frontend.datacamp.com	404	
 https://sitemap-generator.datacamp.com	404	DataCamp
+https://sitemap.datacamp.com	200	
+https://skill-assessment-frontend-v2.new.datacamp.com	200	Skill Assessment
 https://skill-audit.datacamp.com	307	
+https://sl.datacamp.com	204	
 https://slack-global.datacamp.com	503	Application Error
-https://slack-usa.datacamp.com	503	Application Error
+https://slides.datacamp.com	403	
+https://smtp.datacamp.com	404	
 https://spreadsheets.datacamp.com	200	Spreadsheets
+https://spreadsheets.new.datacamp.com	404	
 https://staging.datacamp.com	404	
 https://static.new.datacamp.com	404	
 https://stats.datacamp.com	404	
@@ -490,14 +496,12 @@ https://timetracker.datacamp.com	404
 https://timetracker.new.datacamp.com	404	
 https://track.pro.datacamp.com	200	Custom domain check
 https://tracking-ads.datacamp.com	200	DataCamp Ads
-https://tribunale.datacamp.com	404	
 https://trust.datacamp.com	200	DataCamp Trust Center
 https://u.datacamp.com	404	
 https://uc.datacamp.com	404	404
 https://uni.datacamp.com	404	
 https://union.datacamp.com	404	
 https://univ.datacamp.com	404	
-https://upsell-dialogs.datacamp.com	404	
 https://upsell.datacamp.com	404	
 https://videos.datacamp.com	404	404 Not Found
 https://waffles-next.datacamp.com	301	
