@@ -1,5 +1,7 @@
 1www.datacamp.com
+22www.datacamp.com
 a.datacamp.com
+ac.datacamp.com
 account.collab-api.datacamp.com
 admin.compliancy.datacamp.com
 admin.datacamp.com
@@ -95,6 +97,7 @@ confluence.datacamp.com
 content-authorization.datacamp.com
 content-n8n-hosting.datacamp.com
 cs.datacamp.com
+cse.datacamp.com
 dashboard.datacamp.com
 dashboards-external.datacamp.com
 dashboards.datacamp.com
@@ -139,7 +142,6 @@ edge.cms.datacamp.com
 edge.links.datacamp.com
 ekscluster.ops.datacamp.com
 em.datacamp.com
-en.datacamp.com
 engineering-portal-new.ops.datacamp.com
 engineering-portal.ops.datacamp.com
 enterprise-docs.datacamp.com
@@ -164,7 +166,6 @@ forum.learn-hub-api.datacamp.com
 fr.datacamp.com
 ftp.auth.datacamp.com
 ftp.campus.datacamp.com
-games.datacamp.com
 gamification-api.datacamp.com
 gateway.gamification-api.datacamp.com
 gcp.careerhub-api.datacamp.com
@@ -188,7 +189,6 @@ grafana.collab-api.datacamp.com
 grafana.compliancy.datacamp.com
 grafana.ops.datacamp.com
 grc.it.datacamp.com
-grc2go.datacamp.com
 groups.datacamp.com
 gsstm.datacamp.com
 h3.datacamp.com
@@ -197,7 +197,7 @@ help.compliancy.datacamp.com
 help.datacamp.com
 home-hub.datacamp.com
 home.it.datacamp.com
-homepage.datacamp.com
+host.datacamp.com
 hub.auth.datacamp.com
 hub.compliancy.datacamp.com
 hub.content-authorization.datacamp.com
@@ -298,6 +298,7 @@ multiplexer-prod-3.datacamp.com
 multiplexer-prod.datacamp.com
 multiplexer.datacamp.com
 music.datacamp.com
+mvn.datacamp.com
 mx.campus-api.datacamp.com
 mx.collab-api.datacamp.com
 mx.compliancy.datacamp.com
@@ -343,6 +344,7 @@ owa.auth.datacamp.com
 owa.campus-api.datacamp.com
 owa.content-authorization.datacamp.com
 owa.gsstm.datacamp.com
+passport.datacamp.com
 people.datacamp.com
 pieter.ops.datacamp.com
 poc-next-marketing-app.datacamp.com
@@ -368,7 +370,6 @@ prod.links.datacamp.com
 project-frontend.new.datacamp.com
 projector.datacamp.com
 projector.new.datacamp.com
-projects-api.new.datacamp.com
 projects.datacamp.com
 prometheus-aggregator.datacamp.com
 prometheus-aggregator.new.datacamp.com
@@ -378,7 +379,6 @@ prometheus.content-authorization.datacamp.com
 prometheus.ops.datacamp.com
 promo.datacamp.com
 promo.new.datacamp.com
-provincia.datacamp.com
 pt.datacamp.com
 public-ingressgateway-ops.ops.datacamp.com
 public-ingressgateway-workspace-multiplexer.datacamp.com
@@ -403,6 +403,7 @@ secure.assets.datacamp.com
 secure.campus.datacamp.com
 secure.content-authorization.datacamp.com
 secure.kong.datacamp.com
+server.datacamp.com
 server1.datacamp.com
 sessions-eu-central-1.datacamp.com
 sessions-us-east-1.datacamp.com
@@ -415,6 +416,7 @@ signature.datacamp.com
 sitemap-frontend.datacamp.com
 sitemap-generator.datacamp.com
 sitemap.datacamp.com
+sites.datacamp.com
 skill-assessment-frontend-v2.new.datacamp.com
 skill-audit.datacamp.com
 sl.datacamp.com
@@ -439,7 +441,6 @@ staging.datacamp.com
 staging.gsstm.datacamp.com
 staging.links.datacamp.com
 static.campus-api.datacamp.com
-static.datacamp.com
 static.images.datacamp.com
 static.new.datacamp.com
 stats.ai-tutor.datacamp.com
@@ -496,6 +497,7 @@ trust.datacamp.com
 u.datacamp.com
 uc.datacamp.com
 uni.datacamp.com
+union.datacamp.com
 univ.datacamp.com
 upload.content-authorization.datacamp.com
 upload.gamification-api.datacamp.com
@@ -521,7 +523,6 @@ web.campus-api.datacamp.com
 web.collab-api.datacamp.com
 web.links.datacamp.com
 webmail.careerhub-api.datacamp.com
-webmail.datacamp.com
 webmail.kong.datacamp.com
 wiki.campus-api.datacamp.com
 wiki.cdn.datacamp.com
@@ -557,7 +558,6 @@ www.videos.datacamp.com
 www2.datacamp.com
 www2u.datacamp.com
 www5f.datacamp.com
-www7b.datacamp.com
 wwww.datacamp.com
 xroads.datacamp.com
 z28rg4x8kh99-workspace-sessions.datacamp.com

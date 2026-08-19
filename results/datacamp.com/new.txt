@@ -1,8 +1,9 @@
-1www.datacamp.com
-challenges-api.new.datacamp.com
-dd.datacamp.com
-feeds.datacamp.com
-ku1720.datacamp.com
-learn-api.datacamp.com
-local.datacamp.com
-univ.datacamp.com
+22www.datacamp.com
+ac.datacamp.com
+cse.datacamp.com
+host.datacamp.com
+mvn.datacamp.com
+passport.datacamp.com
+server.datacamp.com
+sites.datacamp.com
+union.datacamp.com
