@@ -311,6 +311,7 @@ my-service-b.ops.datacamp.com
 my-service.ops.datacamp.com
 my.datacamp.com
 my.learn-hub-api.datacamp.com
+myhome.datacamp.com
 netbox.ops.datacamp.com
 new.datacamp.com
 news.ai-tutor.datacamp.com
@@ -406,7 +407,6 @@ secure.campus.datacamp.com
 secure.content-authorization.datacamp.com
 secure.kong.datacamp.com
 server.datacamp.com
-server1.datacamp.com
 sessions-eu-central-1.datacamp.com
 sessions-us-east-1.datacamp.com
 sessions.datacamp.com

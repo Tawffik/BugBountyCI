@@ -1,6 +1,1 @@
-acp.datacamp.com
-challenges-api.datacamp.com
-collect.datacamp.com
-forums.datacamp.com
-pp.datacamp.com
-www.documents.datacamp.com
+myhome.datacamp.com
