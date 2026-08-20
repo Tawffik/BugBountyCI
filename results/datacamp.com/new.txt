@@ -1,1 +1,11 @@
-myhome.datacamp.com
+en.datacamp.com
+games.datacamp.com
+grc2go.datacamp.com
+homepage.datacamp.com
+projects-api.new.datacamp.com
+provincia.datacamp.com
+static.datacamp.com
+upsell-dialogs.datacamp.com
+webmail.datacamp.com
+www.styleguide-assets.datacamp.com
+www7b.datacamp.com
