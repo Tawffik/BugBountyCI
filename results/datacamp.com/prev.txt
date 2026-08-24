@@ -1,4 +1,3 @@
-1www.datacamp.com
 aboutdatacampwww.datacamp.com
 account.collab-api.datacamp.com
 admin.compliancy.datacamp.com
@@ -96,7 +95,6 @@ confluence.datacamp.com
 content-authorization.datacamp.com
 content-n8n-hosting.datacamp.com
 cp.datacamp.com
-cse.datacamp.com
 dashboard.datacamp.com
 dashboards-external.datacamp.com
 dashboards.datacamp.com
@@ -152,6 +150,7 @@ explorables.datacamp.com
 explore.datacamp.com
 external.ai-tutor.datacamp.com
 external.app.datacamp.com
+ff.datacamp.com
 files.content-authorization.datacamp.com
 files.home-hub.datacamp.com
 files.images.datacamp.com
@@ -490,6 +489,7 @@ track.images.datacamp.com
 track.pro.datacamp.com
 tracking-ads.datacamp.com
 trust.datacamp.com
+u.datacamp.com
 uc.datacamp.com
 um.datacamp.com
 upload.content-authorization.datacamp.com
@@ -539,7 +539,6 @@ ww2.cdn.datacamp.com
 ww5.datacamp.com
 www.ai-tutor.datacamp.com
 www.campus.datacamp.com
-www.campus.new.datacamp.com
 www.collab-api.datacamp.com
 www.compliancy.datacamp.com
 www.datacamp.com
