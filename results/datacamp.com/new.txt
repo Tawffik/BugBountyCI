@@ -1,2 +1,1 @@
-ff.datacamp.com
-u.datacamp.com
+challenges-api.new.datacamp.com
