@@ -224,8 +224,6 @@ intranet.datacamp.com
 jupyter-static.datacamp.com
 jupyterhub.datacamp.com
 k3.datacamp.com
-k4.datacamp.com
-k5.datacamp.com
 k8s.ai-tutor.datacamp.com
 k8s.campus-api.datacamp.com
 k8s.links.datacamp.com
@@ -272,6 +270,7 @@ mail2.compliancy.datacamp.com
 mail2.dcmfe.datacamp.com
 maven.datacamp.com
 mb.datacamp.com
+mcp-bigquery-pilot.datacamp.com
 mcp-docs.datacamp.com
 mcp-gateway-internal.datacamp.com
 media.auth.datacamp.com

@@ -1,1 +1,1 @@
-prometheus-aggregator.new.datacamp.com
+mcp-bigquery-pilot.datacamp.com

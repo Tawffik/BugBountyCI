@@ -2,7 +2,6 @@ http://account.collab-api.datacamp.com	404
 http://admin.compliancy.datacamp.com	404	
 http://ads.auth.datacamp.com	404	
 http://ads.compliancy.datacamp.com	404	
-http://alm.ops.datacamp.com	404	Not Found
 http://alpha.campus-api.datacamp.com	404	
 http://alpha.campus.datacamp.com	530	
 http://alpha.compliancy.datacamp.com	404	
@@ -195,26 +194,30 @@ http://slack-global.datacamp.comslack-global.datacamp.com	404
 http://smtp.home-hub.datacamp.com	404	
 http://smtp.learn-hub-api.datacamp.com	404	
 http://smtp.links.datacamp.com	404	
+http://sql.ai-tutor.datacamp.com	404	
 http://sql.app.datacamp.com	404	
 http://sql.compliancy.datacamp.com	404	
+http://sql.links.datacamp.com	404	
 http://staging.collab-api.datacamp.com	404	
 http://staging.gsstm.datacamp.com	404	
 http://staging.links.datacamp.com	404	
+http://static.campus-api.datacamp.com	404	
+http://static.images.datacamp.com	404	
 http://stats.ai-tutor.datacamp.com	404	
 http://stats.content-authorization.datacamp.com	404	
-http://stats.datacamp.com	404	
 http://stats.learn-hub-api.datacamp.com	404	
-http://stats.links.datacamp.com	404	
 http://status.auth.datacamp.com	404	
 http://status.links.datacamp.com	404	
 http://storage.campaign-service.datacamp.com	404	
 http://storage.content-authorization.datacamp.com	404	
+http://storage.datacamp.com	404	
 http://storage.dcmfe.datacamp.com	530	
 http://storage.images.datacamp.com	404	
 http://storage.links.datacamp.com	404	
 http://store.compliancy.datacamp.com	404	
 http://store.gamification-api.datacamp.com	404	
 http://store.links.datacamp.com	404	
+http://strapi.datacamp.com	301	301 Moved Permanently
 http://styleguide-assets.datacamp.com	404	404 Not Found
 http://support.auth.datacamp.com	404	
 http://support.campus-api.datacamp.com	404	
@@ -274,6 +277,7 @@ https://aboutdatacampwww.datacamp.com	404
 https://ai-api-admin.datacamp.com	200	AI API Admin
 https://ai-api.datacamp.com	404	
 https://ai-tutor.datacamp.com	200	
+https://alm.ops.datacamp.com	404	Not Found
 https://amatanet.datacamp.com	404	
 https://app.datacamp.com	302	
 https://artifactory-proxy-public.ops.datacamp.com	200	JFrog
@@ -374,8 +378,6 @@ https://intranet.datacamp.com	302
 https://jupyter-static.datacamp.com	404	404 Not Found
 https://jupyterhub.datacamp.com	404	
 https://k3.datacamp.com	404	
-https://k4.datacamp.com	404	
-https://k5.datacamp.com	404	
 https://kong-ingress-test.datacamp.com	404	
 https://kong-ingress.datacamp.com	404	
 https://kong.datacamp.com	404	
@@ -396,6 +398,7 @@ https://llm-proxy.optima.datacamp.com	302
 https://lms-assets.datacamp.com	403	403 Forbidden
 https://lms-docs.datacamp.com	404	
 https://maven.datacamp.com	404	
+https://mcp-bigquery-pilot.datacamp.com	404	
 https://mcp-docs.datacamp.com	200	Introduction | MCP Docs
 https://mcp-gateway-internal.datacamp.com	404	
 https://media.datacamp.com	404	404 Not Found
@@ -456,12 +459,12 @@ https://slack-global.datacamp.com	503	Application Error
 https://slack-usa.datacamp.com	503	Application Error
 https://slides.datacamp.com	403	
 https://smtp.datacamp.com	404	
+https://spreadsheets.datacamp.com	200	Spreadsheets
 https://spreadsheets.new.datacamp.com	404	
 https://static.new.datacamp.com	404	
+https://stats.datacamp.com	404	
 https://status.datacamp.com	200	DataCamp Status
 https://stg.optima.datacamp.com	200	
-https://storage.datacamp.com	404	
-https://strapi.datacamp.com	404	
 https://styleguide.datacamp.com	404	
 https://support.datacamp.com	302	
 https://symposium.datacamp.com	404	
