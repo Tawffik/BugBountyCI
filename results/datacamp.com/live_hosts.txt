@@ -195,16 +195,17 @@ http://smtp.home-hub.datacamp.com
 http://smtp.learn-hub-api.datacamp.com
 http://smtp.links.datacamp.com
 http://sql.ai-tutor.datacamp.com
-http://sql.app.datacamp.com
 http://sql.compliancy.datacamp.com
-http://sql.links.datacamp.com
-http://staging.collab-api.datacamp.com
 http://staging.gsstm.datacamp.com
 http://staging.links.datacamp.com
 http://static.images.datacamp.com
+http://static.new.datacamp.com
+http://stats.ai-tutor.datacamp.com
 http://stats.content-authorization.datacamp.com
 http://stats.learn-hub-api.datacamp.com
 http://stats.links.datacamp.com
+http://status.auth.datacamp.com
+http://status.links.datacamp.com
 http://storage.campaign-service.datacamp.com
 http://storage.content-authorization.datacamp.com
 http://storage.dcmfe.datacamp.com
@@ -267,7 +268,7 @@ http://www.gsstm.datacamp.com
 http://www.links.datacamp.com
 http://www.maintenance.datacamp.com
 http://www.multiplexer-vinci.new.datacamp.com
-http://www.support.datacamp.com
+https://a.datacamp.com
 https://aboutdatacampwww.datacamp.com
 https://ai-api-admin.datacamp.com
 https://ai-api.datacamp.com
@@ -308,7 +309,7 @@ https://class.datacamp.com
 https://clips.datacamp.com
 https://club.datacamp.com
 https://cms.datacamp.com
-https://coding-exercise-api.datacamp.com
+https://cn.datacamp.com
 https://coding-exercise-api.new.datacamp.com
 https://collab-api.datacamp.com
 https://collab-cdn.datacamp.com
@@ -359,7 +360,6 @@ https://gamification-api.datacamp.com
 https://grc.it.datacamp.com
 https://gsstm.datacamp.com
 https://h2.datacamp.com
-https://h7.datacamp.com
 https://hh.datacamp.com
 https://home-hub.datacamp.com
 https://home.datacamp.com
@@ -371,7 +371,6 @@ https://image-management-service.datacamp.com
 https://images.datacamp.com
 https://info.datacamp.com
 https://infra-reporter.datacamp.com
-https://inst.datacamp.com
 https://instructor-support.datacamp.com
 https://int.datacamp.com
 https://intranet.datacamp.com
@@ -437,8 +436,6 @@ https://promo.datacamp.com
 https://promo.new.datacamp.com
 https://pt.datacamp.com
 https://purchase.datacamp.com
-https://pusher.datacamp.com
-https://rconsole-backup.datacamp.com
 https://regione.datacamp.com
 https://remote-desktop-guacamole.datacamp.com
 https://resources.new.datacamp.com
@@ -464,8 +461,10 @@ https://slides.datacamp.com
 https://smtp.datacamp.com
 https://spreadsheets.datacamp.com
 https://spreadsheets.new.datacamp.com
-https://static.new.datacamp.com
+https://staging.datacamp.com
 https://stats.datacamp.com
+https://status.datacamp.com
+https://stg.optima.datacamp.com
 https://storage.datacamp.com
 https://strapi.datacamp.com
 https://styleguide.datacamp.com
@@ -478,6 +477,7 @@ https://teach.datacamp.com
 https://tech.datacamp.com
 https://timetracker.datacamp.com
 https://timetracker.new.datacamp.com
+https://top100.datacamp.com
 https://track.datacamp.com
 https://track.pro.datacamp.com
 https://tracking-ads.datacamp.com
@@ -485,12 +485,12 @@ https://trust.datacamp.com
 https://u.datacamp.com
 https://uc.datacamp.com
 https://um.datacamp.com
+https://union.datacamp.com
 https://upsell.datacamp.com
 https://videos.datacamp.com
 https://waffles-next.datacamp.com
 https://waffles.datacamp.com
 https://web.datacamp.com
-https://webmail.datacamp.com
 https://wildcard.datacamp.com
 https://wildcard.new.datacamp.com
 https://wildcard.ops.datacamp.com
@@ -504,7 +504,7 @@ https://www2.datacamp.com
 https://www2s.datacamp.com
 https://www4b.datacamp.com
 https://www5a.datacamp.com
-https://www5b.datacamp.com
 https://www5c.datacamp.com
+https://www5f.datacamp.com
 https://wwww.datacamp.com
 https://z28rg4x8kh99-workspace-sessions.datacamp.com
