@@ -158,7 +158,6 @@ files.links.datacamp.com
 fonts.datacamp.com
 forum.cms.datacamp.com
 forum.collab-api.datacamp.com
-forum.datacamp.com
 forum.learn-hub-api.datacamp.com
 fr.datacamp.com
 ftp.auth.datacamp.com
@@ -196,7 +195,6 @@ home-hub.datacamp.com
 home.datacamp.com
 home.it.datacamp.com
 homepage1.datacamp.com
-homepage3.datacamp.com
 hub.auth.datacamp.com
 hub.compliancy.datacamp.com
 hub.content-authorization.datacamp.com
@@ -361,6 +359,7 @@ projector.datacamp.com
 projector.new.datacamp.com
 projects.datacamp.com
 prometheus-aggregator.datacamp.com
+prometheus-aggregator.new.datacamp.com
 prometheus-ops-us-east-1.ops.datacamp.com
 prometheus.campus-api.datacamp.com
 prometheus.content-authorization.datacamp.com

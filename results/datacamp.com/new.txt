@@ -1,3 +1,1 @@
-h7.datacamp.com
-maven.datacamp.com
-terraform-apply.datacamp.com
+prometheus-aggregator.new.datacamp.com
