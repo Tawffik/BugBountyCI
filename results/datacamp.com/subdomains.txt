@@ -70,7 +70,6 @@ chat.assets.datacamp.com
 chat.auth.datacamp.com
 ci.cms.datacamp.com
 ci.datacamp.com
-class.datacamp.com
 click.dcmfe.datacamp.com
 click.links.datacamp.com
 clips.datacamp.com
@@ -147,7 +146,6 @@ enterprise.new.datacamp.com
 es.datacamp.com
 events.datacamp.com
 evt.optima.datacamp.com
-excel-api.datacamp.com
 explorables.datacamp.com
 explore.datacamp.com
 external.ai-tutor.datacamp.com
@@ -190,6 +188,7 @@ grafana.ops.datacamp.com
 grc.it.datacamp.com
 gsstm.datacamp.com
 h2.datacamp.com
+h7.datacamp.com
 help.campus-api.datacamp.com
 help.compliancy.datacamp.com
 hh.datacamp.com
@@ -273,6 +272,7 @@ mail1.careerhub-api.datacamp.com
 mail2.campus-api.datacamp.com
 mail2.compliancy.datacamp.com
 mail2.dcmfe.datacamp.com
+maven.datacamp.com
 mb.datacamp.com
 mcp-docs.datacamp.com
 mcp-gateway-internal.datacamp.com
@@ -361,7 +361,6 @@ projector.datacamp.com
 projector.new.datacamp.com
 projects.datacamp.com
 prometheus-aggregator.datacamp.com
-prometheus-aggregator.new.datacamp.com
 prometheus-ops-us-east-1.ops.datacamp.com
 prometheus.campus-api.datacamp.com
 prometheus.content-authorization.datacamp.com
@@ -379,7 +378,6 @@ public.content-authorization.datacamp.com
 public.learn-hub-api.datacamp.com
 purchase.datacamp.com
 regione.datacamp.com
-remote-desktop-guacamole.datacamp.com
 resources.new.datacamp.com
 rootsweb.datacamp.com
 rstudio-server.datacamp.com
@@ -466,6 +464,7 @@ tableau-api.datacamp.com
 teach-browser.datacamp.com
 teach.datacamp.com
 tech.datacamp.com
+terraform-apply.datacamp.com
 test.campaign-service.datacamp.com
 test.compliance.datacamp.com
 test.datacamp.com
@@ -487,7 +486,6 @@ tracking-ads.datacamp.com
 trust.datacamp.com
 u.datacamp.com
 uc.datacamp.com
-um.datacamp.com
 union.datacamp.com
 upload.content-authorization.datacamp.com
 upload.gamification-api.datacamp.com
@@ -545,7 +543,6 @@ www.maintenance.datacamp.com
 www.multiplexer-vinci.new.datacamp.com
 www.new.datacamp.com
 www2.datacamp.com
-www2s.datacamp.com
 www4b.datacamp.com
 www5a.datacamp.com
 www5c.datacamp.com
