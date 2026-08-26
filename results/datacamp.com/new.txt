@@ -1,1 +1,10 @@
-mcp-bigquery-pilot.datacamp.com
+assessment-api.new.datacamp.com
+games.datacamp.com
+h6.datacamp.com
+music.datacamp.com
+myhome.datacamp.com
+nn.datacamp.com
+passport.datacamp.com
+session-server.datacamp.com
+sites.datacamp.com
+www.blog.datacamp.com
