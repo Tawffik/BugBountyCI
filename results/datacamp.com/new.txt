@@ -1,6 +1,2 @@
-challenges-api.datacamp.com
-maintenance.datacamp.com
-multiplexer-prod-3.datacamp.com
-resume.datacamp.com
-www.multiplexer-paid-m5.new.datacamp.com
-www7a.datacamp.com
+multiplexer-prod-2.datacamp.com
+varnish.datacamp.com
