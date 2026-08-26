@@ -204,8 +204,10 @@ http://staging.gsstm.datacamp.com	404
 http://staging.links.datacamp.com	404	
 http://static.campus-api.datacamp.com	404	
 http://static.images.datacamp.com	404	
+http://static.new.datacamp.com	404	
 http://stats.ai-tutor.datacamp.com	404	
 http://stats.content-authorization.datacamp.com	404	
+http://stats.datacamp.com	404	
 http://stats.learn-hub-api.datacamp.com	404	
 http://stats.links.datacamp.com	404	
 http://status.auth.datacamp.com	404	
@@ -270,8 +272,7 @@ http://www.collab-api.datacamp.com	404
 http://www.compliancy.datacamp.com	404	
 http://www.gsstm.datacamp.com	404	
 http://www.links.datacamp.com	404	
-http://www.maintenance.datacamp.com	404	
-http://www.multiplexer-vinci.new.datacamp.com	404	
+http://www.multiplexer-paid-m5.new.datacamp.com	404	
 https://a.datacamp.com	404	
 https://ai-api-admin.datacamp.com	200	AI API Admin
 https://ai-api.datacamp.com	404	
@@ -306,6 +307,7 @@ https://certification-docs.datacamp.com	200	Overview | Certification Docs
 https://certification.datacamp.com	301	
 https://certification2022-docs.datacamp.com	301	
 https://challenge-frontend.new.datacamp.com	404	
+https://challenges-api.datacamp.com	404	
 https://challenges-api.new.datacamp.com	404	
 https://challenges.datacamp.com	301	
 https://ci.datacamp.com	404	
@@ -326,7 +328,6 @@ https://concourse.ops.datacamp.com	200	Concourse
 https://confluence.datacamp.com	302	
 https://content-authorization.datacamp.com	404	Error
 https://content-n8n-hosting.datacamp.com	200	n8n.io - Workflow Automation
-https://cp.datacamp.com	404	
 https://dashboard.datacamp.com	404	
 https://dashboards-external.datacamp.com	404	
 https://dashboards.datacamp.com	404	
@@ -395,6 +396,7 @@ https://links.datacamp.com	404
 https://llm-proxy.optima.datacamp.com	302	
 https://lms-assets.datacamp.com	403	403 Forbidden
 https://lms-docs.datacamp.com	404	
+https://maintenance.datacamp.com	404	
 https://maven.datacamp.com	404	
 https://mcp-bigquery-pilot.datacamp.com	404	
 https://mcp-docs.datacamp.com	200	Introduction | MCP Docs
@@ -404,6 +406,7 @@ https://mfe-import-maps.datacamp.com	404	Error: dcmfe
 https://mobile-api.datacamp.com	200	
 https://mobile-api.new.datacamp.com	404	
 https://multiplexer-paid.datacamp.com	404	
+https://multiplexer-prod-3.datacamp.com	404	
 https://multiplexer-prod.datacamp.com	404	
 https://multiplexer.datacamp.com	404	
 https://music.datacamp.com	404	
@@ -411,7 +414,6 @@ https://mx.datacamp.com	404
 https://my.datacamp.com	404	
 https://myhome.datacamp.com	404	
 https://new.datacamp.com	301	
-https://news.datacamp.com	404	
 https://next-marketing.datacamp.com	301	
 https://nn.datacamp.com	404	
 https://notifications-api.datacamp.com	200	
@@ -421,7 +423,6 @@ https://okta.datacamp.com	302
 https://old-waffles.datacamp.com	404	
 https://onboarding.datacamp.com	200	DataCamp Onboarding
 https://optima.datacamp.com	200	
-https://order.datacamp.com	404	
 https://passport.datacamp.com	404	
 https://pay.datacamp.com	404	
 https://poser.datacamp.com	200	Poser
@@ -441,6 +442,7 @@ https://pt.datacamp.com	404
 https://purchase.datacamp.com	200	Subscribe | DataCamp
 https://regione.datacamp.com	404	
 https://resources.new.datacamp.com	403	
+https://resume.datacamp.com	404	
 https://rstudio-server.datacamp.com	404	
 https://s.datacamp.com	404	
 https://sandbox.datacamp.com	404	
@@ -464,8 +466,6 @@ https://smtp.datacamp.com	404
 https://spreadsheets.datacamp.com	200	Spreadsheets
 https://spreadsheets.new.datacamp.com	404	
 https://staging.datacamp.com	404	
-https://static.new.datacamp.com	404	
-https://stats.datacamp.com	404	
 https://status.datacamp.com	200	DataCamp Status
 https://stg.optima.datacamp.com	200	
 https://storage.datacamp.com	404	
@@ -502,8 +502,8 @@ https://workspace.datacamp.com	302	302 Found
 https://www.datacamp.com	403	Just a moment...
 https://www.new.datacamp.com	404	
 https://www2.datacamp.com	302	
-https://www4b.datacamp.com	404	
 https://www5c.datacamp.com	404	
 https://www5f.datacamp.com	404	
+https://www7a.datacamp.com	404	
 https://wwww.datacamp.com	404	
 https://z28rg4x8kh99-workspace-sessions.datacamp.com	404	

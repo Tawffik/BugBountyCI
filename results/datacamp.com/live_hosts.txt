@@ -204,8 +204,10 @@ http://staging.gsstm.datacamp.com
 http://staging.links.datacamp.com
 http://static.campus-api.datacamp.com
 http://static.images.datacamp.com
+http://static.new.datacamp.com
 http://stats.ai-tutor.datacamp.com
 http://stats.content-authorization.datacamp.com
+http://stats.datacamp.com
 http://stats.learn-hub-api.datacamp.com
 http://stats.links.datacamp.com
 http://status.auth.datacamp.com
@@ -270,8 +272,7 @@ http://www.collab-api.datacamp.com
 http://www.compliancy.datacamp.com
 http://www.gsstm.datacamp.com
 http://www.links.datacamp.com
-http://www.maintenance.datacamp.com
-http://www.multiplexer-vinci.new.datacamp.com
+http://www.multiplexer-paid-m5.new.datacamp.com
 https://a.datacamp.com
 https://ai-api-admin.datacamp.com
 https://ai-api.datacamp.com
@@ -306,6 +307,7 @@ https://certification-docs.datacamp.com
 https://certification.datacamp.com
 https://certification2022-docs.datacamp.com
 https://challenge-frontend.new.datacamp.com
+https://challenges-api.datacamp.com
 https://challenges-api.new.datacamp.com
 https://challenges.datacamp.com
 https://ci.datacamp.com
@@ -326,7 +328,6 @@ https://concourse.ops.datacamp.com
 https://confluence.datacamp.com
 https://content-authorization.datacamp.com
 https://content-n8n-hosting.datacamp.com
-https://cp.datacamp.com
 https://dashboard.datacamp.com
 https://dashboards-external.datacamp.com
 https://dashboards.datacamp.com
@@ -395,6 +396,7 @@ https://links.datacamp.com
 https://llm-proxy.optima.datacamp.com
 https://lms-assets.datacamp.com
 https://lms-docs.datacamp.com
+https://maintenance.datacamp.com
 https://maven.datacamp.com
 https://mcp-bigquery-pilot.datacamp.com
 https://mcp-docs.datacamp.com
@@ -404,6 +406,7 @@ https://mfe-import-maps.datacamp.com
 https://mobile-api.datacamp.com
 https://mobile-api.new.datacamp.com
 https://multiplexer-paid.datacamp.com
+https://multiplexer-prod-3.datacamp.com
 https://multiplexer-prod.datacamp.com
 https://multiplexer.datacamp.com
 https://music.datacamp.com
@@ -411,7 +414,6 @@ https://mx.datacamp.com
 https://my.datacamp.com
 https://myhome.datacamp.com
 https://new.datacamp.com
-https://news.datacamp.com
 https://next-marketing.datacamp.com
 https://nn.datacamp.com
 https://notifications-api.datacamp.com
@@ -421,7 +423,6 @@ https://okta.datacamp.com
 https://old-waffles.datacamp.com
 https://onboarding.datacamp.com
 https://optima.datacamp.com
-https://order.datacamp.com
 https://passport.datacamp.com
 https://pay.datacamp.com
 https://poser.datacamp.com
@@ -441,6 +442,7 @@ https://pt.datacamp.com
 https://purchase.datacamp.com
 https://regione.datacamp.com
 https://resources.new.datacamp.com
+https://resume.datacamp.com
 https://rstudio-server.datacamp.com
 https://s.datacamp.com
 https://sandbox.datacamp.com
@@ -464,8 +466,6 @@ https://smtp.datacamp.com
 https://spreadsheets.datacamp.com
 https://spreadsheets.new.datacamp.com
 https://staging.datacamp.com
-https://static.new.datacamp.com
-https://stats.datacamp.com
 https://status.datacamp.com
 https://stg.optima.datacamp.com
 https://storage.datacamp.com
@@ -502,8 +502,8 @@ https://workspace.datacamp.com
 https://www.datacamp.com
 https://www.new.datacamp.com
 https://www2.datacamp.com
-https://www4b.datacamp.com
 https://www5c.datacamp.com
 https://www5f.datacamp.com
+https://www7a.datacamp.com
 https://wwww.datacamp.com
 https://z28rg4x8kh99-workspace-sessions.datacamp.com
