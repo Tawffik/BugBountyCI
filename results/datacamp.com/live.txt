@@ -190,7 +190,6 @@ http://secure.content-authorization.datacamp.com	404
 http://secure.kong.datacamp.com	530	
 http://shop.ai-tutor.datacamp.com	404	
 http://shop.compliancy.datacamp.com	404	
-http://sites.datacamp.com	301	
 http://smtp.home-hub.datacamp.com	404	
 http://smtp.learn-hub-api.datacamp.com	404	
 http://smtp.links.datacamp.com	404	
@@ -199,13 +198,10 @@ http://sql.app.datacamp.com	404
 http://sql.compliancy.datacamp.com	404	
 http://sql.links.datacamp.com	404	
 http://staging.collab-api.datacamp.com	404	
-http://staging.gsstm.datacamp.com	404	
-http://staging.links.datacamp.com	404	
 http://static.campus-api.datacamp.com	404	
 http://static.images.datacamp.com	404	
 http://stats.ai-tutor.datacamp.com	404	
 http://stats.content-authorization.datacamp.com	404	
-http://stats.learn-hub-api.datacamp.com	404	
 http://stats.links.datacamp.com	404	
 http://status.auth.datacamp.com	404	
 http://status.links.datacamp.com	404	
@@ -263,15 +259,18 @@ http://wildcard.pt.datacamp.com	404
 http://ww1.dcmfe.datacamp.com	530	
 http://ww2.cdn.datacamp.com	530	
 http://www.ai-tutor.datacamp.com	404	
-http://www.blog.datacamp.com	404	
 http://www.campus.datacamp.com	530	
+http://www.campus.new.datacamp.com	404	
 http://www.collab-api.datacamp.com	404	
 http://www.compliancy.datacamp.com	404	
+http://www.dev.datacamp.com	404	
 http://www.documents.datacamp.com	404	
 http://www.gsstm.datacamp.com	404	
 http://www.links.datacamp.com	404	
 http://www.maintenance.datacamp.com	404	
 http://www.multiplexer-paid-m5.new.datacamp.com	404	
+http://www.multiplexer-paid.new.datacamp.com	404	
+https://1www.datacamp.com	404	
 https://ai-api-admin.datacamp.com	200	AI API Admin
 https://ai-api.datacamp.com	404	
 https://ai-tutor.datacamp.com	200	
@@ -280,7 +279,6 @@ https://amatanet.datacamp.com	404
 https://app.datacamp.com	302	
 https://artifactory-proxy-public.ops.datacamp.com	200	JFrog
 https://assessment-api.datacamp.com	200	
-https://assessment-api.new.datacamp.com	404	
 https://assessment-v2.datacamp.com	200	Skill Assessment
 https://assets-azure.datacamp.com	404	
 https://assets.datacamp.com	404	404 Not Found
@@ -291,6 +289,7 @@ https://authoring.datacamp.com	302
 https://blog.datacamp.com	301	
 https://blog.new.datacamp.com	404	
 https://bokeh-server.datacamp.com	404	
+https://bookmarks.datacamp.com	404	
 https://boro.datacamp.com	404	
 https://campaign-service.datacamp.com	404	
 https://campus-api.datacamp.com	404	
@@ -346,7 +345,6 @@ https://dr-docker-sessions.datacamp.com	404
 https://e.datacamp.com	404	
 https://ekscluster.ops.datacamp.com	503	503 Service Temporarily Unavailable
 https://em.datacamp.com	404	404 Not Found
-https://en.datacamp.com	404	
 https://enterprise-docs.datacamp.com	200	Introduction | Enterprise Docs
 https://enterprise.datacamp.com	302	
 https://enterprise.new.datacamp.com	404	
@@ -357,13 +355,14 @@ https://explorables.datacamp.com	404	404 Not Found
 https://explore.datacamp.com	404	
 https://fonts.datacamp.com	404	404 Not Found
 https://fr.datacamp.com	404	
-https://games.datacamp.com	404	
 https://gamification-api.datacamp.com	404	
 https://go2.datacamp.com	200	404 - Page not found
 https://grc.it.datacamp.com	503	503 Service Temporarily Unavailable
+https://grc2go.datacamp.com	404	
 https://gsstm.datacamp.com	400	
-https://h6.datacamp.com	404	
-https://h7.datacamp.com	404	
+https://h4.datacamp.com	404	
+https://help.datacamp.com	404	
+https://hh.datacamp.com	404	
 https://home-hub.datacamp.com	200	
 https://home.it.datacamp.com	302	
 https://httpswww.datacamp.com	404	
@@ -397,11 +396,11 @@ https://llm-proxy.optima.datacamp.com	302
 https://lms-assets.datacamp.com	403	403 Forbidden
 https://lms-docs.datacamp.com	404	
 https://maintenance.datacamp.com	404	
-https://maven.datacamp.com	404	
 https://mcp-bigquery-pilot.datacamp.com	404	
 https://mcp-docs.datacamp.com	200	Introduction | MCP Docs
 https://mcp-gateway-internal.datacamp.com	404	
 https://media.datacamp.com	404	404 Not Found
+https://metamask.datacamp.com	404	
 https://mfe-import-maps.datacamp.com	404	Error: dcmfe
 https://mobile-api.datacamp.com	200	
 https://mobile-api.new.datacamp.com	404	
@@ -409,13 +408,10 @@ https://multiplexer-paid.datacamp.com	404
 https://multiplexer-prod-2.datacamp.com	404	
 https://multiplexer-prod-3.datacamp.com	404	
 https://multiplexer-prod.datacamp.com	404	
-https://music.datacamp.com	404	
 https://mvn.datacamp.com	404	
 https://mx.datacamp.com	404	
-https://myhome.datacamp.com	404	
 https://new.datacamp.com	301	
 https://next-marketing.datacamp.com	301	
-https://nn.datacamp.com	404	
 https://notifications-api.datacamp.com	200	
 https://ns1.datacamp.com	404	
 https://ns2.datacamp.com	404	
@@ -423,7 +419,6 @@ https://okta.datacamp.com	302
 https://old-waffles.datacamp.com	404	
 https://onboarding.datacamp.com	200	DataCamp Onboarding
 https://optima.datacamp.com	200	
-https://passport.datacamp.com	404	
 https://pay.datacamp.com	404	
 https://poser.datacamp.com	200	Poser
 https://practice-web.datacamp.com	200	DataCamp Practice
@@ -433,19 +428,23 @@ https://prbot.ops.datacamp.com	405
 https://project-frontend.new.datacamp.com	404	
 https://projector.datacamp.com	400	
 https://projector.new.datacamp.com	404	
+https://projects-api.new.datacamp.com	404	
 https://projects.datacamp.com	200	Projects
 https://prometheus-aggregator.datacamp.com	404	Error
 https://prometheus-aggregator.new.datacamp.com	404	Error
 https://promo.datacamp.com	302	
 https://promo.new.datacamp.com	404	
 https://pt.datacamp.com	404	
+https://pup.datacamp.com	404	
 https://purchase.datacamp.com	200	Subscribe | DataCamp
+https://pusher.datacamp.com	404	
+https://rconsole.datacamp.com	404	
 https://remote-desktop-guacamole.datacamp.com	200	DataCamp Guacamole
 https://resources.new.datacamp.com	403	
-https://resume.datacamp.com	404	
+https://rootsweb.datacamp.com	404	
 https://rstudio-server.datacamp.com	404	
 https://sandbox.datacamp.com	404	
-https://session-server.datacamp.com	404	
+https://server.datacamp.com	404	
 https://sessions-eu-central-1.datacamp.com	404	
 https://sessions-us-east-1.datacamp.com	404	
 https://sessions.datacamp.com	404	
@@ -465,7 +464,6 @@ https://smtp.datacamp.com	404
 https://spreadsheets.datacamp.com	200	Spreadsheets
 https://spreadsheets.new.datacamp.com	404	
 https://staging.datacamp.com	404	
-https://static.new.datacamp.com	404	
 https://stats.datacamp.com	404	
 https://status.datacamp.com	200	DataCamp Status
 https://stg.optima.datacamp.com	200	
@@ -478,7 +476,6 @@ https://tableau-api.datacamp.com	404
 https://teach-browser.datacamp.com	200	Teach Browser
 https://teach.datacamp.com	302	
 https://tech.datacamp.com	404	
-https://terraform-apply.datacamp.com	404	
 https://timetracker.datacamp.com	404	
 https://timetracker.new.datacamp.com	404	
 https://track.pro.datacamp.com	200	Custom domain check
@@ -490,7 +487,6 @@ https://varnish.datacamp.com	404
 https://videos.datacamp.com	404	404 Not Found
 https://waffles-next.datacamp.com	301	
 https://waffles.datacamp.com	200	
-https://web.datacamp.com	404	
 https://wildcard.datacamp.com	404	
 https://wildcard.new.datacamp.com	404	
 https://wildcard.ops.datacamp.com	503	503 Service Temporarily Unavailable
@@ -501,7 +497,9 @@ https://www.datacamp.com	403	Just a moment...
 https://www.new.datacamp.com	404	
 https://www2.datacamp.com	302	
 https://www2s.datacamp.com	404	
+https://www2u.datacamp.com	404	
 https://www4b.datacamp.com	404	
+https://www5d.datacamp.com	404	
 https://www7a.datacamp.com	404	
 https://wwww.datacamp.com	404	
 https://z28rg4x8kh99-workspace-sessions.datacamp.com	404	
