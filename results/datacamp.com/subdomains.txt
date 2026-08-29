@@ -136,6 +136,7 @@ edge.cms.datacamp.com
 edge.links.datacamp.com
 ekscluster.ops.datacamp.com
 em.datacamp.com
+en.datacamp.com
 engineering-portal-new.ops.datacamp.com
 engineering-portal.ops.datacamp.com
 enterprise-docs.datacamp.com
@@ -222,7 +223,6 @@ int.learn-hub-api.datacamp.com
 intranet.datacamp.com
 jupyter-static.datacamp.com
 jupyterhub.datacamp.com
-k2.datacamp.com
 k3.datacamp.com
 k8s.ai-tutor.datacamp.com
 k8s.campus-api.datacamp.com
@@ -268,6 +268,7 @@ mail1.careerhub-api.datacamp.com
 mail2.campus-api.datacamp.com
 mail2.compliancy.datacamp.com
 mail2.dcmfe.datacamp.com
+maintenance.datacamp.com
 maven.datacamp.com
 mb.datacamp.com
 mcp-bigquery-pilot.datacamp.com
@@ -282,6 +283,7 @@ mobile-api.datacamp.com
 mobile-api.new.datacamp.com
 monitor.ai-api.datacamp.com
 multiplexer-paid.datacamp.com
+multiplexer-prod-3.datacamp.com
 multiplexer-prod.datacamp.com
 multiplexer.datacamp.com
 music.datacamp.com
@@ -334,6 +336,7 @@ owa.campus-api.datacamp.com
 owa.content-authorization.datacamp.com
 owa.gsstm.datacamp.com
 passport.datacamp.com
+pay.datacamp.com
 pieter.ops.datacamp.com
 poc-next-marketing-app.datacamp.com
 pop.auth.datacamp.com
@@ -359,8 +362,6 @@ prod.links.datacamp.com
 project-frontend.new.datacamp.com
 projector.datacamp.com
 projector.new.datacamp.com
-projects-api.datacamp.com
-projects-api.new.datacamp.com
 projects.datacamp.com
 prometheus-aggregator.datacamp.com
 prometheus-aggregator.new.datacamp.com
@@ -383,6 +384,7 @@ public.learn-hub-api.datacamp.com
 purchase.datacamp.com
 rconsole-backup.datacamp.com
 resources.new.datacamp.com
+resume.datacamp.com
 rstudio-server.datacamp.com
 s.datacamp.com
 s3.assets.datacamp.com
@@ -463,6 +465,7 @@ support.cms.datacamp.com
 support.collab-api.datacamp.com
 support.datacamp.com
 support.gamification-api.datacamp.com
+symposium.datacamp.com
 system-check.datacamp.com
 tableau-api.datacamp.com
 teach-browser.datacamp.com
@@ -543,10 +546,12 @@ www.datacamp.com
 www.gsstm.datacamp.com
 www.linkedin.datacamp.com
 www.links.datacamp.com
+www.multiplexer-paid-m5.new.datacamp.com
 www.new.datacamp.com
 www2.datacamp.com
 www5b.datacamp.com
 www5c.datacamp.com
 www5f.datacamp.com
+www7a.datacamp.com
 wwww.datacamp.com
 z28rg4x8kh99-workspace-sessions.datacamp.com
