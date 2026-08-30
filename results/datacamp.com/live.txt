@@ -90,6 +90,7 @@ http://go.cms.datacamp.com	404
 http://grafana.ai-tutor.datacamp.com	404	
 http://grafana.collab-api.datacamp.com	404	
 http://grafana.compliancy.datacamp.com	404	
+http://groups.datacamp.com	302	302 Moved
 http://help.campus-api.datacamp.com	404	
 http://help.compliancy.datacamp.com	404	
 http://hub.auth.datacamp.com	404	
@@ -190,10 +191,15 @@ http://secure.content-authorization.datacamp.com	404
 http://secure.kong.datacamp.com	530	
 http://shop.ai-tutor.datacamp.com	404	
 http://shop.compliancy.datacamp.com	404	
+http://smtp.home-hub.datacamp.com	404	
 http://smtp.learn-hub-api.datacamp.com	404	
 http://smtp.links.datacamp.com	404	
+http://sql.ai-tutor.datacamp.com	404	
 http://sql.app.datacamp.com	404	
+http://sql.compliancy.datacamp.com	404	
 http://sql.links.datacamp.com	404	
+http://staging.collab-api.datacamp.com	404	
+http://staging.datacamp.com	404	
 http://staging.gsstm.datacamp.com	404	
 http://staging.links.datacamp.com	404	
 http://static.campus-api.datacamp.com	404	
@@ -265,15 +271,16 @@ http://www.compliancy.datacamp.com	404
 http://www.dev.datacamp.com	404	
 http://www.documents.datacamp.com	404	
 http://www.gsstm.datacamp.com	404	
+http://www.linkedin.datacamp.com	404	
 http://www.links.datacamp.com	404	
-http://www.maintenance.datacamp.com	404	
-http://www.multiplexer-paid-m5.new.datacamp.com	404	
 http://www.multiplexer-paid.new.datacamp.com	404	
 https://1www.datacamp.com	404	
+https://admin.datacamp.com	404	
 https://ai-api-admin.datacamp.com	200	AI API Admin
 https://ai-api.datacamp.com	404	
 https://ai-tutor.datacamp.com	200	
 https://alm.ops.datacamp.com	404	Not Found
+https://amatanet.datacamp.com	404	
 https://app.datacamp.com	302	
 https://artifactory-proxy-public.ops.datacamp.com	200	JFrog
 https://assessment-api.datacamp.com	200	
@@ -325,8 +332,6 @@ https://content-authorization.datacamp.com	404	Error
 https://content-n8n-hosting.datacamp.com	200	n8n.io - Workflow Automation
 https://content.datacamp.com	404	
 https://corona88.datacamp.com	404	
-https://cp.datacamp.com	404	
-https://cse.datacamp.com	404	
 https://dashboard.datacamp.com	404	
 https://dashboards-external.datacamp.com	404	
 https://dashboards.datacamp.com	404	
@@ -352,6 +357,7 @@ https://enterprise.new.datacamp.com	404
 https://es.datacamp.com	404	
 https://events.datacamp.com	200	DataCamp Production
 https://evt.optima.datacamp.com	403	403 Forbidden
+https://excel-api.datacamp.com	404	
 https://explorables.datacamp.com	404	404 Not Found
 https://explorables.new.datacamp.com	404	
 https://explore.datacamp.com	404	
@@ -359,19 +365,21 @@ https://feeds.datacamp.com	404
 https://fonts.datacamp.com	404	404 Not Found
 https://fr.datacamp.com	404	
 https://gamification-api.datacamp.com	404	
+https://go2.datacamp.com	200	404 - Page not found
 https://grc.it.datacamp.com	503	503 Service Temporarily Unavailable
 https://grc2go.datacamp.com	404	
 https://gsstm.datacamp.com	400	
+https://h3.datacamp.com	404	
 https://h4.datacamp.com	404	
 https://help.datacamp.com	404	
 https://hh.datacamp.com	404	
 https://home-hub.datacamp.com	200	
 https://home.it.datacamp.com	302	
-https://httpswww.datacamp.com	404	
 https://i.datacamp.com	404	
 https://image-management-service-dev.datacamp.com	404	
 https://image-management-service.datacamp.com	404	
 https://images.datacamp.com	301	
+https://imb.datacamp.com	404	
 https://infolab.datacamp.com	404	
 https://informatik.datacamp.com	404	
 https://infra-reporter.datacamp.com	404	
@@ -400,7 +408,6 @@ https://links.datacamp.com	404
 https://llm-proxy.optima.datacamp.com	302	
 https://lms-assets.datacamp.com	403	403 Forbidden
 https://lms-docs.datacamp.com	404	
-https://maintenance.datacamp.com	404	
 https://mcp-bigquery-pilot.datacamp.com	404	
 https://mcp-docs.datacamp.com	200	Introduction | MCP Docs
 https://mcp-gateway-internal.datacamp.com	404	
@@ -411,8 +418,8 @@ https://mobile-api.datacamp.com	200
 https://mobile-api.new.datacamp.com	404	
 https://multiplexer-paid.datacamp.com	404	
 https://multiplexer-prod-2.datacamp.com	404	
-https://multiplexer-prod-3.datacamp.com	404	
 https://multiplexer-prod.datacamp.com	404	
+https://mvn.datacamp.com	404	
 https://mx.datacamp.com	404	
 https://new.datacamp.com	301	
 https://next-marketing.datacamp.com	301	
@@ -424,6 +431,7 @@ https://old-waffles.datacamp.com	404
 https://onboarding.datacamp.com	200	DataCamp Onboarding
 https://optima.datacamp.com	200	
 https://poser.datacamp.com	200	Poser
+https://pp.datacamp.com	404	
 https://practice-web.datacamp.com	200	DataCamp Practice
 https://practice-web.new.datacamp.com	404	
 https://practice.datacamp.com	200	DataCamp Practice
@@ -466,8 +474,8 @@ https://slack-global.datacamp.com	503	Application Error
 https://slack-usa.datacamp.com	503	Application Error
 https://slides.datacamp.com	403	
 https://smtp.datacamp.com	404	
+https://spreadsheets.datacamp.com	200	Spreadsheets
 https://spreadsheets.new.datacamp.com	404	
-https://staging.datacamp.com	404	
 https://static.new.datacamp.com	404	
 https://stats.datacamp.com	404	
 https://status.datacamp.com	200	DataCamp Status
@@ -500,9 +508,7 @@ https://workspace.datacamp.com	302	302 Found
 https://www.datacamp.com	403	Just a moment...
 https://www.new.datacamp.com	404	
 https://www2.datacamp.com	302	
-https://www2s.datacamp.com	404	
 https://www2u.datacamp.com	404	
-https://www4b.datacamp.com	404	
 https://www5d.datacamp.com	404	
 https://www7b.datacamp.com	404	
 https://wwww.datacamp.com	404	
