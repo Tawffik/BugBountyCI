@@ -1,4 +1,6 @@
-bip.datacamp.com
-multiplexer-paid-m5.new.datacamp.com
-users.datacamp.com
-www.styleguide-assets.datacamp.com
+coding-exercise-api.datacamp.com
+kk.datacamp.com
+members.datacamp.com
+multiplexer-paid.new.datacamp.com
+search.datacamp.com
+xroads.datacamp.com
