@@ -96,8 +96,6 @@ content-authorization.datacamp.com
 content-n8n-hosting.datacamp.com
 content.datacamp.com
 corona88.datacamp.com
-cp.datacamp.com
-cse.datacamp.com
 dashboard.datacamp.com
 dashboards-external.datacamp.com
 dashboards.datacamp.com
@@ -160,6 +158,7 @@ files.links.datacamp.com
 fonts.datacamp.com
 forum.cms.datacamp.com
 forum.collab-api.datacamp.com
+forum.datacamp.com
 forum.learn-hub-api.datacamp.com
 fr.datacamp.com
 ftp.auth.datacamp.com
@@ -196,10 +195,12 @@ help.compliancy.datacamp.com
 hh.datacamp.com
 home-hub.datacamp.com
 home.it.datacamp.com
-httpswww.datacamp.com
+homepage1.datacamp.com
+homepage2.datacamp.com
 hub.auth.datacamp.com
 hub.compliancy.datacamp.com
 hub.content-authorization.datacamp.com
+iimahd.datacamp.com
 image-management-service-dev.datacamp.com
 image-management-service.datacamp.com
 images.auth.datacamp.com
@@ -226,7 +227,6 @@ int.learn-hub-api.datacamp.com
 intranet.datacamp.com
 jupyter-static.datacamp.com
 jupyterhub.datacamp.com
-k2.datacamp.com
 k8s.ai-tutor.datacamp.com
 k8s.campus-api.datacamp.com
 k8s.links.datacamp.com
@@ -360,7 +360,6 @@ prod.links.datacamp.com
 project-frontend.new.datacamp.com
 projector.datacamp.com
 projector.new.datacamp.com
-projects-api.datacamp.com
 projects-api.new.datacamp.com
 projects.datacamp.com
 prometheus-aggregator.datacamp.com
@@ -487,6 +486,7 @@ track.pro.datacamp.com
 tracking-ads.datacamp.com
 trust.datacamp.com
 uc.datacamp.com
+uni.datacamp.com
 upload.content-authorization.datacamp.com
 upload.gamification-api.datacamp.com
 upsell.datacamp.com
