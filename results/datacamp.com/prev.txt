@@ -262,6 +262,7 @@ live.compliancy.datacamp.com
 llm-proxy.optima.datacamp.com
 lms-assets.datacamp.com
 lms-docs.datacamp.com
+local.datacamp.com
 login.collab-api.datacamp.com
 m.cdn.datacamp.com
 m.compliancy.datacamp.com
@@ -540,13 +541,11 @@ www.dev.datacamp.com
 www.documents.datacamp.com
 www.gsstm.datacamp.com
 www.links.datacamp.com
-www.maintenance.datacamp.com
 www.multiplexer-paid.new.datacamp.com
 www.new.datacamp.com
 www.styleguide-assets.datacamp.com
+www.videos.datacamp.com
 www2.datacamp.com
-www2s.datacamp.com
-www4b.datacamp.com
 www5d.datacamp.com
 wwww.datacamp.com
 xroads.datacamp.com

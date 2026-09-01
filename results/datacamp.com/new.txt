@@ -1,5 +1,2 @@
-forum.datacamp.com
-homepage1.datacamp.com
-homepage2.datacamp.com
-iimahd.datacamp.com
-uni.datacamp.com
+local.datacamp.com
+www.videos.datacamp.com
