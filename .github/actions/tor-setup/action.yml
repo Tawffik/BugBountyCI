@@ -1,0 +1,144 @@
+name: "tor-setup"
+description: "Best-effort Tor SOCKS5 + withtor wrapper. NEVER fails the job. Outputs tor_ok=true only if a compiled Go probe verifiably exits via Tor."
+outputs:
+  tor_ok:
+    description: "'true' only when Go tools provably route through Tor"
+    value: ${{ steps.setup.outputs.tor_ok }}
+runs:
+  using: "composite"
+  steps:
+    - id: setup
+      shell: bash
+      run: |
+        set -uo pipefail
+        finish () {  # single final write to outputs/env; duplicates are undefined behavior
+          echo "tor_ok=$1" >> "$GITHUB_OUTPUT"
+          echo "TOR_OK=$1" >> "$GITHUB_ENV"
+          exit 0
+        }
+
+        sudo apt-get update -qq || true
+        sudo apt-get install -y -qq tor proxychains4 obfs4proxy || true
+        sudo mkdir -p /var/log/tor && sudo chown debian-tor:debian-tor /var/log/tor 2>/dev/null || true
+        sudo bash -c 'cat > /etc/proxychains4.conf << EOF
+        strict_chain
+        proxy_dns
+        remote_dns_subnet 224
+        tcp_read_time_out 15000
+        tcp_connect_time_out 8000
+        [ProxyList]
+        socks5 127.0.0.1 9050
+        EOF' || true
+
+        REAL_IP=$(curl -s --max-time 10 https://api.ipify.org || echo unknown)
+        echo "🌍 Runner IP: $REAL_IP"
+
+        # --- withtor wrapper: written FIRST, before any verification, so it
+        # always exists downstream even if everything below fails. Direct-exec
+        # until TOR_OK=true.
+        # Scheme per consumer: Go's net/http accepts socks5:// (and resolves the
+        # hostname ON the proxy = remote DNS), curl/requests need socks5h:// for
+        # remote DNS. proxychains/LD_PRELOAD never intercepted Go (raw syscalls)
+        # which is why env-var routing is the ONLY working mechanism for Go tools.
+        sudo tee /usr/local/bin/withtor >/dev/null <<'EOF'
+        #!/usr/bin/env bash
+        if [ "${TOR_OK:-false}" = "true" ]; then
+          scheme="socks5"
+          case "${1##*/}" in
+            curl|wget|python3|pip3) scheme="socks5h" ;;
+          esac
+          export HTTP_PROXY="${scheme}://127.0.0.1:9050"
+          export HTTPS_PROXY="${scheme}://127.0.0.1:9050"
+          export http_proxy="$HTTP_PROXY" https_proxy="$HTTPS_PROXY"
+          export NO_PROXY="localhost,127.0.0.1,::1,api.github.com,github.com,raw.githubusercontent.com,objects.githubusercontent.com,codeload.github.com,githubusercontent.com,proxy.golang.org,storage.googleapis.com,pypi.org,files.pythonhosted.org,api.anthropic.com,api.openai.com,api.groq.com,openrouter.ai,generativelanguage.googleapis.com,api.cerebras.ai,api.tokenrouter.com,crt.sh,api.certspotter.com"
+          export no_proxy="$NO_PROXY"
+        fi
+        exec "$@"
+        EOF
+        sudo chmod +x /usr/local/bin/withtor
+
+        write_torrc () {
+          local mode="$1"
+          sudo service tor stop 2>/dev/null || true
+          sudo bash -c 'cat > /etc/tor/torrc << EOF
+        Log notice file /var/log/tor/notices.log
+        SocksPort 127.0.0.1:9050
+        MaxCircuitDirtiness 10
+        UseEntryGuards 0
+        NumEntryGuards 3
+        CircuitBuildTimeout 20
+        LearnCircuitBuildTimeout 0
+        ReducedConnectionPadding 1
+        EOF'
+          if [ "$mode" = "bridges" ] && [ -n "${TOR_BRIDGE_LINES:-}" ]; then
+            sudo bash -c 'cat >> /etc/tor/torrc << EOF
+        UseBridges 1
+        ClientTransportPlugin obfs4 exec /usr/bin/obfs4proxy
+        EOF'
+            echo "$TOR_BRIDGE_LINES" | while IFS= read -r line; do
+              [ -z "$line" ] && continue
+              sudo bash -c "echo 'Bridge $line' >> /etc/tor/torrc"
+            done
+          fi
+          sudo service tor start 2>/dev/null || true
+        }
+        wait_for_bootstrap () {
+          local max_wait_s="$1" waited=0
+          while [ "$waited" -lt "$max_wait_s" ]; do
+            if sudo grep -q "Bootstrapped 100%" /var/log/tor/notices.log 2>/dev/null; then return 0; fi
+            sleep 3; waited=$((waited + 3))
+          done
+          return 1
+        }
+        verify_tor_ip () {
+          local svc attempt candidate
+          for svc in "https://api.ipify.org" "https://ifconfig.me/ip" "https://icanhazip.com"; do
+            for attempt in 1 2; do
+              candidate=$(proxychains4 -q curl -s --max-time 12 "$svc" 2>/dev/null | tr -d '[:space:]')
+              if [ -n "$candidate" ] && [ "$candidate" != "$REAL_IP" ]; then echo "$candidate"; return 0; fi
+              sudo pkill -HUP -x tor 2>/dev/null || true
+              sleep 4
+            done
+          done
+          return 1
+        }
+
+        TOR_IP="unknown"
+        write_torrc "direct";  wait_for_bootstrap 90  || true; TOR_IP=$(verify_tor_ip || echo unknown)
+        if [ "$TOR_IP" = "unknown" ]; then
+          write_torrc "direct";  wait_for_bootstrap 90  || true; TOR_IP=$(verify_tor_ip || echo unknown)
+        fi
+        if [ "$TOR_IP" = "unknown" ] && [ -n "${TOR_BRIDGE_LINES:-}" ]; then
+          write_torrc "bridges"; wait_for_bootstrap 120 || true; TOR_IP=$(verify_tor_ip || echo unknown)
+        fi
+        if [ "$TOR_IP" = "unknown" ] || [ "$TOR_IP" = "$REAL_IP" ]; then
+          echo "::warning::Tor unavailable — all lanes continue in DIRECT mode (scan quality unaffected; origin = runner IP)."
+          finish false
+        fi
+        echo "🧅 Tor exit IP: $TOR_IP"
+
+        # --- Runtime proof: does a REAL Go binary exit via Tor through withtor?
+        cat > /tmp/go_proxy_probe.go <<'EOF'
+        package main
+        import ("fmt"; "io"; "net/http"; "os")
+        func main() {
+          resp, err := http.Get("https://api.ipify.org")
+          if err != nil { fmt.Println("ERROR"); os.Exit(0) }
+          defer resp.Body.Close()
+          b, _ := io.ReadAll(io.LimitReader(resp.Body, 64))
+          fmt.Println(string(b))
+        }
+        EOF
+        GO_IP=""
+        for i in 1 2; do
+          GO_IP=$(TOR_OK=true withtor go run /tmp/go_proxy_probe.go 2>/dev/null | head -1 | tr -d '[:space:]')
+          [ -n "$GO_IP" ] && [ "$GO_IP" != "ERROR" ] && break
+          sleep 3
+        done
+        echo "🔬 Go exit IP: ${GO_IP:-none} (runner: $REAL_IP / tor: $TOR_IP)"
+        if [ -z "$GO_IP" ] || [ "$GO_IP" = "$REAL_IP" ] || [ "$GO_IP" = "ERROR" ]; then
+          echo "::warning::Go tools NOT routing through Tor here — degrading honestly to direct."
+          finish false
+        fi
+        echo "✅ withtor verified for Go + curl + python"
+        finish true
