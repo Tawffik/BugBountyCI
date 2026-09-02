@@ -195,14 +195,21 @@ http://smtp.learn-hub-api.datacamp.com	404
 http://smtp.links.datacamp.com	404	
 http://sql.ai-tutor.datacamp.com	404	
 http://sql.app.datacamp.com	404	
+http://sql.compliancy.datacamp.com	404	
 http://sql.links.datacamp.com	404	
 http://staging.collab-api.datacamp.com	404	
+http://staging.datacamp.com	404	
 http://staging.gsstm.datacamp.com	404	
+http://staging.links.datacamp.com	404	
+http://static.campus-api.datacamp.com	404	
+http://static.images.datacamp.com	404	
 http://stats.ai-tutor.datacamp.com	404	
+http://stats.content-authorization.datacamp.com	404	
 http://stats.learn-hub-api.datacamp.com	404	
 http://stats.links.datacamp.com	404	
 http://status.auth.datacamp.com	404	
 http://status.links.datacamp.com	404	
+http://storage.campaign-service.datacamp.com	404	
 http://storage.content-authorization.datacamp.com	404	
 http://storage.dcmfe.datacamp.com	530	
 http://storage.images.datacamp.com	404	
@@ -210,14 +217,22 @@ http://storage.links.datacamp.com	404
 http://store.compliancy.datacamp.com	404	
 http://store.gamification-api.datacamp.com	404	
 http://store.links.datacamp.com	404	
-http://styleguide.datacamp.com	404	
+http://styleguide-assets.datacamp.com	404	404 Not Found
 http://support.auth.datacamp.com	404	
+http://support.campus-api.datacamp.com	404	
+http://support.careerhub-api.datacamp.com	404	
+http://support.cms.datacamp.com	404	
 http://support.collab-api.datacamp.com	404	
+http://support.gamification-api.datacamp.com	404	
+http://test.campaign-service.datacamp.com	404	
 http://test.compliance.datacamp.com	404	
 http://test.gsstm.datacamp.com	404	
+http://test.learn-hub-api.datacamp.com	404	
+http://track.campaign-service.datacamp.com	404	
 http://track.collab-api.datacamp.com	404	
 http://track.images.datacamp.com	404	
 http://upload.content-authorization.datacamp.com	404	
+http://upload.gamification-api.datacamp.com	404	
 http://v1.app.datacamp.com	404	
 http://v1.auth.datacamp.com	404	
 http://v1.collab-api.datacamp.com	404	
@@ -225,6 +240,8 @@ http://v2.learn-hub-api.datacamp.com	404
 http://v3.cms.datacamp.com	404	
 http://v3.learn-hub-api.datacamp.com	404	
 http://video.compliancy.datacamp.com	404	
+http://video.links.datacamp.com	404	
+http://vpn.ai-api.datacamp.com	404	
 http://vpn.auth.datacamp.com	404	
 http://vpn.campus-api.datacamp.com	404	
 http://vpn.content-authorization.datacamp.com	404	
@@ -234,24 +251,35 @@ http://web.links.datacamp.com	404
 http://webmail.careerhub-api.datacamp.com	404	
 http://webmail.kong.datacamp.com	530	
 http://wiki.campus-api.datacamp.com	404	
+http://wiki.cdn.datacamp.com	530	
+http://wiki.cms.datacamp.com	404	
+http://wiki.compliancy.datacamp.com	404	
+http://wiki.learn-hub-api.datacamp.com	404	
 http://wildcard.de.datacamp.com	404	
 http://wildcard.es.datacamp.com	404	
+http://wildcard.fr.datacamp.com	404	
 http://wildcard.learn.datacamp.com	404	
 http://wildcard.pt.datacamp.com	404	
 http://ww1.dcmfe.datacamp.com	530	
 http://ww2.cdn.datacamp.com	530	
 http://www.ai-tutor.datacamp.com	404	
+http://www.campus.datacamp.com	530	
 http://www.collab-api.datacamp.com	404	
+http://www.compliancy.datacamp.com	404	
 http://www.documents.datacamp.com	404	
 http://www.gsstm.datacamp.com	404	
-http://www.multiplexer-paid.new.datacamp.com	404	
+http://www.links.datacamp.com	404	
+http://www.multiplexer-vinci.new.datacamp.com	404	
+http://www.projector.new.datacamp.com	404	
+http://www.styleguide-assets.datacamp.com	530	
+http://www.support.datacamp.com	404	
 http://www.videos.datacamp.com	530	
-https://1www.datacamp.com	404	
 https://ai-api-admin.datacamp.com	200	AI API Admin
 https://ai-api.datacamp.com	404	
 https://ai-tutor.datacamp.com	200	
 https://alm.ops.datacamp.com	404	Not Found
 https://amatanet.datacamp.com	404	
+https://api.datacamp.com	404	
 https://app.datacamp.com	302	
 https://artifactory-proxy-public.ops.datacamp.com	200	JFrog
 https://assessment-api.datacamp.com	200	
@@ -334,11 +362,9 @@ https://fr.datacamp.com	404
 https://gamification-api.datacamp.com	404	
 https://go2.datacamp.com	200	404 - Page not found
 https://grc.it.datacamp.com	503	503 Service Temporarily Unavailable
-https://grc2go.datacamp.com	404	
 https://gsstm.datacamp.com	400	
-https://h4.datacamp.com	404	
-https://hh.datacamp.com	404	
 https://home-hub.datacamp.com	200	
+https://home.datacamp.com	404	
 https://home.it.datacamp.com	302	
 https://homepage1.datacamp.com	404	
 https://homepage2.datacamp.com	404	
@@ -363,6 +389,7 @@ https://kubecost-app-cluster.datacamp.com	404
 https://kubecost-learn-multiplexer.datacamp.com	404	
 https://kubecost-prom-app-cluster.datacamp.com	404	
 https://kubecost-prom-learn-multiplexer.datacamp.com	404	
+https://learn-api.datacamp.com	404	
 https://learn-docker-proxy.datacamp.com	403	
 https://learn-hub-api.datacamp.com	401	
 https://learn-mux-cluster-proxy.datacamp.com	403	
@@ -375,6 +402,7 @@ https://llm-proxy.optima.datacamp.com	302
 https://lms-assets.datacamp.com	403	403 Forbidden
 https://lms-docs.datacamp.com	404	
 https://local.datacamp.com	404	
+https://math.datacamp.com	404	
 https://mcp-bigquery-pilot.datacamp.com	404	
 https://mcp-docs.datacamp.com	200	Introduction | MCP Docs
 https://mcp-gateway-internal.datacamp.com	404	
@@ -386,7 +414,7 @@ https://mobile-api.new.datacamp.com	404
 https://multiplexer-paid-m5.new.datacamp.com	503	503 Service Temporarily Unavailable
 https://multiplexer-paid.datacamp.com	404	
 https://multiplexer-paid.new.datacamp.com	503	503 Service Temporarily Unavailable
-https://multiplexer-prod-2.datacamp.com	404	
+https://multiplexer-prod-einstein.datacamp.com	404	
 https://multiplexer-prod.datacamp.com	404	
 https://mvn.datacamp.com	404	
 https://mx.datacamp.com	404	
@@ -415,16 +443,13 @@ https://prometheus-aggregator.new.datacamp.com	404	Error
 https://promo.datacamp.com	302	
 https://promo.new.datacamp.com	404	
 https://pt.datacamp.com	404	
-https://pup.datacamp.com	404	
 https://purchase.datacamp.com	200	Subscribe | DataCamp
-https://pusher.datacamp.com	404	
 https://remote-desktop-guacamole.datacamp.com	200	DataCamp Guacamole
 https://resources.new.datacamp.com	403	
 https://rstudio-server.datacamp.com	404	
 https://sandbox.datacamp.com	404	
 https://search.datacamp.com	404	
 https://secure.datacamp.com	404	
-https://server.datacamp.com	404	
 https://sessions-eu-central-1.datacamp.com	404	
 https://sessions-us-east-1.datacamp.com	404	
 https://sessions.datacamp.com	404	
@@ -437,31 +462,50 @@ https://sitemap.datacamp.com	200
 https://skill-assessment-frontend-v2.new.datacamp.com	200	Skill Assessment
 https://skill-audit.datacamp.com	307	
 https://sl.datacamp.com	204	
+https://slack-global.datacamp.com	503	Application Error
 https://slack-usa.datacamp.com	503	Application Error
 https://slides.datacamp.com	403	
 https://smtp.datacamp.com	404	
 https://spreadsheets.datacamp.com	200	Spreadsheets
 https://spreadsheets.new.datacamp.com	404	
-https://staging.datacamp.com	404	
 https://static.new.datacamp.com	404	
 https://stats.datacamp.com	404	
+https://status.datacamp.com	200	DataCamp Status
 https://stg.optima.datacamp.com	200	
 https://storage.datacamp.com	404	
 https://strapi.datacamp.com	404	
+https://styleguide.datacamp.com	404	
 https://support.datacamp.com	302	
 https://system-check.datacamp.com	200	System Check
 https://tableau-api.datacamp.com	404	
 https://teach-browser.datacamp.com	200	Teach Browser
 https://teach.datacamp.com	302	
+https://tech.datacamp.com	404	
+https://timetracker.datacamp.com	404	
 https://timetracker.new.datacamp.com	404	
+https://track.datacamp.com	404	
 https://track.pro.datacamp.com	200	Custom domain check
+https://tracking-ads.datacamp.com	200	DataCamp Ads
+https://trust.datacamp.com	200	DataCamp Trust Center
+https://uc.datacamp.com	404	404
+https://um.datacamp.com	404	
+https://uni.datacamp.com	404	
 https://upsell.datacamp.com	404	
+https://users.datacamp.com	404	
 https://varnish.datacamp.com	404	
+https://videos.datacamp.com	404	404 Not Found
+https://waffles-next.datacamp.com	301	
 https://waffles.datacamp.com	200	
+https://wenku.datacamp.com	404	
+https://wildcard.datacamp.com	404	
+https://wildcard.new.datacamp.com	404	
 https://wildcard.ops.datacamp.com	503	503 Service Temporarily Unavailable
 https://workspace-docs.datacamp.com	400	
+https://workspace-sessions.datacamp.com	404	
 https://workspace.datacamp.com	302	302 Found
+https://www.datacamp.com	403	Just a moment...
 https://www.new.datacamp.com	404	
-https://www5d.datacamp.com	404	
+https://www2.datacamp.com	302	
 https://wwww.datacamp.com	404	
+https://xroads.datacamp.com	404	
 https://z28rg4x8kh99-workspace-sessions.datacamp.com	404	
