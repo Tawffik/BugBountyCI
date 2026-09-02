@@ -1,2 +1,1 @@
-local.datacamp.com
-www.videos.datacamp.com
+projector-subtitles.datacamp.com

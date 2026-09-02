@@ -47,7 +47,6 @@ blog.datacamp.com
 blog.kong.datacamp.com
 blog.new.datacamp.com
 bokeh-server.datacamp.com
-bookmarks.datacamp.com
 boro.datacamp.com
 bounce.datacamp.com
 campaign-service.datacamp.com
@@ -282,7 +281,6 @@ media.content-authorization.datacamp.com
 media.datacamp.com
 media.links.datacamp.com
 members.datacamp.com
-metamask.datacamp.com
 mfe-import-maps.datacamp.com
 mobile-api.datacamp.com
 mobile-api.new.datacamp.com
@@ -359,6 +357,7 @@ prod.cms.datacamp.com
 prod.gsstm.datacamp.com
 prod.links.datacamp.com
 project-frontend.new.datacamp.com
+projector-subtitles.datacamp.com
 projector.datacamp.com
 projector.new.datacamp.com
 projects-api.new.datacamp.com
