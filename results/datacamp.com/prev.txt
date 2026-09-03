@@ -11,7 +11,6 @@ alpha.campus.datacamp.com
 alpha.compliancy.datacamp.com
 alpha.content-authorization.datacamp.com
 alpha.images.datacamp.com
-amatanet.datacamp.com
 analytics.links.datacamp.com
 api.ai-tutor.datacamp.com
 api.datacamp.com
@@ -83,6 +82,7 @@ coding-exercise-api.new.datacamp.com
 collab-api.datacamp.com
 collab-cdn.datacamp.com
 collab-sessions-blue.datacamp.com
+com.datacamp.com
 community.datacamp.com
 competitions-app.datacamp.com
 compliance.datacamp.com
@@ -179,7 +179,6 @@ gitlab.cms.datacamp.com
 gitlab.links.datacamp.com
 go.careerhub-api.datacamp.com
 go.cms.datacamp.com
-go2.datacamp.com
 grafana-ops-us-east-1.ops.datacamp.com
 grafana.ai-tutor.datacamp.com
 grafana.collab-api.datacamp.com
@@ -194,6 +193,7 @@ home.datacamp.com
 home.it.datacamp.com
 homepage1.datacamp.com
 homepage2.datacamp.com
+homepage3.datacamp.com
 hub.auth.datacamp.com
 hub.compliancy.datacamp.com
 hub.content-authorization.datacamp.com
@@ -238,6 +238,7 @@ kong-internal.datacamp.com
 kong-internal.new.datacamp.com
 kong.datacamp.com
 kong.new.datacamp.com
+ku1720.datacamp.com
 kubecost-app-cluster.datacamp.com
 kubecost-learn-multiplexer.datacamp.com
 kubecost-ops-us-east-1.ops.datacamp.com
@@ -254,6 +255,7 @@ learner-hub-static.datacamp.com
 learnpython-ads.datacamp.com
 learnsqlonline-ads.datacamp.com
 light.datacamp.com
+linkedin.datacamp.com
 links.datacamp.com
 live.careerhub-api.datacamp.com
 live.compliancy.datacamp.com
@@ -290,7 +292,6 @@ multiplexer-paid.datacamp.com
 multiplexer-paid.new.datacamp.com
 multiplexer-prod-einstein.datacamp.com
 multiplexer-prod.datacamp.com
-mvn.datacamp.com
 mx.campus-api.datacamp.com
 mx.collab-api.datacamp.com
 mx.compliancy.datacamp.com
@@ -305,6 +306,7 @@ new.datacamp.com
 news.ai-tutor.datacamp.com
 news.auth.datacamp.com
 news.collab-api.datacamp.com
+news.datacamp.com
 news.links.datacamp.com
 next-marketing.datacamp.com
 notifications-api.datacamp.com
@@ -371,7 +373,6 @@ prometheus.ops.datacamp.com
 promo.datacamp.com
 promo.new.datacamp.com
 pt.datacamp.com
-public-ingressgateway-learn-multiplexer.datacamp.com
 public-ingressgateway-ops.ops.datacamp.com
 public-ingressgateway-workspace-multiplexer.datacamp.com
 public-ingressgateway-workspace.datacamp.com
@@ -481,6 +482,7 @@ track.datacamp.com
 track.images.datacamp.com
 track.pro.datacamp.com
 tracking-ads.datacamp.com
+tribunale.datacamp.com
 trust.datacamp.com
 uc.datacamp.com
 um.datacamp.com
@@ -489,7 +491,6 @@ up.datacamp.com
 upload.content-authorization.datacamp.com
 upload.gamification-api.datacamp.com
 upsell.datacamp.com
-users.datacamp.com
 v1.app.datacamp.com
 v1.auth.datacamp.com
 v1.collab-api.datacamp.com
