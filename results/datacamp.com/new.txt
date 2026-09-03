@@ -1,6 +1,0 @@
-com.datacamp.com
-homepage3.datacamp.com
-ku1720.datacamp.com
-linkedin.datacamp.com
-news.datacamp.com
-tribunale.datacamp.com

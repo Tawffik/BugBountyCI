@@ -542,7 +542,6 @@ www.links.datacamp.com
 www.multiplexer-vinci.new.datacamp.com
 www.new.datacamp.com
 www.projector.new.datacamp.com
-www.styleguide-assets.datacamp.com
 www.support.datacamp.com
 www.videos.datacamp.com
 www2.datacamp.com
