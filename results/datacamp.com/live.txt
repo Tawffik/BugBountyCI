@@ -194,13 +194,9 @@ http://smtp.learn-hub-api.datacamp.com	404
 http://smtp.links.datacamp.com	404	
 http://sql.ai-tutor.datacamp.com	404	
 http://sql.app.datacamp.com	404	
-http://sql.compliancy.datacamp.com	404	
 http://sql.links.datacamp.com	404	
 http://staging.collab-api.datacamp.com	404	
 http://staging.gsstm.datacamp.com	404	
-http://staging.links.datacamp.com	404	
-http://static.campus-api.datacamp.com	404	
-http://static.images.datacamp.com	404	
 http://stats.ai-tutor.datacamp.com	404	
 http://stats.content-authorization.datacamp.com	404	
 http://stats.learn-hub-api.datacamp.com	404	
@@ -286,7 +282,6 @@ https://ast-viewer.datacamp.com	404
 https://ast-viewer.new.datacamp.com	404	
 https://auth.datacamp.com	302	
 https://authoring.datacamp.com	302	
-https://bip.datacamp.com	404	
 https://blog.datacamp.com	301	
 https://blog.new.datacamp.com	404	
 https://bokeh-server.datacamp.com	404	

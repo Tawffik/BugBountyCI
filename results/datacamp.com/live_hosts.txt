@@ -194,13 +194,9 @@ http://smtp.learn-hub-api.datacamp.com
 http://smtp.links.datacamp.com
 http://sql.ai-tutor.datacamp.com
 http://sql.app.datacamp.com
-http://sql.compliancy.datacamp.com
 http://sql.links.datacamp.com
 http://staging.collab-api.datacamp.com
 http://staging.gsstm.datacamp.com
-http://staging.links.datacamp.com
-http://static.campus-api.datacamp.com
-http://static.images.datacamp.com
 http://stats.ai-tutor.datacamp.com
 http://stats.content-authorization.datacamp.com
 http://stats.learn-hub-api.datacamp.com
@@ -286,7 +282,6 @@ https://ast-viewer.datacamp.com
 https://ast-viewer.new.datacamp.com
 https://auth.datacamp.com
 https://authoring.datacamp.com
-https://bip.datacamp.com
 https://blog.datacamp.com
 https://blog.new.datacamp.com
 https://bokeh-server.datacamp.com
