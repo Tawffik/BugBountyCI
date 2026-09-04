@@ -1,0 +1,7 @@
+ac.datacamp.com
+acp.datacamp.com
+dd.datacamp.com
+host.datacamp.com
+people.datacamp.com
+univ.datacamp.com
+www.assets.datacamp.com
