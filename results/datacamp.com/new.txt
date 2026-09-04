@@ -1,7 +1,6 @@
-ac.datacamp.com
-acp.datacamp.com
-dd.datacamp.com
-host.datacamp.com
-people.datacamp.com
-univ.datacamp.com
-www.assets.datacamp.com
+bip.datacamp.com
+kk.datacamp.com
+members.datacamp.com
+users.datacamp.com
+www.styleguide-assets.datacamp.com
+xroads.datacamp.com
