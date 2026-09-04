@@ -15,6 +15,7 @@ alpha.content-authorization.datacamp.com
 alpha.images.datacamp.com
 analytics.links.datacamp.com
 api.ai-tutor.datacamp.com
+api.datacamp.com
 app.datacamp.com
 app.links.datacamp.com
 artifactory-proxy-public.ops.datacamp.com
@@ -160,7 +161,6 @@ forum.cms.datacamp.com
 forum.collab-api.datacamp.com
 forum.datacamp.com
 forum.learn-hub-api.datacamp.com
-forums.datacamp.com
 fr.datacamp.com
 ftp.auth.datacamp.com
 ftp.campus.datacamp.com
@@ -249,6 +249,7 @@ kubecost-prom-app-cluster.datacamp.com
 kubecost-prom-learn-multiplexer.datacamp.com
 kubecost-prom-ops-us-east-1.ops.datacamp.com
 kubernetes.kong.datacamp.com
+learn-api.datacamp.com
 learn-docker-proxy.datacamp.com
 learn-hub-api.datacamp.com
 learn-mux-cluster-proxy.datacamp.com
@@ -256,7 +257,6 @@ learn.datacamp.com
 learner-hub-static.datacamp.com
 learnpython-ads.datacamp.com
 learnsqlonline-ads.datacamp.com
-light.datacamp.com
 linkedin.datacamp.com
 links.datacamp.com
 live.careerhub-api.datacamp.com
@@ -275,6 +275,7 @@ mail1.careerhub-api.datacamp.com
 mail2.campus-api.datacamp.com
 mail2.compliancy.datacamp.com
 mail2.dcmfe.datacamp.com
+math.datacamp.com
 mb.datacamp.com
 mcp-bigquery-pilot.datacamp.com
 mcp-docs.datacamp.com
@@ -363,7 +364,6 @@ prod.links.datacamp.com
 project-frontend.new.datacamp.com
 projector.datacamp.com
 projector.new.datacamp.com
-projects-api.new.datacamp.com
 projects.datacamp.com
 prometheus-aggregator.datacamp.com
 prometheus-aggregator.new.datacamp.com
@@ -485,9 +485,9 @@ tracking-ads.datacamp.com
 tribunale.datacamp.com
 trust.datacamp.com
 uc.datacamp.com
+um.datacamp.com
 uni.datacamp.com
 univ.datacamp.com
-up.datacamp.com
 upload.content-authorization.datacamp.com
 upload.gamification-api.datacamp.com
 upsell.datacamp.com
@@ -532,7 +532,6 @@ workspace-sessions.datacamp.com
 workspace.datacamp.com
 ww1.dcmfe.datacamp.com
 ww2.cdn.datacamp.com
-ww5.datacamp.com
 www.ai-tutor.datacamp.com
 www.assets.datacamp.com
 www.campus.datacamp.com
@@ -543,8 +542,8 @@ www.gsstm.datacamp.com
 www.links.datacamp.com
 www.multiplexer-vinci.new.datacamp.com
 www.new.datacamp.com
+www.projector.new.datacamp.com
 www.styleguide-assets.datacamp.com
-www.support.datacamp.com
 www.videos.datacamp.com
 www2.datacamp.com
 wwww.datacamp.com
