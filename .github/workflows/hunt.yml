@@ -1,0 +1,109 @@
+name: "🎯 Full Bug Bounty Hunt"
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Target domain (e.g., example.com)"
+        required: true
+        type: string
+      hunting_mode:
+        description: "Hunting intensity (light/normal/aggressive)"
+        required: false
+        default: "normal"
+        type: choice
+        options:
+          - light
+          - normal
+          - aggressive
+      discord_notify:
+        description: "Send Discord notification"
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      target:
+        description: "Target domain"
+        required: true
+        type: string
+      hunting_mode:
+        description: "Hunting intensity"
+        required: false
+        default: "normal"
+        type: string
+      discord_notify:
+        description: "Send Discord notification"
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  recon:
+    name: "🔍 Reconnaissance Phase"
+    uses: ./.github/workflows/recon.yml
+    with:
+      target: ${{ inputs.target }}
+  
+  scan:
+    name: "🎯 Scanning Phase"
+    needs: recon
+    uses: ./.github/workflows/scan.yml
+    with:
+      target: ${{ inputs.target }}
+  
+  chain_analysis:
+    name: "🔗 Chain Analysis"
+    needs: scan
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: "📥 Checkout Repository"
+        uses: actions/checkout@v4
+      
+      - name: "🐍 Setup Python"
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: "📦 Install Dependencies"
+        run: pip install requests
+      
+      - name: "📥 Download All Results"
+        uses: actions/download-artifact@v4
+        with:
+          pattern: '*-results-${{ github.run_id }}'
+          path: results/
+          merge-multiple: true
+      
+      - name: "🔗 Chain Correlation"
+        run: |
+          python modules/chain/correlate.py results results/chain
+      
+      - name: "📊 Generate Report"
+        run: |
+          python modules/report/generate.py results reports
+      
+      - name: "📤 Upload Final Report"
+        uses: actions/upload-artifact@v4
+        with:
+          name: final-report-${{ github.run_id }}
+          path: reports/
+          retention-days: 90
+      
+      - name: "📣 Discord Notification"
+        if: inputs.discord_notify == true
+        run: |
+          # Send notification to Discord
+          FINDING_COUNT=$(jq '.statistics.total_vulnerabilities' reports/report.json)
+          CHAINS_COUNT=$(jq '.statistics.attack_chains' reports/report.json)
+          
+          curl -X POST "${{ secrets.DISCORD_WEBHOOK }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "embeds": [{
+                "title": "🎯 Bug Bounty Hunt Complete",
+                "description": "Target: ${{ inputs.target }}\nVulnerabilities: '$FINDING_COUNT'\nAttack Chains: '$CHAINS_COUNT'",
+                "color": 5814783,
+                "footer": {"text": "BugBountyCI Modular v2"}
+              }]
+            }'
