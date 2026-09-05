@@ -1,0 +1,311 @@
+name: "Full Bug Bounty Hunt - Superdrug.com Edition"
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Target domain (e.g., superdrug.com)"
+        required: true
+        type: string
+        default: "superdrug.com"
+      mode:
+        description: "Scan mode"
+        required: false
+        default: "quick"
+        type: choice
+        options:
+          - quick
+          - full
+      discord_notify:
+        description: "Send Discord notification"
+        type: boolean
+        default: false
+
+jobs:
+  full_pipeline:
+    name: "Full Bug Bounty Pipeline - ${{ inputs.target }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    
+    steps:
+      - name: "Checkout Repository"
+        uses: actions/checkout@v4
+      
+      - name: "Setup Python 3.11"
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      
+      - name: "Install Python Dependencies"
+        run: |
+          pip install --upgrade pip
+          pip install requests pyyaml aiohttp flask cryptography
+          sudo apt-get update
+          sudo apt-get install -y jq dnsutils whois
+      
+      - name: "Setup Go 1.22"
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      
+      - name: "Install Recon Tools"
+        run: |
+          echo "Installing subfinder..."
+          go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
+          echo "Installing httpx..."
+          go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest
+          echo "Installing dnsx..."
+          go install -v github.com/projectdiscovery/dnsx/cmd/dnsx@latest
+          echo "Installing naabu..."
+          go install -v github.com/projectdiscovery/naabu/v2/cmd/naabu@latest
+          echo "Installing nuclei..."
+          go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
+          echo "Installing katana..."
+          go install -v github.com/projectdiscovery/katana/cmd/katana@latest
+          echo "Installing gau..."
+          go install github.com/lc/gau/v2/cmd/gau@latest
+          echo "Installing amass..."
+          go install -v github.com/owasp-amass/amass/v4/...@master
+          echo "All tools installed"
+          echo "$HOME/go/bin" >> $GITHUB_PATH
+      
+      - name: "Install Additional Tools"
+        run: |
+          go install github.com/tomnomnom/waybackurls@latest || true
+          pip install wafw00f || true
+        continue-on-error: true
+      
+      - name: "Update Nuclei Templates"
+        run: nuclei -update-templates -silent 2>&1 || true
+        continue-on-error: true
+      
+      - name: "Verify Tool Installation"
+        run: |
+          echo "=== Tool Verification ==="
+          which subfinder || echo "subfinder: NOT FOUND"
+          which httpx || echo "httpx: NOT FOUND"
+          which nuclei || echo "nuclei: NOT FOUND"
+          which katana || echo "katana: NOT FOUND"
+          which dnsx || echo "dnsx: NOT FOUND"
+          which naabu || echo "naabu: NOT FOUND"
+          which gau || echo "gau: NOT FOUND"
+          echo "=== Done ==="
+      
+      # ========================================================================
+      # PHASE A: SMART RECON
+      # ========================================================================
+      
+      - name: "[A.1] Subdomain Enumeration"
+        run: python modules/recon/01_subdomain.py ${{ inputs.target }} results/recon
+        continue-on-error: true
+      
+      - name: "[A.2] Live Host Probing"
+        run: |
+          if [ -f results/recon/all_subs.txt ]; then
+            python modules/recon/02_live_probe.py results/recon/all_subs.txt results/recon
+          else
+            echo "No subdomains found, skipping live probe"
+          fi
+        continue-on-error: true
+      
+      - name: "[A.3] Attack Surface Mapping"
+        run: python modules/recon/06_attack_surface.py ${{ inputs.target }} results/attack_surface full
+        continue-on-error: true
+      
+      - name: "[A.4] Asset Ownership Analysis"
+        run: |
+          if [ -f results/attack_surface/assets.json ]; then
+            python modules/recon/07_asset_ownership.py ${{ inputs.target }} results/attack_surface/assets.json results/ownership
+          else
+            echo "No assets file, skipping ownership analysis"
+          fi
+        continue-on-error: true
+      
+      - name: "[A.5] Temporal Recon - Ghost Layer"
+        run: python modules/recon/03_temporal.py ${{ inputs.target }} results/ghost
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        continue-on-error: true
+      
+      - name: "[A.6] Parameter Ghost Mining - Ghost Layer"
+        run: |
+          if [ -f results/ghost/all_temporal_urls.txt ]; then
+            python modules/recon/04_param_ghost.py results/ghost/all_temporal_urls.txt ${{ inputs.target }} results/ghost
+          else
+            echo "No temporal URLs found, skipping parameter mining"
+          fi
+        continue-on-error: true
+      
+      - name: "[A.7] Collect URLs for JS Deep Mining"
+        run: |
+          mkdir -p results
+          if [ -f results/recon/live.txt ]; then
+            cat results/recon/live.txt | httpx -silent | head -50 | katana -silent -json > results/urls.txt 2>/dev/null || echo "No katana URLs"
+          fi
+          if [ ! -f results/urls.txt ] || [ ! -s results/urls.txt ]; then
+            gau --subs ${{ inputs.target }} > results/urls.txt 2>/dev/null || echo "No gau URLs"
+          fi
+          ls -lh results/urls.txt 2>/dev/null || echo "No URLs file created"
+        continue-on-error: true
+      
+      - name: "[A.8] JS Deep Mining - Ghost Layer"
+        run: |
+          if [ -f results/urls.txt ] && [ -s results/urls.txt ]; then
+            python modules/recon/05_js_deep.py results/urls.txt results/js
+          else
+            echo "No URLs file for JS mining"
+          fi
+        continue-on-error: true
+      
+      - name: "[A.9] Source Code Recon & Leak Detection"
+        run: |
+          if [ -f results/recon/live.txt ]; then
+            python modules/recon/08_source_recon.py ${{ inputs.target }} results/recon/live.txt results/source_recon
+          else
+            echo "No live hosts file, skipping source recon"
+          fi
+        continue-on-error: true
+      
+      - name: "[A.10] Cloud Infrastructure Recon"
+        run: python modules/recon/09_cloud_recon.py ${{ inputs.target }} results/cloud
+        continue-on-error: true
+      
+      - name: "[A.11] AI-Powered Endpoint Discovery"
+        run: python modules/recon/10_ai_endpoints.py ${{ inputs.target }} results/ai_endpoints
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        continue-on-error: true
+      
+      - name: "[A.12] Secret Hunter - Context-Aware"
+        run: python modules/recon/11_secret_hunter.py ${{ inputs.target }} results/secret_hunter
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        continue-on-error: true
+      
+      # ========================================================================
+      # PHASE B: INTELLIGENCE & ANALYSIS
+      # ========================================================================
+      
+      - name: "[B.1] Nuclei Vulnerability Scan"
+        run: |
+          if [ -f results/recon/live.txt ] && [ -s results/recon/live.txt ]; then
+            python modules/scan/01_nuclei.py results/recon/live.txt results/scan
+          else
+            echo "No live hosts, skipping nuclei scan"
+          fi
+        continue-on-error: true
+      
+      - name: "[B.2] Race Condition Detection"
+        run: |
+          if [ -f results/recon/live.txt ] && [ -s results/recon/live.txt ]; then
+            python modules/scan/02_race.py results/recon/live.txt results/scan
+          else
+            echo "No live hosts, skipping race detection"
+          fi
+        continue-on-error: true
+      
+      - name: "[B.3] Business Logic Analysis"
+        run: python modules/analysis/01_business_logic.py ${{ inputs.target }} results/business_logic
+        continue-on-error: true
+      
+      - name: "[B.4] Chain Attack Builder"
+        run: python modules/analysis/02_chain_builder.py ${{ inputs.target }} results results/chains
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        continue-on-error: true
+      
+      - name: "[B.5] AI Triager - LLM-Powered Validation"
+        run: python modules/analysis/03_ai_triager.py ${{ inputs.target }} results/triage
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        continue-on-error: true
+      
+      - name: "[B.6] Scope-Aware Prioritization"
+        run: python modules/analysis/04_prioritizer.py ${{ inputs.target }} results/prioritized
+        continue-on-error: true
+      
+      - name: "[B.7] Professional Report Generation"
+        run: python modules/analysis/05_report_generator.py ${{ inputs.target }} reports
+        continue-on-error: true
+      
+      # ========================================================================
+      # PHASE C: SPEED (full mode only)
+      # ========================================================================
+      
+      - name: "[C.1] Parallel Scanner (Full Mode Only)"
+        if: inputs.mode == 'full'
+        run: |
+          if [ -f results/recon/live.txt ]; then
+            python modules/speed/01_parallel_scanner.py ${{ inputs.target }} results/recon/live.txt results/parallel
+          fi
+        continue-on-error: true
+      
+      - name: "[C.2] Smart Fuzzing (Full Mode Only)"
+        if: inputs.mode == 'full'
+        run: |
+          if [ -f results/urls.txt ]; then
+            python modules/speed/04_smart_fuzz.py ${{ inputs.target }} results/urls.txt results/fuzz
+          else
+            python modules/speed/04_smart_fuzz.py ${{ inputs.target }} results/fuzz
+          fi
+        continue-on-error: true
+      
+      # ========================================================================
+      # PHASE D: FINALIZATION
+      # ========================================================================
+      
+      - name: "Generate Pipeline Summary"
+        run: |
+          mkdir -p reports
+          TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          cat > reports/pipeline_summary.json <<EOF
+          {
+            "target": "${{ inputs.target }}",
+            "mode": "${{ inputs.mode }}",
+            "completed_at": "$TIMESTAMP",
+            "workflow_run": "${{ github.run_id }}",
+            "status": "complete"
+          }
+          EOF
+          echo "Pipeline completed at $TIMESTAMP"
+      
+      - name: "Upload All Results"
+        uses: actions/upload-artifact@v4
+        with:
+          name: bugbounty-results-${{ github.run_id }}
+          path: |
+            results/
+            reports/
+          retention-days: 90
+          if-no-files-found: warn
+      
+      - name: "Discord Notification (Optional)"
+        if: inputs.discord_notify == true && env.DISCORD_WEBHOOK != ''
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          curl -X POST "$DISCORD_WEBHOOK" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "embeds": [{
+                "title": "Bug Bounty Hunt Complete",
+                "description": "**Target:** ${{ inputs.target }}\n**Mode:** ${{ inputs.mode }}",
+                "color": 5814783
+              }]
+            }'
+        continue-on-error: true

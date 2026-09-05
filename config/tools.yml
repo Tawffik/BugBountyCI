@@ -1,0 +1,42 @@
+# Tool Configuration
+# Centralized configuration for all security tools
+
+subfinder:
+  timeout: 300
+  sources:
+    - virustotal
+    - censys
+    - shodan
+    - crtsh
+
+amass:
+  mode: passive
+  timeout: 600
+  max_dns_queries: 1000
+
+httpx:
+  timeout: 30
+  threads: 50
+  follow_redirects: true
+  tech_detect: true
+  status_code: true
+
+nuclei:
+  severity:
+    - critical
+    - high
+    - medium
+    - low
+  timeout: 10
+  retries: 1
+  bulk_size: 25
+  concurrency: 10
+
+katana:
+  depth: 3
+  timeout: 300
+  headless: false
+
+gau:
+  threads: 5
+  timeout: 120
