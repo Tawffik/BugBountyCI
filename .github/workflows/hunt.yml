@@ -1,20 +1,21 @@
-name: "Full Bug Bounty Hunt - Complete Pipeline"
+name: "Full Bug Bounty Hunt - Superdrug.com Edition"
 
 on:
   workflow_dispatch:
     inputs:
       target:
-        description: "Target domain (e.g., example.com)"
+        description: "Target domain (e.g., superdrug.com)"
         required: true
         type: string
+        default: "superdrug.com"
       mode:
-        description: "Scan mode (full runs all phases, quick runs recon+scan only)"
+        description: "Scan mode"
         required: false
-        default: "full"
+        default: "quick"
         type: choice
         options:
-          - full
           - quick
+          - full
       discord_notify:
         description: "Send Discord notification"
         type: boolean
@@ -22,7 +23,7 @@ on:
 
 jobs:
   full_pipeline:
-    name: "Full Bug Bounty Pipeline"
+    name: "Full Bug Bounty Pipeline - ${{ inputs.target }}"
     runs-on: ubuntu-latest
     timeout-minutes: 360
     
@@ -47,7 +48,7 @@ jobs:
         with:
           go-version: "1.22"
       
-      - name: "Install Recon Tools (ProjectDiscovery Suite)"
+      - name: "Install Recon Tools"
         run: |
           echo "Installing subfinder..."
           go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
@@ -71,7 +72,6 @@ jobs:
       - name: "Install Additional Tools"
         run: |
           go install github.com/tomnomnom/waybackurls@latest || true
-          go install github.com/findomain/findomain@latest || true
           pip install wafw00f || true
         continue-on-error: true
       
@@ -89,11 +89,10 @@ jobs:
           which dnsx || echo "dnsx: NOT FOUND"
           which naabu || echo "naabu: NOT FOUND"
           which gau || echo "gau: NOT FOUND"
-          which amass || echo "amass: NOT FOUND"
           echo "=== Done ==="
       
       # ========================================================================
-      # PHASE A: SMART RECON (11 modules)
+      # PHASE A: SMART RECON
       # ========================================================================
       
       - name: "[A.1] Subdomain Enumeration"
@@ -124,6 +123,11 @@ jobs:
       
       - name: "[A.5] Temporal Recon - Ghost Layer"
         run: python modules/recon/03_temporal.py ${{ inputs.target }} results/ghost
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         continue-on-error: true
       
       - name: "[A.6] Parameter Ghost Mining - Ghost Layer"
@@ -138,15 +142,9 @@ jobs:
       - name: "[A.7] Collect URLs for JS Deep Mining"
         run: |
           mkdir -p results
-          # Collect from live hosts
-          if [ -f results/recon/live.txt ]; then
-            cat results/recon/live.txt | httpx -silent -json 2>/dev/null > results/httpx_json.txt || true
-          fi
-          # Collect from katana crawl
           if [ -f results/recon/live.txt ]; then
             cat results/recon/live.txt | httpx -silent | head -50 | katana -silent -json > results/urls.txt 2>/dev/null || echo "No katana URLs"
           fi
-          # Fallback: use gau for historical URLs
           if [ ! -f results/urls.txt ] || [ ! -s results/urls.txt ]; then
             gau --subs ${{ inputs.target }} > results/urls.txt 2>/dev/null || echo "No gau URLs"
           fi
@@ -181,16 +179,20 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         continue-on-error: true
       
       - name: "[A.12] Secret Hunter - Context-Aware"
         run: python modules/recon/11_secret_hunter.py ${{ inputs.target }} results/secret_hunter
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         continue-on-error: true
       
       # ========================================================================
-      # PHASE B: INTELLIGENCE & ANALYSIS (5 modules)
+      # PHASE B: INTELLIGENCE & ANALYSIS
       # ========================================================================
       
       - name: "[B.1] Nuclei Vulnerability Scan"
@@ -217,6 +219,11 @@ jobs:
       
       - name: "[B.4] Chain Attack Builder"
         run: python modules/analysis/02_chain_builder.py ${{ inputs.target }} results results/chains
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         continue-on-error: true
       
       - name: "[B.5] AI Triager - LLM-Powered Validation"
@@ -225,6 +232,7 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         continue-on-error: true
       
       - name: "[B.6] Scope-Aware Prioritization"
@@ -236,7 +244,7 @@ jobs:
         continue-on-error: true
       
       # ========================================================================
-      # PHASE C: SPEED & COVERAGE (only in full mode)
+      # PHASE C: SPEED (full mode only)
       # ========================================================================
       
       - name: "[C.1] Parallel Scanner (Full Mode Only)"
@@ -271,23 +279,10 @@ jobs:
             "mode": "${{ inputs.mode }}",
             "completed_at": "$TIMESTAMP",
             "workflow_run": "${{ github.run_id }}",
-            "status": "complete",
-            "phases_executed": {
-              "recon": true,
-              "scan": true,
-              "analysis": true,
-              "speed": ${{ inputs.mode == 'full' && 'true' || 'false' }}
-            }
+            "status": "complete"
           }
           EOF
           echo "Pipeline completed at $TIMESTAMP"
-      
-      - name: "List Generated Results"
-        run: |
-          echo "=== Generated Results ==="
-          find results -type f -name "*.json" | head -20 || echo "No JSON files found"
-          echo "=== Reports ==="
-          find reports -type f | head -10 || echo "No reports found"
       
       - name: "Upload All Results"
         uses: actions/upload-artifact@v4
@@ -309,9 +304,8 @@ jobs:
             -d '{
               "embeds": [{
                 "title": "Bug Bounty Hunt Complete",
-                "description": "**Target:** ${{ inputs.target }}\n**Mode:** ${{ inputs.mode }}\n**Run ID:** ${{ github.run_id }}",
-                "color": 5814783,
-                "footer": {"text": "BugBountyCI v3.0"}
+                "description": "**Target:** ${{ inputs.target }}\n**Mode:** ${{ inputs.mode }}",
+                "color": 5814783
               }]
             }'
         continue-on-error: true
