@@ -1,8 +1,10 @@
 name: "Subdomain Monitor"
 
 on:
-  schedule:
-    - cron: '0 */6 * * *'
+  # DISABLED: was running automatically every 6 hours forever, burning CI
+  # minutes with no one asking for it. Manual trigger still works below.
+  # schedule:
+  #   - cron: '0 */6 * * *'
   workflow_dispatch:
     inputs:
       domain:
