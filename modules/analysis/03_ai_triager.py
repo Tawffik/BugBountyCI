@@ -2,22 +2,25 @@
 """
 AI Triager - Phase B.3 (Innovation #4)
 
-Uses LLM to intelligently triage findings:
+Uses AI to intelligently triage findings:
 - Distinguish true positives from false positives
-- Validate findings with contextual analysis
 - Re-rank findings by actual impact
-- Generate PoC suggestions
-- Reduce noise in reports
+- Suggest PoCs
 
-This is Innovation #4: LLM-powered intelligent triage
+Uses multi-provider AI with automatic fallback.
 """
-import sys, os, json
+
+import sys
+import os
+import json
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from base import Finding, ResultWriter
+from ai_provider import ai
+
 
 class AITriager:
     """AI-powered finding triage and validation"""
@@ -29,55 +32,22 @@ class AITriager:
         self.writer = ResultWriter(output_dir, "ai_triage")
         self.triaged_findings = []
     
-    def call_llm(self, prompt):
-        """Call LLM for analysis"""
-        api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-        if not api_key:
-            return None
-        
-        try:
-            import requests
-            headers = {
-                "x-api-key": api_key,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json"
-            }
-            data = {
-                "model": "claude-3-5-sonnet-20241022",
-                "max_tokens": 2048,
-                "messages": [{"role": "user", "content": prompt}]
-            }
-            response = requests.post(
-                "https://api.anthropic.com/v1/messages",
-                headers=headers,
-                json=data,
-                timeout=60
-            )
-            if response.status_code == 200:
-                return response.json()["content"][0]["text"]
-        except Exception as e:
-            print(f"[!] LLM error: {e}")
-        
-        return None
-    
     def triage_finding(self, finding: Dict) -> Dict:
         """Triage a single finding using AI"""
-        prompt = f"""You are an expert bug bounty hunter triaging security findings.
-
-Analyze this finding and determine:
+        prompt = f"""Analyze this security finding and determine:
 1. Is this a TRUE POSITIVE or FALSE POSITIVE?
 2. What is the ACTUAL severity (critical/high/medium/low/info)?
 3. How CONFIDENT are you (high/medium/low)?
 4. What is the ACTUAL impact?
-5. Suggest a brief PoC if it's a true positive.
+5. Suggest a brief PoC if true positive.
 
 Finding:
-- Title: {finding.get('title', 'N/A')}
-- Category: {finding.get('category', 'N/A')}
-- Target: {finding.get('target', 'N/A')}
-- Description: {finding.get('description', 'N/A')}
-- Evidence: {finding.get('evidence', 'N/A')}
-- Original severity: {finding.get('severity', 'N/A')}
+- Title: {finding.get("title", "N/A")}
+- Category: {finding.get("category", "N/A")}
+- Target: {finding.get("target", "N/A")}
+- Description: {finding.get("description", "N/A")}
+- Evidence: {finding.get("evidence", "N/A")}
+- Original severity: {finding.get("severity", "N/A")}
 
 Return JSON:
 {{
@@ -91,21 +61,12 @@ Return JSON:
 }}
 """
         
-        response = self.call_llm(prompt)
+        system_prompt = "You are an expert bug bounty hunter triaging security findings. Be precise and realistic. Return JSON only."
         
-        if response:
-            try:
-                # Parse JSON from response
-                import re
-                json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', response, re.DOTALL)
-                if json_match:
-                    triage = json.loads(json_match.group(1))
-                else:
-                    triage = json.loads(response)
-                
-                return triage
-            except Exception as e:
-                print(f"[!] Failed to parse triage response: {e}")
+        triage = ai.call_json(prompt, system_prompt)
+        
+        if triage:
+            return triage
         
         # Fallback: keep original assessment
         return {
@@ -125,17 +86,38 @@ Return JSON:
             "results/source_recon/source_recon_results.json",
             "results/secret_hunter/secrets.json",
             "results/business_logic/business_logic_analysis.json",
-            "results/chains/attack_chains.json"
+            "results/chains/attack_chains.json",
+            "results/scan/nuclei_results.json"
         ]
         
         for file_path in finding_files:
             if os.path.exists(file_path):
                 try:
                     with open(file_path) as f:
-                        data = json.load(f)
-                        file_findings = data.get("findings", [])
-                        findings.extend(file_findings)
-                        print(f"    Loaded {len(file_findings)} findings from {os.path.basename(file_path)}")
+                        content = f.read()
+                        # Try JSON lines format first
+                        for line in content.splitlines():
+                            line = line.strip()
+                            if not line:
+                                continue
+                            try:
+                                data = json.loads(line)
+                                if isinstance(data, dict):
+                                    findings.append(data)
+                            except json.JSONDecodeError:
+                                pass
+                        
+                        # Try regular JSON format
+                        if not findings:
+                            try:
+                                data = json.loads(content)
+                                if isinstance(data, dict):
+                                    file_findings = data.get("findings", [])
+                                    findings.extend(file_findings)
+                            except json.JSONDecodeError:
+                                pass
+                        
+                        print(f"    Loaded {len(findings)} findings from {os.path.basename(file_path)}")
                 except Exception as e:
                     print(f"    [!] Error loading {file_path}: {e}")
         
@@ -144,6 +126,7 @@ Return JSON:
     def triage_all_findings(self, findings: List[Dict]):
         """Triage all findings"""
         print(f"[+] Triaging {len(findings)} findings with AI")
+        print(f"[+] {ai.status_report()}")
         
         for i, finding in enumerate(findings[:50], 1):  # Limit to 50 for cost
             if i % 10 == 0:
@@ -177,7 +160,8 @@ Return JSON:
                     metadata={
                         "original_finding": finding,
                         "ai_triage": triage,
-                        "validated": True
+                        "validated": True,
+                        "ai_provider": ai.last_successful_provider
                     }
                 )
                 self.writer.add_finding(validated_finding)
@@ -194,6 +178,7 @@ Return JSON:
                 "by_severity": {},
                 "by_confidence": {}
             },
+            "ai_provider_used": ai.last_successful_provider,
             "triaged_findings": self.triaged_findings
         }
         
@@ -219,12 +204,10 @@ Return JSON:
         print(f"Total findings: {report['statistics']['total_findings']}")
         print(f"True positives: {report['statistics']['true_positives']}")
         print(f"False positives: {report['statistics']['false_positives']}")
+        print(f"AI provider used: {ai.last_successful_provider or 'None'}")
         print(f"\nBy severity:")
         for severity, count in sorted(report["statistics"]["by_severity"].items()):
             print(f"  {severity}: {count}")
-        print(f"\nBy confidence:")
-        for confidence, count in sorted(report["statistics"]["by_confidence"].items()):
-            print(f"  {confidence}: {count}")
         print(f"{'='*60}\n")
     
     def run(self):
@@ -254,9 +237,11 @@ Return JSON:
         
         return self.triaged_findings
 
+
 def main(target, output_dir="results/triage"):
     triager = AITriager(target, output_dir)
     return triager.run()
+
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
