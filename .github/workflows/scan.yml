@@ -1,0 +1,74 @@
+name: "🎯 Vulnerability Scanning Pipeline"
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Target domain"
+        required: true
+        type: string
+  workflow_call:
+    inputs:
+      target:
+        description: "Target domain"
+        required: true
+        type: string
+
+jobs:
+  scan:
+    name: "🎯 Vulnerability Scanning"
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    
+    steps:
+      - name: "📥 Checkout Repository"
+        uses: actions/checkout@v4
+      
+      - name: "🐍 Setup Python"
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: "📦 Install Dependencies"
+        run: |
+          pip install requests pyyaml aiohttp
+          sudo apt-get update && sudo apt-get install -y jq
+      
+      - name: "🛠️ Install Scan Tools"
+        run: |
+          # Install Go
+          wget https://go.dev/dl/go1.21.6.linux-amd64.tar.gz
+          sudo tar -C /usr/local -xzf go1.21.6.linux-amd64.tar.gz
+          export PATH=$PATH:/usr/local/go/bin
+          
+          # Install nuclei
+          go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
+          
+          # Install httpx
+          go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest
+          
+          echo "$HOME/go/bin" >> $GITHUB_PATH
+          
+          # Update nuclei templates
+          nuclei -update-templates
+      
+      - name: "📥 Download Recon Results"
+        uses: actions/download-artifact@v4
+        with:
+          name: recon-results-${{ github.run_id }}
+          path: results/
+      
+      - name: "🎯 Nuclei Vulnerability Scan"
+        run: |
+          python modules/scan/01_nuclei.py results/recon/live.txt results/scan
+      
+      - name: "🏃 Race Condition Detection"
+        run: |
+          python modules/scan/02_race.py results/recon/live.txt results/scan
+      
+      - name: "📤 Upload Results"
+        uses: actions/upload-artifact@v4
+        with:
+          name: scan-results-${{ github.run_id }}
+          path: results/
+          retention-days: 30
