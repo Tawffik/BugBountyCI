@@ -1,5 +1,0 @@
-api.datacamp.com
-learn-api.datacamp.com
-math.datacamp.com
-um.datacamp.com
-www.projector.new.datacamp.com
