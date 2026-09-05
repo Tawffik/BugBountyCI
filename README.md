@@ -1,0 +1,1 @@
+BugBountyCI Modular v2 - Professional bug bounty automation with Ghost Layer reconnaissance. See modules/ for recon, scan, chain, and report modules. Ghost Layer discovers temporal endpoints, ghost parameters, and JS secrets. Run hunt.yml workflow to start.
