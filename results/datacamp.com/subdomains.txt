@@ -532,6 +532,7 @@ workspace-sessions.datacamp.com
 workspace.datacamp.com
 ww1.dcmfe.datacamp.com
 ww2.cdn.datacamp.com
+ww5.datacamp.com
 www.ai-tutor.datacamp.com
 www.assets.datacamp.com
 www.campus.datacamp.com

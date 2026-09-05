@@ -194,11 +194,8 @@ http://smtp.learn-hub-api.datacamp.com
 http://smtp.links.datacamp.com
 http://sql.ai-tutor.datacamp.com
 http://sql.app.datacamp.com
-http://sql.compliancy.datacamp.com
-http://sql.links.datacamp.com
 http://staging.collab-api.datacamp.com
 http://staging.gsstm.datacamp.com
-http://staging.links.datacamp.com
 http://static.campus-api.datacamp.com
 http://static.images.datacamp.com
 http://stats.ai-tutor.datacamp.com
@@ -206,6 +203,8 @@ http://stats.content-authorization.datacamp.com
 http://stats.learn-hub-api.datacamp.com
 http://stats.links.datacamp.com
 http://status.auth.datacamp.com
+http://status.links.datacamp.com
+http://storage.campaign-service.datacamp.com
 http://storage.content-authorization.datacamp.com
 http://storage.dcmfe.datacamp.com
 http://storage.images.datacamp.com
@@ -467,6 +466,7 @@ https://spreadsheets.datacamp.com
 https://spreadsheets.new.datacamp.com
 https://staging.datacamp.com
 https://static.new.datacamp.com
+https://stats.datacamp.com
 https://status.datacamp.com
 https://stg.optima.datacamp.com
 https://storage.datacamp.com
@@ -500,6 +500,7 @@ https://wildcard.ops.datacamp.com
 https://workspace-docs.datacamp.com
 https://workspace-sessions.datacamp.com
 https://workspace.datacamp.com
+https://ww5.datacamp.com
 https://www.datacamp.com
 https://www.new.datacamp.com
 https://www2.datacamp.com
