@@ -1,0 +1,23 @@
+# Authorized Scope Configuration
+# Define allowed targets and scope boundaries
+
+authorized_targets:
+  - "*.example.com"
+  - "api.example.com"
+  - "admin.example.com"
+  
+# Excluded targets (out of scope)
+exclusions:
+  - "*.third-party.com"
+  - "*.cdn.example.com"
+
+# Rate limiting configuration
+rate_limits:
+  requests_per_second: 10
+  concurrent_connections: 50
+
+# Scan configuration
+scan_settings:
+  timeout: 300
+  retries: 3
+  follow_redirects: true
