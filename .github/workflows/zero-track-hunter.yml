@@ -1255,7 +1255,23 @@ jobs:
           # root domain once. Confirmed on a real run: archive.org has no history
           # for obscure internal subdomains like that (0 results, expected), which
           # this fix stops relying on entirely.
-          echo "${{ env.TARGET }}" | timeout 150 waybackurls > "$RD/urls/wayback.txt" 2>>"$RD/logs/wayback.log" || true
+          #
+          # BUGFIX 2: 150s was too short. Confirmed on a real run against a large,
+          # 26-year-old domain (superdrug.com, live since 2000): a direct,
+          # LIMITED (limit=5) diagnostic query to the exact same CDX API returned
+          # real data instantly, proving the API itself is reachable and has
+          # plenty of history - but waybackurls asks for the ENTIRE unlimited
+          # history in one request, which for a domain this old/large can
+          # legitimately take longer than 150s to fully download, so our own
+          # timeout was killing it before it ever got a response to write out
+          # (0 bytes in both the output file AND the log - a killed process gets
+          # no chance to log anything). 300s gives large/old domains a fair shot;
+          # the explicit exit-code check makes it obvious next time if 300s still
+          # isn't enough (124 = timeout killed it) versus a genuine clean-but-
+          # empty completion.
+          timeout 300 bash -c 'echo "${{ env.TARGET }}" | waybackurls' > "$RD/urls/wayback.txt" 2>>"$RD/logs/wayback.log"
+          wb_exit=$?
+          [ "$wb_exit" -eq 124 ] && echo "⚠️ waybackurls was killed by the 300s timeout (didn't finish downloading the full CDX response in time) - not a clean empty result" >> "$RD/logs/wayback.log"
           # Diagnostic: confirmed via httpx that this runner's outbound network is
           # fine in general, but public archive APIs (unlike the target) are a
           # DIFFERENT, third-party dependency with their own independent rate-
@@ -1268,7 +1284,9 @@ jobs:
             curl -s --max-time 15 -o "$RD/meta/archive_cdx_diag.txt" -w "\nHTTP_STATUS:%{http_code}\n" "http://web.archive.org/cdx/search/cdx?url=${{ env.TARGET }}/*&output=json&limit=5" 2>>"$RD/logs/wayback.log" || true
           fi
           echo "🔍 Gau..."
-          timeout 150 gau "${{ env.TARGET }}" --subs --o "$RD/urls/gau.txt" 2>>"$RD/logs/gau.log" || true
+          timeout 300 gau "${{ env.TARGET }}" --subs --o "$RD/urls/gau.txt" 2>>"$RD/logs/gau.log"
+          gau_exit=$?
+          [ "$gau_exit" -eq 124 ] && echo "⚠️ gau was killed by the 300s timeout" >> "$RD/logs/gau.log"
           echo "🔍 Katana..."
           [ -s "$RD/live/live.txt" ] && timeout 180 proxychains4 -q katana -list "$RD/live/live.txt" -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}" -silent -depth 2 -jc -d 3 -o "$RD/urls/katana.txt" 2>>"$RD/logs/katana.log" || true
           echo "🔍 Hakrawler (independent crawler - different JS/link parser than katana, catches URLs katana's config misses)..."
