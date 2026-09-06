@@ -90,6 +90,9 @@ on:
       TOKENROUTER_API_KEY:
         description: "API key for TokenRouter (fallback)"
         required: false
+      EXPERIENTIAL_LABS_API_KEY:
+        description: "API key for Experiential Labs (OpenAI-compatible AI gateway, fallback)"
+        required: false
       TOR_BRIDGE_LINES:
         description: >
           Optional. One or more real obfs4 bridge lines (as issued by
@@ -146,6 +149,7 @@ env:
   # dashboard (Base URL field, and the model picker's autocomplete list), so
   # confirm the first real run succeeds before relying on it.
   TOKENROUTER_API_KEY: ${{ secrets.TOKENROUTER_API_KEY || '' }}
+  EXPERIENTIAL_LABS_API_KEY: ${{ secrets.EXPERIENTIAL_LABS_API_KEY || '' }}
   TOR_BRIDGE_LINES:   ${{ secrets.TOR_BRIDGE_LINES || '' }}
   PDCP_API_KEY:       ${{ secrets.PDCP_API_KEY || '' }}
   AUTH_COOKIE:        ${{ secrets.AUTH_COOKIE || '' }}
@@ -170,6 +174,11 @@ env:
   # the current lineup rather than assuming the workflow itself broke.
   CEREBRAS_MODEL_NAME: "gpt-oss-120b"
   TOKENROUTER_MODEL_NAME: "moonshotai/kimi-k3-free"
+  # Experiential Labs (api.experientiallabs.ai) is an OpenAI-compatible gateway
+  # to 1000+ models with zero token markup - "deepseek-v4-flash" was one of
+  # their own launch-promo free models; override via secret/env if your
+  # account's catalog differs.
+  EXPERIENTIAL_MODEL_NAME: "deepseek-v4-flash"
   # A realistic browser UA cuts down on trivial "this is obviously a scanner"
   # WAF blocking - the default nuclei/httpx/katana UAs are an easy tell.
   SCAN_USER_AGENT: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
@@ -297,7 +306,7 @@ jobs:
             echo "TARGET=$target" >> "$GITHUB_ENV"
             echo "✅ target (normalized to lowercase) = $target"
           fi
-          if [ -z "${{ env.ANTHROPIC_API_KEY }}${{ env.OPENROUTER_API_KEY }}${{ env.GROQ_API_KEY }}${{ env.GEMINI_API_KEY }}${{ env.OPENAI_API_KEY }}${{ env.CEREBRAS_API_KEY }}${{ env.TOKENROUTER_API_KEY }}" ]; then
+          if [ -z "${{ env.ANTHROPIC_API_KEY }}${{ env.OPENROUTER_API_KEY }}${{ env.GROQ_API_KEY }}${{ env.GEMINI_API_KEY }}${{ env.OPENAI_API_KEY }}${{ env.CEREBRAS_API_KEY }}${{ env.TOKENROUTER_API_KEY }}${{ env.EXPERIENTIAL_LABS_API_KEY }}" ]; then
             echo "⚠️ No AI provider API key is configured at all - all 6 AI Agent phases will be skipped/empty. Add at least GROQ_API_KEY or GEMINI_API_KEY (both free) in repo secrets for AI analysis to run."
           else
             echo "✅ At least one AI provider key is configured"
@@ -2711,6 +2720,7 @@ jobs:
           if os.environ.get("OPENROUTER_API_KEY",""): providers.append({"name":"OpenRouter (free)","url":"https://openrouter.ai/api/v1/chat/completions","headers":{"Authorization":f"Bearer {os.environ['OPENROUTER_API_KEY']}","content-type":"application/json"},"body_tpl":lambda p:json.dumps({"model":os.environ.get("OPENROUTER_FREE_MODEL_NAME","openrouter/free"),"max_tokens":4096,"messages":[{"role":"user","content":p}]}).encode(),"extract":lambda r:r["choices"][0]["message"]["content"]})
           if os.environ.get("GEMINI_API_KEY",""): providers.append({"name":"Gemini","url":f"https://generativelanguage.googleapis.com/v1beta/models/{os.environ.get('GEMINI_MODEL_NAME','gemini-2.5-flash')}:generateContent?key={os.environ['GEMINI_API_KEY']}","headers":{"content-type":"application/json"},"body_tpl":lambda p:json.dumps({"contents":[{"parts":[{"text":p}]}],"generationConfig":{"maxOutputTokens":4096}}).encode(),"extract":lambda r:r["candidates"][0]["content"]["parts"][0]["text"]})
           if os.environ.get("OPENAI_API_KEY",""): providers.append({"name":"OpenAI","url":"https://api.openai.com/v1/chat/completions","headers":{"Authorization":f"Bearer {os.environ['OPENAI_API_KEY']}","content-type":"application/json"},"body_tpl":lambda p:json.dumps({"model":os.environ.get("OPENAI_MODEL_NAME","gpt-5.5"),"max_tokens":4096,"messages":[{"role":"user","content":p}]}).encode(),"extract":lambda r:r["choices"][0]["message"]["content"]})
+          if os.environ.get("EXPERIENTIAL_LABS_API_KEY",""): providers.append({"name":"Experiential Labs","url":"https://api.experientiallabs.ai/v1/chat/completions","headers":{"Authorization":f"Bearer {os.environ['EXPERIENTIAL_LABS_API_KEY']}","content-type":"application/json"},"body_tpl":lambda p:json.dumps({"model":os.environ.get("EXPERIENTIAL_MODEL_NAME","deepseek-v4-flash"),"max_tokens":4096,"messages":[{"role":"user","content":p}]}).encode(),"extract":lambda r:r["choices"][0]["message"]["content"]})
           if os.environ.get("TOKENROUTER_API_KEY",""): providers.append({"name":"TokenRouter","url":"https://api.tokenrouter.com/v1/chat/completions","headers":{"Authorization":f"Bearer {os.environ['TOKENROUTER_API_KEY']}","content-type":"application/json"},"body_tpl":lambda p:json.dumps({"model":os.environ.get("TOKENROUTER_MODEL_NAME","moonshotai/kimi-k3-free"),"max_tokens":4096,"messages":[{"role":"user","content":p}]}).encode(),"extract":lambda r:r["choices"][0]["message"]["content"]})
           if not providers: print("⚠️ No AI keys - skip Phase 1"); sys.exit(0)
           tc = {"light":3,"normal":8,"aggressive":20}.get(mode,8)
@@ -3461,6 +3471,7 @@ jobs:
           if os.environ.get("OPENROUTER_API_KEY",""): providers.append({"name":"OpenRouter (free)","url":"https://openrouter.ai/api/v1/chat/completions","headers":{"Authorization":f"Bearer {os.environ['OPENROUTER_API_KEY']}","content-type":"application/json"},"body_tpl":lambda p:json.dumps({"model":os.environ.get("OPENROUTER_FREE_MODEL_NAME","openrouter/free"),"max_tokens":4096,"messages":[{"role":"user","content":p}]}).encode(),"extract":lambda r:r["choices"][0]["message"]["content"]})
           if os.environ.get("GEMINI_API_KEY",""): providers.append({"name":"Gemini","url":f"https://generativelanguage.googleapis.com/v1beta/models/{os.environ.get('GEMINI_MODEL_NAME','gemini-2.5-flash')}:generateContent?key={os.environ['GEMINI_API_KEY']}","headers":{"content-type":"application/json"},"body_tpl":lambda p:json.dumps({"contents":[{"parts":[{"text":p}]}],"generationConfig":{"maxOutputTokens":4096}}).encode(),"extract":lambda r:r["candidates"][0]["content"]["parts"][0]["text"]})
           if os.environ.get("OPENAI_API_KEY",""): providers.append({"name":"OpenAI","url":"https://api.openai.com/v1/chat/completions","headers":{"Authorization":f"Bearer {os.environ['OPENAI_API_KEY']}","content-type":"application/json"},"body_tpl":lambda p:json.dumps({"model":os.environ.get("OPENAI_MODEL_NAME","gpt-5.5"),"max_tokens":4096,"messages":[{"role":"user","content":p}]}).encode(),"extract":lambda r:r["choices"][0]["message"]["content"]})
+          if os.environ.get("EXPERIENTIAL_LABS_API_KEY",""): providers.append({"name":"Experiential Labs","url":"https://api.experientiallabs.ai/v1/chat/completions","headers":{"Authorization":f"Bearer {os.environ['EXPERIENTIAL_LABS_API_KEY']}","content-type":"application/json"},"body_tpl":lambda p:json.dumps({"model":os.environ.get("EXPERIENTIAL_MODEL_NAME","deepseek-v4-flash"),"max_tokens":4096,"messages":[{"role":"user","content":p}]}).encode(),"extract":lambda r:r["choices"][0]["message"]["content"]})
           if os.environ.get("TOKENROUTER_API_KEY",""): providers.append({"name":"TokenRouter","url":"https://api.tokenrouter.com/v1/chat/completions","headers":{"Authorization":f"Bearer {os.environ['TOKENROUTER_API_KEY']}","content-type":"application/json"},"body_tpl":lambda p:json.dumps({"model":os.environ.get("TOKENROUTER_MODEL_NAME","moonshotai/kimi-k3-free"),"max_tokens":4096,"messages":[{"role":"user","content":p}]}).encode(),"extract":lambda r:r["choices"][0]["message"]["content"]})
           def rf(path,cap=2000):
               try:
@@ -3631,6 +3642,7 @@ jobs:
           if os.environ.get("OPENROUTER_API_KEY",""): providers.append({"name":"OpenRouter (free)","url":"https://openrouter.ai/api/v1/chat/completions","headers":{"Authorization":f"Bearer {os.environ['OPENROUTER_API_KEY']}","content-type":"application/json"},"body_tpl":lambda p:json.dumps({"model":os.environ.get("OPENROUTER_FREE_MODEL_NAME","openrouter/free"),"max_tokens":8192,"messages":[{"role":"user","content":p}]}).encode(),"extract":lambda r:r["choices"][0]["message"]["content"]})
           if os.environ.get("GEMINI_API_KEY",""): providers.append({"name":"Gemini","url":f"https://generativelanguage.googleapis.com/v1beta/models/{os.environ.get('GEMINI_MODEL_NAME','gemini-2.5-flash')}:generateContent?key={os.environ['GEMINI_API_KEY']}","headers":{"content-type":"application/json"},"body_tpl":lambda p:json.dumps({"contents":[{"parts":[{"text":p}]}],"generationConfig":{"maxOutputTokens":8192}}).encode(),"extract":lambda r:r["candidates"][0]["content"]["parts"][0]["text"]})
           if os.environ.get("OPENAI_API_KEY",""): providers.append({"name":"OpenAI","url":"https://api.openai.com/v1/chat/completions","headers":{"Authorization":f"Bearer {os.environ['OPENAI_API_KEY']}","content-type":"application/json"},"body_tpl":lambda p:json.dumps({"model":os.environ.get("OPENAI_MODEL_NAME","gpt-5.5"),"max_tokens":8192,"messages":[{"role":"user","content":p}]}).encode(),"extract":lambda r:r["choices"][0]["message"]["content"]})
+          if os.environ.get("EXPERIENTIAL_LABS_API_KEY",""): providers.append({"name":"Experiential Labs","url":"https://api.experientiallabs.ai/v1/chat/completions","headers":{"Authorization":f"Bearer {os.environ['EXPERIENTIAL_LABS_API_KEY']}","content-type":"application/json"},"body_tpl":lambda p:json.dumps({"model":os.environ.get("EXPERIENTIAL_MODEL_NAME","deepseek-v4-flash"),"max_tokens":8192,"messages":[{"role":"user","content":p}]}).encode(),"extract":lambda r:r["choices"][0]["message"]["content"]})
           if os.environ.get("TOKENROUTER_API_KEY",""): providers.append({"name":"TokenRouter","url":"https://api.tokenrouter.com/v1/chat/completions","headers":{"Authorization":f"Bearer {os.environ['TOKENROUTER_API_KEY']}","content-type":"application/json"},"body_tpl":lambda p:json.dumps({"model":os.environ.get("TOKENROUTER_MODEL_NAME","moonshotai/kimi-k3-free"),"max_tokens":8192,"messages":[{"role":"user","content":p}]}).encode(),"extract":lambda r:r["choices"][0]["message"]["content"]})
           def rf(path,cap=3000):
               try:
