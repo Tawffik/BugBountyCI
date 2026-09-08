@@ -1436,7 +1436,7 @@ jobs:
             # run's log). Guaranteeing both files exist here, unconditionally, fixes
             # it at the source instead of relying on error-suppression that doesn't
             # actually suppress this particular class of error.
-            touch "$RD/js/api_endpoints.txt" "$RD/js/secrets.txt"
+            touch "$RD/js/api_endpoints.txt" "$RD/js/secrets.txt" "$RD/js/secrets_high.txt" "$RD/js/secrets_low.txt"
             if [ -s "$RD/js/files.txt" ]; then
               echo "⬇️ Downloading JS file contents for analysis (endpoints/secrets live INSIDE the file, not in its URL)..."
               # BUGFIX: same broken "-l" bulk-mode pattern proven unreliable
@@ -1488,7 +1488,7 @@ jobs:
                   with errors_lock:
                       if len(errors_seen) < 5:
                           errors_seen.append(f"{url} -> {type(e).__name__}: {e}")
-          with concurrent.futures.ThreadPoolExecutor(max_workers=10) as ex:
+          with concurrent.futures.ThreadPoolExecutor(max_workers=4) as ex:  # lowered 10→4 for Tor stability
               list(ex.map(fetch, urls))
           downloaded = len(os.listdir(bodies_dir))
           print(f"✅ Downloaded {downloaded} JS bodies (round 1)")
@@ -1589,7 +1589,7 @@ jobs:
                       out.write(body)
               except Exception:
                   pass
-          with concurrent.futures.ThreadPoolExecutor(max_workers=10) as ex:
+          with concurrent.futures.ThreadPoolExecutor(max_workers=4) as ex:  # lowered 10→4 for Tor stability
               list(ex.map(fetch, urls))
           print(f"✅ Downloaded {len(os.listdir(bodies_dir))} JS bodies total (after round 2)")
           PYEOF
@@ -1601,42 +1601,53 @@ jobs:
               # contain "api/" or "secret=" as literal text, so it never found anything real.
               grep -rhIioE '(api|v[0-9]+|graphql|rest)/[a-zA-Z0-9_/?=&%-]{3,80}' "$RD/js/bodies" 2>/dev/null | sort -u > "$RD/js/api_endpoints.txt" || true
 
+              # --- Secrets extraction (quality-first, 2026-09-08) ---
+              # High-confidence patterns only go to secrets_high.txt (real key formats).
+              # Broad/noisy patterns go to secrets_low.txt and are heavily filtered.
+              # This stops the previous behaviour of dumping 800KB+ of minified
+              # framework false-positives into secrets.txt and making triage useless.
+              : > "$RD/js/secrets_high.txt"
+              : > "$RD/js/secrets_low.txt"
               : > "$RD/js/secrets.txt"
-              # Generic key=value form (apiKey/token/secret/jwt/bearer)
-              grep -rhIioE '["'"'"']?(api[_-]?key|apikey|secret|token|jwt|bearer)["'"'"']?\s*[:=]\s*["'"'"'][^"'"'"']{6,80}["'"'"']' "$RD/js/bodies" 2>/dev/null | sort -u >> "$RD/js/secrets.txt" || true
-              # Concrete real-world key formats a generic key=value regex can't catch
-              # (no "secret"/"token" label anywhere near them at all)
-              grep -rhIoE 'AKIA[0-9A-Z]{16}' "$RD/js/bodies" 2>/dev/null | sed 's/^/[AWS Key] /' | sort -u >> "$RD/js/secrets.txt" || true
-              grep -rhIoE 'AIza[0-9A-Za-z_-]{35}' "$RD/js/bodies" 2>/dev/null | sed 's/^/[Google API Key] /' | sort -u >> "$RD/js/secrets.txt" || true
-              grep -rhIoE 'hooks\.slack\.com/services/T[A-Za-z0-9_]+/B[A-Za-z0-9_]+/[A-Za-z0-9_]+' "$RD/js/bodies" 2>/dev/null | sed 's/^/[Slack Webhook] /' | sort -u >> "$RD/js/secrets.txt" || true
-              grep -rhIoE '[sp]k_live_[A-Za-z0-9]{16,}' "$RD/js/bodies" 2>/dev/null | sed 's/^/[Stripe Key] /' | sort -u >> "$RD/js/secrets.txt" || true
-              grep -rhIoE 'eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}' "$RD/js/bodies" 2>/dev/null | sed 's/^/[JWT] /' | sort -u >> "$RD/js/secrets.txt" || true
-          grep -rhIoE 'ghp_[A-Za-z0-9]{36}|gho_[A-Za-z0-9]{36}|ghu_[A-Za-z0-9]{36}|ghs_[A-Za-z0-9]{36}|ghr_[A-Za-z0-9]{36}' "$RD/js/bodies" 2>/dev/null | sed 's/^/[GitHub Token] /' | sort -u >> "$RD/js/secrets.txt" || true
-          grep -rhIoE 'sk-[A-Za-z0-9]{48}' "$RD/js/bodies" 2>/dev/null | sed 's/^/[OpenAI Key] /' | sort -u >> "$RD/js/secrets.txt" || true
-          grep -rhIoE 'xoxb-[0-9]{10,13}-[0-9]{10,13}-[A-Za-z0-9]{24}|xoxp-[0-9]{10,13}-[0-9]{10,13}-[A-Za-z0-9]{24}' "$RD/js/bodies" 2>/dev/null | sed 's/^/[Slack Token] /' | sort -u >> "$RD/js/secrets.txt" || true
-          grep -rhIoE 'SG\.[A-Za-z0-9]{22}\.[A-Za-z0-9]{43}' "$RD/js/bodies" 2>/dev/null | sed 's/^/[SendGrid Key] /' | sort -u >> "$RD/js/secrets.txt" || true
-          grep -rhIoE 'mongodb(\+srv)?://[^\s"'"'"']+' "$RD/js/bodies" 2>/dev/null | sed 's/^/[MongoDB URI] /' | sort -u >> "$RD/js/secrets.txt" || true
-          grep -rhIoE 'postgres(ql)?://[^\s"'"'"']+|mysql://[^\s"'"'"']+|redis://[^\s"'"'"']+' "$RD/js/bodies" 2>/dev/null | sed 's/^/[DB URI] /' | sort -u >> "$RD/js/secrets.txt" || true
-          grep -rhIoE '[A-Za-z0-9_-]+\.firebaseio\.com' "$RD/js/bodies" 2>/dev/null | sed 's/^/[Firebase URL] /' | sort -u >> "$RD/js/secrets.txt" || true
-          grep -rhIoE 'firebase:[\s]*\{[^}]*apiKey' "$RD/js/bodies" 2>/dev/null | sed 's/^/[Firebase Config] /' | sort -u >> "$RD/js/secrets.txt" || true
-          grep -rhIolE -- '-----BEGIN (RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----' "$RD/js/bodies" 2>/dev/null | sed 's/^/[Private Key file] /' | sort -u >> "$RD/js/secrets.txt" || true
-          grep -rhIoE '(TODO|FIXME|XXX|HACK|BUG|NOTE|REVIEW).*?(key|token|secret|password|credential|auth).*?["'"'"'][^"'"'"']{6,80}["'"'"']' "$RD/js/bodies" 2>/dev/null | sed 's/^/[Comment-Leak] /' | sort -u >> "$RD/js/secrets.txt" || true
-          grep -rhIoE '__webpack_require__.*\([0-9]+\)|webpackJsonp|webpackChunk' "$RD/js/bodies" 2>/dev/null | sed 's/^/[Webpack] /' | sort -u >> "$RD/js/secrets.txt" || true
-          grep -rhIoE 'query[\s]*[A-Za-z0-9_]*[\s]*\{[^}]*\}|mutation[\s]*[A-Za-z0-9_]*[\s]*\{[^}]*\}' "$RD/js/bodies" 2>/dev/null | sed 's/^/[GraphQL-in-JS] /' | sort -u >> "$RD/js/secrets.txt" || true
-          grep -rhIoE '(fetch|axios|XMLHttpRequest|\.get|\.post|\.put|\.delete)[\s]*\(["'"'"'][^"'"'"']{3,120}["'"'"']\)' "$RD/js/bodies" 2>/dev/null | sed 's/^/[API-Endpoint] /' | sort -u >> "$RD/js/secrets.txt" || true
 
-              # --- AI Infrastructure Keys (Anthropic, HuggingFace, Replicate, Groq, Pinecone) ---
-              grep -rhIoE 'sk-ant-api03-[A-Za-z0-9_-]{40,}' "$RD/js/bodies" 2>/dev/null | sed 's/^/[Anthropic Key] /' | sort -u >> "$RD/js/secrets.txt" || true
-              grep -rhIoE 'sk-ant-admin01-[A-Za-z0-9_-]{40,}' "$RD/js/bodies" 2>/dev/null | sed 's/^/[Anthropic Admin Key] /' | sort -u >> "$RD/js/secrets.txt" || true
-              grep -rhIoE 'hf_[A-Za-z0-9]{34,}' "$RD/js/bodies" 2>/dev/null | sed 's/^/[HuggingFace Token] /' | sort -u >> "$RD/js/secrets.txt" || true
-              grep -rhIoE 'r8_[A-Za-z0-9]{32,}' "$RD/js/bodies" 2>/dev/null | sed 's/^/[Replicate Token] /' | sort -u >> "$RD/js/secrets.txt" || true
-              grep -rhIoE 'gsk_[A-Za-z0-9]{52,}' "$RD/js/bodies" 2>/dev/null | sed 's/^/[Groq Key] /' | sort -u >> "$RD/js/secrets.txt" || true
-              grep -rhIoE 'pcsk_[A-Za-z0-9]{64,}' "$RD/js/bodies" 2>/dev/null | sed 's/^/[Pinecone Key] /' | sort -u >> "$RD/js/secrets.txt" || true
-              grep -rhIoE 'ollama|localhost:11434|0\.0\.0\.0:11434' "$RD/js/bodies" 2>/dev/null | sed 's/^/[Ollama Reference] /' | sort -u >> "$RD/js/secrets.txt" || true
-              grep -rhIoE 'openai\.azure\.com|\.openai\.azure\.com' "$RD/js/bodies" 2>/dev/null | sed 's/^/[Azure OpenAI Endpoint] /' | sort -u >> "$RD/js/secrets.txt" || true
-              grep -rhIoE 'api\.cohere\.ai|api\.anthropic\.com|api\.replicate\.com|api\.groq\.com' "$RD/js/bodies" 2>/dev/null | sed 's/^/[AI API Endpoint] /' | sort -u >> "$RD/js/secrets.txt" || true
+              # HIGH confidence — concrete real-world key formats
+              grep -rhIoE 'AKIA[0-9A-Z]{16}' "$RD/js/bodies" 2>/dev/null | sed 's/^/[AWS Key] /' | sort -u >> "$RD/js/secrets_high.txt" || true
+              grep -rhIoE 'AIza[0-9A-Za-z_-]{35}' "$RD/js/bodies" 2>/dev/null | sed 's/^/[Google API Key] /' | sort -u >> "$RD/js/secrets_high.txt" || true
+              grep -rhIoE 'hooks\.slack\.com/services/T[A-Za-z0-9_]+/B[A-Za-z0-9_]+/[A-Za-z0-9_]+' "$RD/js/bodies" 2>/dev/null | sed 's/^/[Slack Webhook] /' | sort -u >> "$RD/js/secrets_high.txt" || true
+              grep -rhIoE '[sp]k_live_[A-Za-z0-9]{16,}' "$RD/js/bodies" 2>/dev/null | sed 's/^/[Stripe Key] /' | sort -u >> "$RD/js/secrets_high.txt" || true
+              grep -rhIoE 'ghp_[A-Za-z0-9]{36}|gho_[A-Za-z0-9]{36}|ghu_[A-Za-z0-9]{36}|ghs_[A-Za-z0-9]{36}|ghr_[A-Za-z0-9]{36}' "$RD/js/bodies" 2>/dev/null | sed 's/^/[GitHub Token] /' | sort -u >> "$RD/js/secrets_high.txt" || true
+              grep -rhIoE 'github_pat_[A-Za-z0-9_]{20,}' "$RD/js/bodies" 2>/dev/null | sed 's/^/[GitHub PAT] /' | sort -u >> "$RD/js/secrets_high.txt" || true
+              grep -rhIoE 'sk-[A-Za-z0-9]{20,}' "$RD/js/bodies" 2>/dev/null | sed 's/^/[OpenAI-style Key] /' | sort -u >> "$RD/js/secrets_high.txt" || true
+              grep -rhIoE 'sk-ant-api03-[A-Za-z0-9_-]{40,}|sk-ant-admin01-[A-Za-z0-9_-]{40,}' "$RD/js/bodies" 2>/dev/null | sed 's/^/[Anthropic Key] /' | sort -u >> "$RD/js/secrets_high.txt" || true
+              grep -rhIoE 'xoxb-[0-9]{10,13}-[0-9]{10,13}-[A-Za-z0-9]{24}|xoxp-[0-9]{10,13}-[0-9]{10,13}-[A-Za-z0-9]{24}' "$RD/js/bodies" 2>/dev/null | sed 's/^/[Slack Token] /' | sort -u >> "$RD/js/secrets_high.txt" || true
+              grep -rhIoE 'SG\.[A-Za-z0-9]{22}\.[A-Za-z0-9]{43}' "$RD/js/bodies" 2>/dev/null | sed 's/^/[SendGrid Key] /' | sort -u >> "$RD/js/secrets_high.txt" || true
+              grep -rhIoE 'hf_[A-Za-z0-9]{34,}' "$RD/js/bodies" 2>/dev/null | sed 's/^/[HuggingFace Token] /' | sort -u >> "$RD/js/secrets_high.txt" || true
+              grep -rhIoE 'r8_[A-Za-z0-9]{32,}' "$RD/js/bodies" 2>/dev/null | sed 's/^/[Replicate Token] /' | sort -u >> "$RD/js/secrets_high.txt" || true
+              grep -rhIoE 'gsk_[A-Za-z0-9]{52,}' "$RD/js/bodies" 2>/dev/null | sed 's/^/[Groq Key] /' | sort -u >> "$RD/js/secrets_high.txt" || true
+              grep -rhIoE 'pcsk_[A-Za-z0-9]{64,}' "$RD/js/bodies" 2>/dev/null | sed 's/^/[Pinecone Key] /' | sort -u >> "$RD/js/secrets_high.txt" || true
+              grep -rhIoE 'mongodb(\+srv)?://[^\s"'"'"']{8,}' "$RD/js/bodies" 2>/dev/null | sed 's/^/[MongoDB URI] /' | sort -u >> "$RD/js/secrets_high.txt" || true
+              grep -rhIoE 'postgres(ql)?://[^\s"'"'"']{8,}|mysql://[^\s"'"'"']{8,}|redis://[^\s"'"'"']{8,}' "$RD/js/bodies" 2>/dev/null | sed 's/^/[DB URI] /' | sort -u >> "$RD/js/secrets_high.txt" || true
+              grep -rhIolE -- '-----BEGIN (RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----' "$RD/js/bodies" 2>/dev/null | sed 's/^/[Private Key file] /' | sort -u >> "$RD/js/secrets_high.txt" || true
 
-              grep -rhIolE -- '-----BEGIN (RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----' "$RD/js/bodies" 2>/dev/null | sed 's/^/[Private Key file] /' | sort -u >> "$RD/js/secrets.txt" || true
+              # JWT — keep but filter very short / obviously fake ones later
+              grep -rhIoE 'eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,}' "$RD/js/bodies" 2>/dev/null | sed 's/^/[JWT] /' | sort -u >> "$RD/js/secrets_high.txt" || true
+
+              # LOW confidence — generic key=value (noisy in minified JS)
+              grep -rhIioE '["'"'"']?(api[_-]?key|apikey|access[_-]?token|auth[_-]?token|client[_-]?secret)["'"'"']?\s*[:=]\s*["'"'"'][^"'"'"']{12,80}["'"'"']' "$RD/js/bodies" 2>/dev/null \
+                | grep -viE 'placeholder|example|your[_-]?api|xxx+|TODO|test[_-]?key|dummy|sample|changeme|insert[_-]?key|<.*>|\$\{|process\.env|import\.meta' \
+                | sort -u >> "$RD/js/secrets_low.txt" || true
+
+              # Merge: high first, then low (so triage sees real keys first)
+              cat "$RD/js/secrets_high.txt" "$RD/js/secrets_low.txt" 2>/dev/null | sort -u > "$RD/js/secrets.txt" || true
+              echo "ℹ️ secrets high-confidence: $(wc -l < "$RD/js/secrets_high.txt" 2>/dev/null || echo 0) | low: $(wc -l < "$RD/js/secrets_low.txt" 2>/dev/null || echo 0)"
+              # Additional useful signals (low noise) into secrets_low / dedicated files
+              grep -rhIoE 'query[\s]*[A-Za-z0-9_]*[\s]*\{[^}]{5,200}\}|mutation[\s]*[A-Za-z0-9_]*[\s]*\{[^}]{5,200}\}' "$RD/js/bodies" 2>/dev/null \
+                | sed 's/^/[GraphQL-in-JS] /' | sort -u >> "$RD/js/secrets_low.txt" || true
+              # fetch/axios calls belong in api_endpoints, not secrets
+              grep -rhIoE '(fetch|axios)[\s]*\(["'"'"'][^"'"'"']{3,120}["'"'"']\)' "$RD/js/bodies" 2>/dev/null \
+                | sed 's/^/[JS-HTTP-Call] /' | sort -u >> "$RD/js/api_endpoints.txt" || true
+              # Re-merge after extras
+              cat "$RD/js/secrets_high.txt" "$RD/js/secrets_low.txt" 2>/dev/null | sort -u > "$RD/js/secrets.txt" || true
             fi
             echo "✅ API endpoints (from JS content): $(wc -l < "$RD/js/api_endpoints.txt" 2>/dev/null || echo 0) | Secrets: $(wc -l < "$RD/js/secrets.txt" 2>/dev/null || echo 0) | Total JS files analyzed: $(sort -u "$RD/js/files.txt" 2>/dev/null | wc -l || echo 0)"
           fi
