@@ -145,10 +145,11 @@ results/<run-id>-<target>/
 
 Start with:
 
-1. `live/interesting_ranked.txt` — where the pipeline focused
-2. `js/secrets_high.txt` — high-confidence credentials/patterns
-3. `nuclei/findings.jsonl` — confirmed template hits
-4. `targeted/` and `fuzzing/discovered.txt` — manual follow-up leads
+1. **`triage/hunter_queue.md`** — operator queue (priority hosts, high secrets, top findings, delta hosts)
+2. `live/interesting_ranked.txt` — where the pipeline focused
+3. `js/secrets_high.txt` — high-confidence credentials/patterns
+4. `nuclei/findings.jsonl` — confirmed template hits
+5. `targeted/` and `fuzzing/discovered.txt` — manual follow-up leads
 
 ---
 
@@ -170,6 +171,7 @@ Start with:
 - **Quality over volume:** secrets and findings are structured for triage, not raw greps only
 - **Roadmap:** modular composite actions (see `docs/MODULAR_ROADMAP.md`) so the monolith can be split without losing behavior
 
+How we compare to other frameworks: [`docs/COMPETITIVE_ANALYSIS.md`](./docs/COMPETITIVE_ANALYSIS.md)  
 Technical deep-dive: [`docs/DOCUMENTATION.md`](./docs/DOCUMENTATION.md)  
 Phase manifest: [`docs/PIPELINE_MANIFEST.md`](./docs/PIPELINE_MANIFEST.md)  
 Methodology notes: [`docs/methodology.md`](./docs/methodology.md)

@@ -4360,6 +4360,74 @@ jobs:
           with open(os.path.join(rd, "triage", "triage.md"), "w") as f:
               f.write("\n".join(lines))
           print(f"✅ Triage: {len(confirmed)} confirmed (sorted), {len(leads)} recon leads -> triage/triage.md")
+
+          # --- Hunter Queue (2026-09-08) ---
+          # Elite pipelines (recon0, bugbounty.info continuous recon, CrounsEngine)
+          # optimize for "what should a human do next?", not tool volume.
+          # This file is the operator queue: ranked hosts + high-signal secrets +
+          # confirmed findings + delta assets when available.
+          hq = ["# Hunter Queue — start here\n"]
+          hq.append("Generated for manual follow-up. Authorized targets only.\n")
+          hq.append("---\n")
+
+          ranked = rl("live/interesting_ranked.txt")[:15]
+          hq.append("## 1. Priority hosts (interesting-first)\n")
+          if ranked:
+              for row in ranked:
+                  hq.append(f"- `{row}`")
+          else:
+              for u in rl("live/scan_order.txt")[:10] or rl("live/live.txt")[:10]:
+                  hq.append(f"- `{u}`")
+          hq.append("")
+
+          high_sec = rl("js/secrets_high.txt")[:25]
+          hq.append("## 2. High-confidence secrets / key formats\n")
+          if high_sec:
+              for s in high_sec:
+                  hq.append(f"- `{s[:180]}`")
+          else:
+              hq.append("_None this run._")
+          hq.append("")
+
+          hq.append("## 3. Top confirmed findings\n")
+          if confirmed:
+              for rank, sev, cat, detail in confirmed[:20]:
+                  hq.append(f"- **{sev.upper()}** `{cat}` — {detail[:160]}")
+          else:
+              hq.append("_None this run — focus on priority hosts + content discovery leads._")
+          hq.append("")
+
+          # Delta: new live hosts vs previous snapshot when present
+          new_hosts = []
+          prev = os.path.join(".previous_snapshot", "live.txt")
+          cur_hosts = set(rl("live/live.txt"))
+          try:
+              with open(prev) as f:
+                  prev_hosts = {l.strip() for l in f if l.strip()}
+              new_hosts = sorted(cur_hosts - prev_hosts)
+          except Exception:
+              new_hosts = []
+          hq.append("## 4. Delta — new live hosts since last scan\n")
+          if new_hosts:
+              for h in new_hosts[:30]:
+                  hq.append(f"- `{h}`")
+              if len(new_hosts) > 30:
+                  hq.append(f"- … +{len(new_hosts)-30} more")
+          else:
+              hq.append("_No previous snapshot delta, or no new hosts._")
+          hq.append("")
+
+          hq.append("## 5. Suggested manual focus (methodology)\n")
+          hq.append("1. Open priority hosts in a browser/proxy; map auth and APIs.")
+          hq.append("2. Validate high-confidence secrets only against in-scope systems.")
+          hq.append("3. Reproduce any CRITICAL/HIGH findings; document impact.")
+          hq.append("4. If delta hosts exist, treat them as fresh attack surface first.")
+          hq.append("5. Use `fuzzing/discovered.txt` and `targeted/arjun_params.txt` for param hunting.")
+          hq.append("")
+
+          with open(os.path.join(rd, "triage", "hunter_queue.md"), "w") as f:
+              f.write("\n".join(hq))
+          print(f"✅ Hunter queue -> triage/hunter_queue.md ({len(ranked)} ranked hosts, {len(high_sec)} high secrets, {len(new_hosts)} new hosts)")
           PYEOF
 
       - name: "🔑 Manual Follow-up Commands (credential/SQLi candidates)"
