@@ -1251,7 +1251,10 @@ jobs:
           # services, and internal tools are very commonly left open on non-standard
           # ports that nothing above would ever touch - naabu finds those.
           if command -v naabu >/dev/null; then
-            sudo proxychains4 -q "$(command -v naabu)" -l "$INPUT" -top-ports 100 -exclude-cdn -silent -rate 1000 -c 25 -o "$RD/live/ports.txt" 2>>"$RD/logs/naabu.log" || true
+            # top-ports 100 + explicit high-value ports (admin panels, DBs, remote access,
+            # containers, CI) that sometimes sit outside the generic top-100 ranking
+            HIGH_VALUE_PORTS="81,3000,3001,4000,4040,4443,5000,5432,5601,5900,6379,7001,8000,8080,8081,8443,8888,9000,9090,9200,9418,10443,27017"
+            sudo proxychains4 -q "$(command -v naabu)" -l "$INPUT" -top-ports 100 -p "$HIGH_VALUE_PORTS" -exclude-cdn -silent -rate 800 -c 15 -o "$RD/live/ports.txt" 2>>"$RD/logs/naabu.log" || true
             echo "✅ Open host:port pairs: $(wc -l < "$RD/live/ports.txt" 2>/dev/null || echo 0)"
             awk -F: '$2!=80 && $2!=443 {print}' "$RD/live/ports.txt" 2>/dev/null > /tmp/nonstd_ports.txt
             if [ -s /tmp/nonstd_ports.txt ]; then
@@ -1260,24 +1263,64 @@ jobs:
               # deterministically wrote 0 bytes even when individual "-u" calls on
               # the exact same hosts/proxy worked fine) - replaced with the same
               # proven-working per-host loop used there.
-              : > "$RD/live/nonstandard_live.txt"
-              running=0; start_sec=$SECONDS
+              # BUGFIX 2026-09-08: same parallel JSON/text append corruption as
+              # live-probe. Each probe writes its own temp file then we merge.
+              # Concurrency 10 → 4 for Tor stability. Also extract clean host:port
+              # URLs so later phases actually get usable targets.
+              tmp_ns=$(mktemp -d)
+              running=0; start_sec=$SECONDS; idx=0
               while IFS= read -r hp; do
                 [ -z "$hp" ] && continue
                 if [ $((SECONDS - start_sec)) -ge 90 ]; then break; fi
-                ( proxychains4 -q httpx -u "$hp" -silent -status-code -title -H "User-Agent: $SCAN_USER_AGENT" -timeout 8 2>>"$RD/logs/httpx.log" ) >> "$RD/live/nonstandard_live.txt" &
+                idx=$((idx + 1))
+                (
+                  proxychains4 -q httpx -u "$hp" -silent -status-code -title -follow-redirects                     -H "User-Agent: $SCAN_USER_AGENT" -timeout 8                     2>>"$RD/logs/httpx.log" > "$tmp_ns/$(printf '%05d' $idx).txt" || true
+                ) &
                 running=$((running + 1))
-                if [ "$running" -ge 10 ]; then wait -n 2>/dev/null || wait; running=$((running - 1)); fi
+                if [ "$running" -ge 4 ]; then wait -n 2>/dev/null || wait; running=$((running - 1)); fi
               done < /tmp/nonstd_ports.txt
               wait
+              cat "$tmp_ns"/*.txt 2>/dev/null | grep -v '^\s*$' > "$RD/live/nonstandard_live.txt" || : > "$RD/live/nonstandard_live.txt"
+              rm -rf "$tmp_ns"
               echo "✅ Live services on non-standard ports: $(wc -l < "$RD/live/nonstandard_live.txt" 2>/dev/null || echo 0)"
-              # Merge into live.txt so every later phase (nuclei, API discovery, JS
-              # analysis...) automatically picks these up too, not just this step.
-              awk '{print $1}' "$RD/live/nonstandard_live.txt" 2>/dev/null >> "$RD/live/live.txt"
+              # Merge host:port URLs into live.txt so nuclei/API/JS/fuzzing all see them
+              # httpx output format is typically: https://host:port [status] [title]
+              awk '{print $1}' "$RD/live/nonstandard_live.txt" 2>/dev/null | grep -E '^https?://' >> "$RD/live/live.txt" || true
               sort -u -o "$RD/live/live.txt" "$RD/live/live.txt"
             fi
           else
             echo "⚠️ naabu not available, skipping port scan"
+          fi
+
+          # --- Interesting-host prioritization (2026-09-08) ---
+          # Main domain alone rarely yields high-value findings. Rank live hosts
+          # so every downstream scanner (fuzzing, arjun, nuclei, API discovery)
+          # hits admin/api/staging/dev/internal first — where bugs actually live.
+          : > "$RD/live/interesting.txt"
+          : > "$RD/live/interesting_ranked.txt"
+          if [ -s "$RD/live/live.txt" ]; then
+            while IFS= read -r url; do
+              [ -z "$url" ] && continue
+              host=$(echo "$url" | sed -E 's#https?://##' | cut -d/ -f1 | cut -d: -f1)
+              score=0
+              echo "$host" | grep -qiE '(^|\.)(admin|adm|administrator|portal|panel|console|dashboard|manage|manager|cms|cpanel|webmail|owa|exchange)(\.|$)' && score=$((score+100))
+              echo "$host" | grep -qiE '(^|\.)(api|graphql|gql|rest|gateway|backend|svc|service|ws|websocket)(\.|$)' && score=$((score+90))
+              echo "$host" | grep -qiE '(^|\.)(staging|stage|stg|dev|devel|development|test|qa|uat|preprod|pre-prod|sandbox|demo|beta|alpha|canary)(\.|$)' && score=$((score+80))
+              echo "$host" | grep -qiE '(^|\.)(internal|intranet|corp|private|vpn|sso|auth|login|id|identity|okta|saml)(\.|$)' && score=$((score+75))
+              echo "$host" | grep -qiE '(^|\.)(jenkins|gitlab|github|git|ci|cd|build|deploy|harbor|registry|nexus|artifactory|sonar)(\.|$)' && score=$((score+70))
+              echo "$host" | grep -qiE '(^|\.)(db|database|mysql|postgres|mongo|redis|elastic|kibana|grafana|prometheus|monitor)(\.|$)' && score=$((score+65))
+              echo "$url" | grep -qE ':[0-9]+' && score=$((score+40))  # non-default port
+              echo "$host" | grep -qiE '(^|\.)(app|apps|mobile|m|cdn|static|assets|img|media)(\.|$)' && score=$((score+10))
+              # Bare apex gets lower priority than interesting subs
+              [ "$host" = "${{ env.TARGET }}" ] && score=$((score+5))
+              echo "${score} ${url}"
+            done < "$RD/live/live.txt" | sort -rn | tee "$RD/live/interesting_ranked.txt" | awk '$1>=40 {print $2}' > "$RD/live/interesting.txt" || true
+            # Ensure we always have something: if nothing scored high, take top 15 by score
+            if [ ! -s "$RD/live/interesting.txt" ]; then
+              awk '{print $2}' "$RD/live/interesting_ranked.txt" 2>/dev/null | head -15 > "$RD/live/interesting.txt" || true
+            fi
+            echo "✅ Interesting hosts (score>=40): $(wc -l < "$RD/live/interesting.txt" 2>/dev/null || echo 0) / total live $(wc -l < "$RD/live/live.txt" 2>/dev/null || echo 0)"
+            head -10 "$RD/live/interesting_ranked.txt" 2>/dev/null | sed 's/^/   /' || true
           fi
 
       - name: "📜 URL Collection"
@@ -1769,8 +1812,16 @@ jobs:
           # already present somewhere in urls/all.txt.
           : > "$RD/targeted/arjun_params.txt"
           if command -v arjun >/dev/null 2>&1 && [ -s "$RD/live/live.txt" ]; then
-            echo "🔍 Running Arjun (hidden parameter discovery) against live hosts (capped at 30 for time budget)..."
-            head -30 "$RD/live/live.txt" | while IFS= read -r host; do
+            # Prefer interesting hosts (api/admin/staging/nonstd ports) — main domain alone is low yield
+            ARJUN_INPUT="$RD/live/interesting.txt"
+            [ -s "$ARJUN_INPUT" ] || ARJUN_INPUT="$RD/live/live.txt"
+            if [ -s "$RD/live/interesting.txt" ]; then
+              cat "$RD/live/interesting.txt" > /tmp/arjun_order.txt
+              grep -Fxv -f "$RD/live/interesting.txt" "$RD/live/live.txt" >> /tmp/arjun_order.txt 2>/dev/null || true
+              ARJUN_INPUT=/tmp/arjun_order.txt
+            fi
+            echo "🔍 Running Arjun against prioritized hosts (interesting first, cap 30)..."
+            head -30 "$ARJUN_INPUT" | while IFS= read -r host; do
               [ -z "$host" ] && continue
               proxychains4 -q arjun -u "$host" -t 10 --rate-limit 20 -oT /tmp/arjun_out.txt 2>>"$RD/logs/arjun.log" >/dev/null || true
               [ -s /tmp/arjun_out.txt ] && sed "s#^#[$host] #" /tmp/arjun_out.txt >> "$RD/targeted/arjun_params.txt"
@@ -2357,26 +2408,32 @@ jobs:
           if [ -s /tmp/content_wordlist.txt ] && [ -s "$RD/live/live.txt" ] && command -v ffuf >/dev/null; then
             mode="${HUNTING_MODE:-normal}"
             budget=$({ [ "$mode" = "light" ] && echo 300; } || { [ "$mode" = "aggressive" ] && echo 1400; } || echo 700)
-            total=$(wc -l < "$RD/live/live.txt")
+            # Prefer interesting hosts (admin/api/staging/dev/nonstd-ports) first
+            FUZZ_INPUT="$RD/live/interesting.txt"
+            [ -s "$FUZZ_INPUT" ] || FUZZ_INPUT="$RD/live/live.txt"
+            # Append remaining live hosts after interesting ones (no duplicates)
+            if [ -s "$RD/live/interesting.txt" ] && [ -s "$RD/live/live.txt" ]; then
+              cat "$RD/live/interesting.txt" > /tmp/fuzz_order.txt
+              grep -Fxv -f "$RD/live/interesting.txt" "$RD/live/live.txt" >> /tmp/fuzz_order.txt 2>/dev/null || true
+              FUZZ_INPUT=/tmp/fuzz_order.txt
+            fi
+            total=$(wc -l < "$FUZZ_INPUT")
             per_host=90
             i=0
             SECONDS=0
-            echo "⏱️ Time-budget driven (${budget}s total, ~${per_host}s cap per host) across $total discovered live host(s) - not a fixed count"
+            echo "⏱️ Time-budget driven (${budget}s, ~${per_host}s/host) across $total hosts (interesting first)"
             while IFS= read -r host; do
               host="$(echo "$host" | tr -d '\r' | xargs)"; [ -z "$host" ] && continue
               if [ "$SECONDS" -ge "$budget" ]; then
-                echo "⏱️ Time budget reached after $i/$total host(s) - stopping here rather than an arbitrary fixed count"
+                echo "⏱️ Time budget reached after $i/$total host(s)"
                 break
               fi
               i=$((i+1))
-              # -ac (autocalibrate) has ffuf learn what a generic "not found" response
-              # looks like for THIS host and filter it out automatically, instead of
-              # every wordlist hit that lands on a custom 404 page looking like a find.
               timeout "$per_host" proxychains4 -q ffuf -w /tmp/content_wordlist.txt -u "${host}/FUZZ" -H "User-Agent: $SCAN_USER_AGENT" \
                 -mc 200,204,301,302,307,401,403 -ac -t 15 -rate 40 -timeout 8 -of json -o /tmp/ffuf_out.json -s 2>>"$RD/logs/ffuf.log" || true
               jq -r '.results[]? | "\(.url) [\(.status)] \(.length) bytes"' /tmp/ffuf_out.json 2>/dev/null >> "$RD/fuzzing/discovered.txt" || true
               rm -f /tmp/ffuf_out.json
-            done < "$RD/live/live.txt"
+            done < "$FUZZ_INPUT"
             sort -u -o "$RD/fuzzing/discovered.txt" "$RD/fuzzing/discovered.txt"
           fi
           echo "✅ Content discovery hits: $(wc -l < "$RD/fuzzing/discovered.txt" 2>/dev/null || echo 0) (from $i/$total host(s))"
@@ -2592,7 +2649,15 @@ jobs:
           # a real run's log: 70,000+ such errors). Raise it before nuclei runs.
           ulimit -n 65535 2>/dev/null || ulimit -n 8192 2>/dev/null || true
           RD="results/${{ env.TIMESTAMP }}"
+          # Prefer interesting hosts (admin/api/staging/dev/nonstd-ports) first —
+          # main apex alone rarely yields critical findings; subdomains + odd ports do.
           INPUT="$RD/live/live.txt"
+          if [ -s "$RD/live/interesting.txt" ]; then
+            cat "$RD/live/interesting.txt" > /tmp/nuclei_targets.txt
+            grep -Fxv -f "$RD/live/interesting.txt" "$RD/live/live.txt" >> /tmp/nuclei_targets.txt 2>/dev/null || true
+            INPUT=/tmp/nuclei_targets.txt
+            echo "🎯 Nuclei target order: interesting first ($(wc -l < "$RD/live/interesting.txt") high-value) then rest"
+          fi
           [ -s "$INPUT" ] || { echo "https://${{ env.TARGET }}" > /tmp/fallback.txt; INPUT=/tmp/fallback.txt; }
           AUTH_ARGS=()
           [ -n "${{ env.AUTH_COOKIE }}" ] && AUTH_ARGS+=(-H "Cookie: ${{ env.AUTH_COOKIE }}")
