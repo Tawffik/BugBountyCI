@@ -1,0 +1,30 @@
+# Local secrets and env
+.env
+.env.*
+*.pem
+*.key
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Tool caches / temp
+*.log
+/tmp/
+
+# Large local scan dumps (artifacts belong on Actions, not git)
+results/**/js/bodies/
+results/**/*.zip
+*.zip
+
+# Optional: uncomment to ignore all local results samples
+# results/

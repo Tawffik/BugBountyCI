@@ -1,7 +1,9 @@
-# 📖 Ai_tefa.yml — Full Technical Documentation
+# Zero Track — Full Technical Documentation
 
-**Version covered:** 43-step workflow (latest as of this document)
-**Purpose:** Reference document for continuing development, onboarding, and planning future upgrades.
+> Companion to the root [README](../README.md). This file is the deep technical reference for contributors extending the pipeline.
+
+**Workflow file:** `.github/workflows/zero-track-hunter.yml`  
+**Purpose:** Reference for development, onboarding, and planning upgrades.
 
 ---
 

@@ -1,24 +1,23 @@
-# 🔍 Dorking Recon Workflow
+# Documentation index
 
-## Setup
-1. Copy `dorking_engine.py` to your repo root.
-2. Copy `.github/workflows/dorking-recon.yml` to `.github/workflows/`.
-3. (Optional) Add your dorks file (e.g., `dorks_list.txt`) to the repo.
+| Document | Description |
+|----------|-------------|
+| [../README.md](../README.md) | Project overview, quick start, architecture summary |
+| [DOCUMENTATION.md](./DOCUMENTATION.md) | Full technical reference for the main workflow |
+| [PIPELINE_MANIFEST.md](./PIPELINE_MANIFEST.md) | Step-oriented manifest of the pipeline |
+| [MODULAR_ROADMAP.md](./MODULAR_ROADMAP.md) | Reliability fixes log + modularization plan |
+| [methodology.md](./methodology.md) | Chain-analysis / triage methodology notes |
+| [CONTRIBUTING.md](../CONTRIBUTING.md) | How to contribute safely |
 
-## Secrets (optional but recommended)
-| Secret | Purpose |
-|--------|---------|
-| `GITHUB_TOKEN` | For `org:TARGET` GitHub code search |
-| `SERPAPI_KEY` | Reliable Google results via SerpAPI |
-| `GOOGLE_CSE_KEY` + `GOOGLE_CSE_CX` | Google Custom Search API |
+## Supporting scripts
 
-## Usage
-Go to **Actions → Dorking Recon → Run workflow** and enter:
-- **Target**: `example.com`
-- **Dorks file**: `dorks_list.txt` (or the file you uploaded)
-- **Sources**: `serpapi,google,bing,github` (reorder by priority)
+| File | Role |
+|------|------|
+| `dorking_engine.py` | Optional dorking / OSINT helper utilities |
+| `build_manifest.py` | Helper for pipeline manifest generation |
 
-## Output
-- `results.json` — full structured data
-- `report.md` — readable markdown report
-- `urls.txt` — flat list of all unique URLs found
+## Reading order for new users
+
+1. Root **README** (how to run)
+2. **MODULAR_ROADMAP** (what was fixed and why)
+3. **DOCUMENTATION** (deep dive when extending the workflow)
