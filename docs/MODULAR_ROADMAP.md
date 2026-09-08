@@ -50,3 +50,10 @@ This made it:
 - Secondary gau retry without `--subs`.
 - Added urlscan.io passive source (no key required).
 - Goal: keep downstream JS / vuln phases fed with real URLs even when primary passive sources fail.
+
+### ✅ 2026-09-08 — JavaScript Analysis quality
+- Secrets split into high-confidence (real key formats) vs low-confidence (filtered generic).
+- Removed massive false-positive sources (minified framework noise, webpack markers).
+- fetch/axios calls moved to api_endpoints (not treated as secrets).
+- JS download concurrency 10 → 4 for Tor stability.
+- Result: triage-usable secrets instead of 800KB+ noise.
