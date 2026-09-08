@@ -57,3 +57,9 @@ This made it:
 - fetch/axios calls moved to api_endpoints (not treated as secrets).
 - JS download concurrency 10 → 4 for Tor stability.
 - Result: triage-usable secrets instead of 800KB+ noise.
+
+### ✅ 2026-09-08 — Attack surface prioritization (subdomains + ports → exploit)
+- Fixed port-scan parallel-write corruption; expanded high-value ports.
+- Ranked live hosts by interestingness (admin/api/staging/dev/internal/CI/DB + nonstd ports).
+- ffuf / Arjun / Nuclei now hit interesting hosts FIRST, then the rest.
+- Goal: stop wasting scan budget on apex-only; push exploitation toward where bugs actually live.
