@@ -44,3 +44,9 @@ This made it:
 - Results always written under `results/${TIMESTAMP}/...`
 - Tor state is shared (setup once, used by later steps)
 - Prefer reliability and signal quality over raw quantity of tools
+
+### ✅ 2026-09-08 — URL Collection reliability
+- Limited CDX fallback when full waybackurls returns empty (common under runner IP rate-limits).
+- Secondary gau retry without `--subs`.
+- Added urlscan.io passive source (no key required).
+- Goal: keep downstream JS / vuln phases fed with real URLs even when primary passive sources fail.
