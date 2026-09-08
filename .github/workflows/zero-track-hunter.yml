@@ -1102,7 +1102,79 @@ jobs:
             else
               : > "$RD/live/live.txt"
             fi
-            [ -s "$RD/live/live.txt" ] && echo "✅ Retry on fresh circuit recovered $(wc -l < "$RD/live/live.txt") live host(s)" || echo "ℹ️ Retry also found nothing - see meta/scan_health_warning.txt for the diagnostic probe result"
+            [ -s "$RD/live/live.txt" ] && echo "✅ Retry on fresh circuit recovered $(wc -l < "$RD/live/live.txt") live host(s)" || echo "ℹ️ Retry also found nothing - will try DIRECT (no-Tor) fallback"
+          fi
+
+          # ================================================================
+          # DIRECT FALLBACK (2026-09-08) — confirmed on kyc.com real run:
+          # - Apex https://kyc.com returned 301 via curl health check
+          # - naabu saw open 80/443 on multiple hosts
+          # - Tor/proxied httpx still produced 0 live hosts (timeouts on many
+          #   candidates; parallel-write bugs fixed separately)
+          # When Tor path yields empty live.txt but we have DNS candidates,
+          # probe WITHOUT proxychains so the rest of the pipeline is not blind.
+          # Results are still in-scope hosts only (same INPUT list).
+          # ================================================================
+          if [ ! -s "$RD/live/live.txt" ] && [ -s "$INPUT" ]; then
+            echo "🔄 DIRECT fallback: probing without Tor (Tor path returned 0 live hosts)..."
+            probe_hosts_direct() {
+              local input_file="$1" output_file="$2" timeout_s="$3" retries_n="$4" concurrency="$5" max_duration="$6"
+              local tmp_dir
+              tmp_dir=$(mktemp -d)
+              : > "$output_file"
+              local running=0 start_sec=$SECONDS idx=0
+              while IFS= read -r host; do
+                [ -z "$host" ] && continue
+                # Normalize bare hostnames to https://
+                case "$host" in
+                  http://*|https://*) ;;
+                  *) host="https://$host" ;;
+                esac
+                if [ -n "$max_duration" ] && [ $((SECONDS - start_sec)) -ge "$max_duration" ]; then
+                  echo "ℹ️ probe_hosts_direct: ${max_duration}s budget reached" >> "$RD/logs/httpx.log"
+                  break
+                fi
+                idx=$((idx + 1))
+                (
+                  httpx -u "$host" -silent -status-code -title -web-server -ip -cdn -follow-redirects                     -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}"                     -timeout "$timeout_s" -retries "$retries_n" -json                     2>>"$RD/logs/httpx_direct.log" > "$tmp_dir/$(printf '%05d' $idx).json" || true
+                ) &
+                running=$((running + 1))
+                if [ "$running" -ge "$concurrency" ]; then
+                  wait -n 2>/dev/null || wait
+                  running=$((running - 1))
+                fi
+              done < "$input_file"
+              wait
+              cat "$tmp_dir"/*.json 2>/dev/null | grep -v '^\s*$' >> "$output_file" || true
+              rm -rf "$tmp_dir"
+            }
+            # Also force apex + www first in a priority list
+            {
+              echo "${{ env.TARGET }}"
+              echo "www.${{ env.TARGET }}"
+              cat "$INPUT"
+            } | awk 'NF && !seen[$0]++' > /tmp/direct_probe_input.txt
+            probe_hosts_direct /tmp/direct_probe_input.txt "$RD/live/live_direct.json" 12 2 8 180
+            if [ -s "$RD/live/live_direct.json" ]; then
+              jq -r 'select(. != null) | (.url // .input // empty)' "$RD/live/live_direct.json" 2>/dev/null                 | grep -v '^\s*$' | sort -u > "$RD/live/live.txt" || true
+              cp "$RD/live/live_direct.json" "$RD/live/live.json" 2>/dev/null || true
+              echo "✅ DIRECT fallback recovered $(wc -l < "$RD/live/live.txt") live host(s) (no Tor)" | tee -a "$RD/meta/scan_health_warning.txt"
+              echo "direct" > "$RD/meta/live_probe_path.txt"
+            else
+              echo "ℹ️ DIRECT fallback also found 0 live hosts" | tee -a "$RD/logs/httpx_direct.log"
+              # Last resort: if curl can see apex, seed live.txt so downstream is not totally blind
+              apex_code=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 10 -H "User-Agent: $SCAN_USER_AGENT" "https://${{ env.TARGET }}/" 2>/dev/null || echo "000")
+              apex_code="${apex_code: -3}"
+              if [ "$apex_code" != "000" ] && [ -n "$apex_code" ]; then
+                echo "https://${{ env.TARGET }}" > "$RD/live/live.txt"
+                echo "https://www.${{ env.TARGET }}" >> "$RD/live/live.txt"
+                sort -u -o "$RD/live/live.txt" "$RD/live/live.txt"
+                echo "⚠️ Seeded live.txt with apex/www only (curl status=$apex_code) — limited coverage" | tee -a "$RD/meta/scan_health_warning.txt"
+                echo "apex-seed" > "$RD/meta/live_probe_path.txt"
+              fi
+            fi
+          else
+            [ -s "$RD/live/live.txt" ] && echo "tor" > "$RD/meta/live_probe_path.txt"
           fi
 
           # Best-effort second pass: only the confirmed real subdomains above are
@@ -1290,6 +1362,45 @@ jobs:
             fi
           else
             echo "⚠️ naabu not available, skipping port scan"
+          fi
+
+          # If live.txt still empty but naabu found open ports, probe those URLs DIRECTLY
+          # (kyc.com case: ports listed 80/443 on many hosts while Tor live probe was empty)
+          if [ ! -s "$RD/live/live.txt" ] && [ -s "$RD/live/ports.txt" ]; then
+            echo "🔄 Port-based DIRECT fallback: building URLs from naabu open ports..."
+            : > /tmp/port_urls.txt
+            while IFS= read -r hp; do
+              [ -z "$hp" ] && continue
+              host="${hp%%:*}"; port="${hp##*:}"
+              [ -z "$host" ] || [ -z "$port" ] && continue
+              if [ "$port" = "443" ] || [ "$port" = "8443" ]; then
+                echo "https://${host}:${port}" >> /tmp/port_urls.txt
+                echo "https://${host}" >> /tmp/port_urls.txt
+              else
+                echo "http://${host}:${port}" >> /tmp/port_urls.txt
+                [ "$port" = "80" ] && echo "http://${host}" >> /tmp/port_urls.txt
+              fi
+            done < "$RD/live/ports.txt"
+            sort -u -o /tmp/port_urls.txt /tmp/port_urls.txt
+            tmp_p=$(mktemp -d); idx=0; running=0; start_sec=$SECONDS
+            while IFS= read -r u; do
+              [ -z "$u" ] && continue
+              [ $((SECONDS - start_sec)) -ge 120 ] && break
+              idx=$((idx+1))
+              (
+                httpx -u "$u" -silent -status-code -title -follow-redirects                   -H "User-Agent: $SCAN_USER_AGENT" -timeout 10 -retries 1 -json                   2>>"$RD/logs/httpx_direct.log" > "$tmp_p/$(printf '%05d' $idx).json" || true
+              ) &
+              running=$((running+1))
+              if [ "$running" -ge 8 ]; then wait -n 2>/dev/null || wait; running=$((running-1)); fi
+            done < /tmp/port_urls.txt
+            wait
+            cat "$tmp_p"/*.json 2>/dev/null | grep -v '^\s*$' > "$RD/live/live_from_ports.json" || true
+            rm -rf "$tmp_p"
+            if [ -s "$RD/live/live_from_ports.json" ]; then
+              jq -r 'select(. != null) | (.url // .input // empty)' "$RD/live/live_from_ports.json" 2>/dev/null                 | grep -v '^\s*$' | sort -u > "$RD/live/live.txt" || true
+              echo "✅ Port DIRECT fallback recovered $(wc -l < "$RD/live/live.txt") live URL(s)" | tee -a "$RD/meta/scan_health_warning.txt"
+              echo "ports-direct" > "$RD/meta/live_probe_path.txt"
+            fi
           fi
 
           # --- Interesting-host prioritization (2026-09-08) ---
@@ -2655,8 +2766,19 @@ jobs:
           # main apex alone rarely yields critical findings; subdomains + odd ports do.
           INPUT="$RD/live/scan_order.txt"
           [ -s "$INPUT" ] || INPUT="$RD/live/live.txt"
-          [ -s "$INPUT" ] || { echo "https://${{ env.TARGET }}" > /tmp/fallback.txt; INPUT=/tmp/fallback.txt; }
+          # STAGE GATE: do not pretend a full nuclei campaign on a synthetic apex-only
+          # fallback when live probing truly failed — that produces false "clean" reports.
+          if [ ! -s "$INPUT" ]; then
+            echo "⏭️ STAGE GATE: no live hosts — skipping Nuclei (would produce misleading empty/clean results)"
+            mkdir -p "$RD/nuclei"
+            : > "$RD/nuclei/findings.jsonl"
+            echo "skipped-no-live-hosts" > "$RD/nuclei/skipped.txt"
+            exit 0
+          fi
           echo "🎯 Nuclei targets: $(wc -l < "$INPUT") hosts (interesting-first via scan_order)"
+          if [ -f "$RD/meta/live_probe_path.txt" ]; then
+            echo "ℹ️ Live probe path used: $(cat "$RD/meta/live_probe_path.txt")"
+          fi
           AUTH_ARGS=()
           [ -n "${{ env.AUTH_COOKIE }}" ] && AUTH_ARGS+=(-H "Cookie: ${{ env.AUTH_COOKIE }}")
           [ -n "${{ env.AUTH_HEADER }}" ] && AUTH_ARGS+=(-H "${{ env.AUTH_HEADER }}")
@@ -3819,11 +3941,41 @@ jobs:
           elif int(total_hosts or "0") > 0:
               disclaimer=(f"## ✅ Scan Reliability\n\n{blocked_hosts}/{total_hosts} hosts ({block_pct}%) were "
                           f"blocked/challenged during recon - most traffic reached the real application.\n\n---\n\n")
+          # Count live hosts — 0 means the report must NOT say "Clean scan"
+          live_n = 0
+          try:
+              with open(os.path.join(rd, "live", "live.txt")) as lf:
+                  live_n = sum(1 for line in lf if line.strip())
+          except Exception:
+              live_n = 0
+          if live_n == 0:
+              disclaimer = (
+                  "## 🔴 Pipeline incomplete — 0 live hosts\n\n"
+                  "Live host probing returned no HTTP targets. Downstream scanners "
+                  "(Nuclei, most active tests) had nothing reliable to test. "
+                  "**This is NOT evidence the target is secure.** "
+                  "See `meta/scan_health_warning.txt` and `meta/pipeline_health.md`.\n\n---\n\n"
+              )
           if not has or not providers:
-              rpt=f"# Security Report: {target}\n**{datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}**\n\n{disclaimer}## No Confirmed Vulnerabilities\nClean scan."
+              if live_n == 0:
+                  rpt = (
+                      f"# Security Report: {target}\n"
+                      f"**{datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}**\n\n"
+                      f"{disclaimer}"
+                      f"## No confirmed vulnerabilities (scan incomplete)\n"
+                      f"0 live hosts — do not treat as a clean bill of health.\n"
+                  )
+              else:
+                  rpt = (
+                      f"# Security Report: {target}\n"
+                      f"**{datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}**\n\n"
+                      f"{disclaimer}"
+                      f"## No Confirmed Vulnerabilities\n"
+                      f"No high-confidence confirmed findings in this run's evidence set.\n"
+                  )
               os.makedirs(os.path.join(rd,"ai"),exist_ok=True)
               with open(os.path.join(rd,"ai","security_report.md"),"w") as f: f.write(rpt)
-              print("📄 Clean report"); sys.exit(0)
+              print("📄 Report written (live_hosts=%d)" % live_n); sys.exit(0)
           prompt=f"""Senior bug bounty hunter writing FINAL report for {target}.
           Base every finding STRICTLY on the evidence below - do not invent URLs,
           parameters, or PoCs that are not literally present in it. If evidence is

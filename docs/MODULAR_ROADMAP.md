@@ -72,3 +72,15 @@ This made it:
   screenshots, nuclei, nikto.
 - Removed duplicated prioritization logic from individual steps.
 - Result: attack-surface ranking actually drives exploitation coverage end-to-end.
+
+### ✅ 2026-09-08 — Live probe DIRECT fallback + stage gates (post kyc.com run)
+Evidence from run 34172998503 (kyc.com, pre-fix commit):
+- Apex returned 301; naabu listed open 80/443; Tor httpx produced 0 live hosts
+- Downstream Nuclei/Nikto empty; AI report said "Clean scan" (misleading)
+
+Fixes:
+1. After Tor+circuit-retry still empty → DIRECT httpx (no proxychains) on candidates
+2. Apex/www seed if curl still sees the target
+3. After port scan, if live still empty → DIRECT probe URLs derived from naabu ports
+4. Nuclei stage gate: skip when no live hosts (write nuclei/skipped.txt)
+5. Security report: never say "Clean scan" when live_hosts=0
