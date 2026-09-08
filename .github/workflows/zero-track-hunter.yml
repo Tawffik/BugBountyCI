@@ -1327,12 +1327,30 @@ jobs:
           # the CDX API's raw response so the next run can tell "genuinely no
           # archived history" apart from "this runner's IP got rate-limited".
           if [ ! -s "$RD/urls/wayback.txt" ]; then
-            curl -s --max-time 15 -o "$RD/meta/archive_cdx_diag.txt" -w "\nHTTP_STATUS:%{http_code}\n" "http://web.archive.org/cdx/search/cdx?url=${{ env.TARGET }}/*&output=json&limit=5" 2>>"$RD/logs/wayback.log" || true
+            echo "ℹ️ waybackurls returned empty - trying limited CDX fallback (more reliable under runner IP rate-limits)..."
+            # Diagnostic small probe
+            curl -s --max-time 15 -o "$RD/meta/archive_cdx_diag.txt" -w "\nHTTP_STATUS:%{http_code}\n" \
+              "http://web.archive.org/cdx/search/cdx?url=${{ env.TARGET }}/*&output=json&limit=5" 2>>"$RD/logs/wayback.log" || true
+            # Useful fallback: limited but real URLs (collapse=urlkey reduces noise)
+            # limit=3000 is usually enough signal without the multi-minute full dump that gets killed/throttled
+            curl -s --max-time 90 \
+              "http://web.archive.org/cdx/search/cdx?url=${{ env.TARGET }}/*&output=text&fl=original&collapse=urlkey&limit=3000" \
+              2>>"$RD/logs/wayback.log" | grep -E '^https?://' | sort -u > "$RD/urls/wayback.txt" || true
+            if [ -s "$RD/urls/wayback.txt" ]; then
+              echo "✅ CDX limited fallback recovered $(wc -l < "$RD/urls/wayback.txt") URLs"
+            else
+              echo "ℹ️ CDX fallback also empty (likely rate-limit or genuinely no history)"
+            fi
           fi
           echo "🔍 Gau..."
           timeout 300 gau "${{ env.TARGET }}" --subs --o "$RD/urls/gau.txt" 2>>"$RD/logs/gau.log"
           gau_exit=$?
           [ "$gau_exit" -eq 124 ] && echo "⚠️ gau was killed by the 300s timeout" >> "$RD/logs/gau.log"
+          # If gau also empty, try without --subs (sometimes more reliable) as secondary
+          if [ ! -s "$RD/urls/gau.txt" ]; then
+            echo "ℹ️ gau --subs empty - retrying without --subs (30s)..."
+            timeout 30 gau "${{ env.TARGET }}" --o "$RD/urls/gau.txt" 2>>"$RD/logs/gau.log" || true
+          fi
           echo "🔍 Katana..."
           [ -s "$RD/live/live.txt" ] && timeout 180 proxychains4 -q katana -list "$RD/live/live.txt" -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}" -silent -depth 2 -jc -d 3 -o "$RD/urls/katana.txt" 2>>"$RD/logs/katana.log" || true
           echo "🔍 Hakrawler (independent crawler - different JS/link parser than katana, catches URLs katana's config misses)..."
@@ -1342,6 +1360,14 @@ jobs:
             echo "⚠️ hakrawler not installed or no live hosts - skipping"
             touch "$RD/urls/hakrawler.txt"
           fi
+          echo "🔍 urlscan.io passive (often works when archive.org rate-limits GitHub runner IPs)..."
+          : > "$RD/urls/urlscan.txt"
+          # Free search endpoint, no API key required for basic domain search
+          curl -s --max-time 25 -H "User-Agent: $SCAN_USER_AGENT" \
+            "https://urlscan.io/api/v1/search/?q=domain:${{ env.TARGET }}&size=100" 2>>"$RD/logs/urlscan.log" \
+            | jq -r '.results[]?.page.url // empty' 2>/dev/null | grep -E '^https?://' | sort -u > "$RD/urls/urlscan.txt" || true
+          echo "ℹ️ urlscan.io URLs: $(wc -l < "$RD/urls/urlscan.txt" 2>/dev/null || echo 0)"
+
           echo "🔍 robots.txt / sitemap.xml (cheap, often lists paths the owner didn't want indexed)..."
           : > "$RD/urls/robots_sitemap.txt"
           if [ -s "$RD/live/live.txt" ]; then
