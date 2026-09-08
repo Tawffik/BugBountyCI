@@ -1322,6 +1322,16 @@ jobs:
             echo "✅ Interesting hosts (score>=40): $(wc -l < "$RD/live/interesting.txt" 2>/dev/null || echo 0) / total live $(wc -l < "$RD/live/live.txt" 2>/dev/null || echo 0)"
             head -10 "$RD/live/interesting_ranked.txt" 2>/dev/null | sed 's/^/   /' || true
           fi
+          # Unified scan order for ALL downstream tools: interesting first, then the rest.
+          # Single source of truth — avoids each scanner re-implementing prioritization.
+          : > "$RD/live/scan_order.txt"
+          if [ -s "$RD/live/interesting.txt" ]; then
+            cat "$RD/live/interesting.txt" > "$RD/live/scan_order.txt"
+            grep -Fxv -f "$RD/live/interesting.txt" "$RD/live/live.txt" >> "$RD/live/scan_order.txt" 2>/dev/null || true
+          elif [ -s "$RD/live/live.txt" ]; then
+            cp "$RD/live/live.txt" "$RD/live/scan_order.txt"
+          fi
+          echo "✅ scan_order.txt ready: $(wc -l < "$RD/live/scan_order.txt" 2>/dev/null || echo 0) hosts (interesting-first)"
 
       - name: "📜 URL Collection"
         continue-on-error: true
@@ -1395,10 +1405,12 @@ jobs:
             timeout 30 gau "${{ env.TARGET }}" --o "$RD/urls/gau.txt" 2>>"$RD/logs/gau.log" || true
           fi
           echo "🔍 Katana..."
-          [ -s "$RD/live/live.txt" ] && timeout 180 proxychains4 -q katana -list "$RD/live/live.txt" -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}" -silent -depth 2 -jc -d 3 -o "$RD/urls/katana.txt" 2>>"$RD/logs/katana.log" || true
+          KATANA_LIST="$RD/live/scan_order.txt"; [ -s "$KATANA_LIST" ] || KATANA_LIST="$RD/live/live.txt"
+          [ -s "$KATANA_LIST" ] && timeout 180 proxychains4 -q katana -list "$KATANA_LIST" -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}" -silent -depth 2 -jc -d 3 -o "$RD/urls/katana.txt" 2>>"$RD/logs/katana.log" || true
           echo "🔍 Hakrawler (independent crawler - different JS/link parser than katana, catches URLs katana's config misses)..."
-          if command -v hakrawler >/dev/null 2>&1 && [ -s "$RD/live/live.txt" ]; then
-            timeout 90 proxychains4 -q bash -c "cat '$RD/live/live.txt' | hakrawler -subs -u -insecure -t 20 -timeout 8" > "$RD/urls/hakrawler.txt" 2>>"$RD/logs/hakrawler.log" || true
+          HAK_LIST="$RD/live/scan_order.txt"; [ -s "$HAK_LIST" ] || HAK_LIST="$RD/live/live.txt"
+          if command -v hakrawler >/dev/null 2>&1 && [ -s "$HAK_LIST" ]; then
+            timeout 90 proxychains4 -q bash -c "cat '$HAK_LIST' | hakrawler -subs -u -insecure -t 20 -timeout 8" > "$RD/urls/hakrawler.txt" 2>>"$RD/logs/hakrawler.log" || true
           else
             echo "⚠️ hakrawler not installed or no live hosts - skipping"
             touch "$RD/urls/hakrawler.txt"
@@ -1413,10 +1425,11 @@ jobs:
 
           echo "🔍 robots.txt / sitemap.xml (cheap, often lists paths the owner didn't want indexed)..."
           : > "$RD/urls/robots_sitemap.txt"
-          if [ -s "$RD/live/live.txt" ]; then
+          ROBOTS_LIST="$RD/live/scan_order.txt"; [ -s "$ROBOTS_LIST" ] || ROBOTS_LIST="$RD/live/live.txt"
+          if [ -s "$ROBOTS_LIST" ]; then
             mode="${HUNTING_MODE:-normal}"
             budget=$({ [ "$mode" = "light" ] && echo 90; } || { [ "$mode" = "aggressive" ] && echo 400; } || echo 200)
-            total=$(wc -l < "$RD/live/live.txt")
+            total=$(wc -l < "$ROBOTS_LIST")
             i=0
             SECONDS=0
             while IFS= read -r host; do
@@ -1428,7 +1441,7 @@ jobs:
               i=$((i+1))
               proxychains4 -q curl -sk --max-time 6 -H "User-Agent: $SCAN_USER_AGENT" "${host}/robots.txt" 2>/dev/null | grep -iE '^(dis)?allow:' | sed -E 's/^[^:]*:[ \t]*//' | grep -v '^\s*$' | sed "s#^#${host}#" >> "$RD/urls/robots_sitemap.txt" || true
               proxychains4 -q curl -sk --max-time 6 -H "User-Agent: $SCAN_USER_AGENT" "${host}/sitemap.xml" 2>/dev/null | grep -oE '<loc>[^<]+</loc>' | sed -E 's/<\/?loc>//g' >> "$RD/urls/robots_sitemap.txt" || true
-            done < "$RD/live/live.txt"
+            done < "$ROBOTS_LIST"
           fi
           echo "🔄 Merging..."
           cat "$RD"/urls/*.txt 2>/dev/null | sort -u > /tmp/urls_merged.txt
@@ -1745,9 +1758,10 @@ jobs:
           # this covers pages/JS our own katana crawl config might not have
           # reached, so it's genuinely complementary to the pipeline above,
           # not a duplicate of it.
-          if command -v cariddi >/dev/null 2>&1 && [ -s "$RD/live/live.txt" ]; then
-            echo "🕷️ Running Cariddi against live hosts..."
-            proxychains4 -q cariddi -l "$RD/live/live.txt" -ua "$SCAN_USER_AGENT" -t 10 -c 20 -e -s -info -err -plain > "$RD/js_deep/cariddi_findings.txt" 2>>"$RD/logs/cariddi.log" || true
+          CARIDDI_LIST="$RD/live/scan_order.txt"; [ -s "$CARIDDI_LIST" ] || CARIDDI_LIST="$RD/live/live.txt"
+          if command -v cariddi >/dev/null 2>&1 && [ -s "$CARIDDI_LIST" ]; then
+            echo "🕷️ Running Cariddi against prioritized hosts..."
+            proxychains4 -q cariddi -l "$CARIDDI_LIST" -ua "$SCAN_USER_AGENT" -t 10 -c 20 -e -s -info -err -plain > "$RD/js_deep/cariddi_findings.txt" 2>>"$RD/logs/cariddi.log" || true
           else
             echo "⚠️ cariddi not installed or no live hosts - skipping"
             touch "$RD/js_deep/cariddi_findings.txt"
@@ -1811,15 +1825,8 @@ jobs:
           # categorization above, which can only ever see params that were
           # already present somewhere in urls/all.txt.
           : > "$RD/targeted/arjun_params.txt"
-          if command -v arjun >/dev/null 2>&1 && [ -s "$RD/live/live.txt" ]; then
-            # Prefer interesting hosts (api/admin/staging/nonstd ports) — main domain alone is low yield
-            ARJUN_INPUT="$RD/live/interesting.txt"
-            [ -s "$ARJUN_INPUT" ] || ARJUN_INPUT="$RD/live/live.txt"
-            if [ -s "$RD/live/interesting.txt" ]; then
-              cat "$RD/live/interesting.txt" > /tmp/arjun_order.txt
-              grep -Fxv -f "$RD/live/interesting.txt" "$RD/live/live.txt" >> /tmp/arjun_order.txt 2>/dev/null || true
-              ARJUN_INPUT=/tmp/arjun_order.txt
-            fi
+          ARJUN_INPUT="$RD/live/scan_order.txt"; [ -s "$ARJUN_INPUT" ] || ARJUN_INPUT="$RD/live/live.txt"
+          if command -v arjun >/dev/null 2>&1 && [ -s "$ARJUN_INPUT" ]; then
             echo "🔍 Running Arjun against prioritized hosts (interesting first, cap 30)..."
             head -30 "$ARJUN_INPUT" | while IFS= read -r host; do
               [ -z "$host" ] && continue
@@ -1862,9 +1869,10 @@ jobs:
           # complements (and cross-checks) the hand-rolled bash CORS probe
           # elsewhere in this pipeline rather than replacing it.
           : > "$RD/targeted/corsy_findings.txt"
-          if [ -f /tmp/Corsy/corsy.py ] && [ -s "$RD/live/live.txt" ]; then
-            echo "🌐 Running Corsy against live hosts..."
-            proxychains4 -q python3 /tmp/Corsy/corsy.py -i "$RD/live/live.txt" -o /tmp/corsy_out.json 2>>"$RD/logs/corsy.log" || true
+          CORSY_LIST="$RD/live/scan_order.txt"; [ -s "$CORSY_LIST" ] || CORSY_LIST="$RD/live/live.txt"
+          if [ -f /tmp/Corsy/corsy.py ] && [ -s "$CORSY_LIST" ]; then
+            echo "🌐 Running Corsy against prioritized hosts..."
+            proxychains4 -q python3 /tmp/Corsy/corsy.py -i "$CORSY_LIST" -o /tmp/corsy_out.json 2>>"$RD/logs/corsy.log" || true
             [ -s /tmp/corsy_out.json ] && cp /tmp/corsy_out.json "$RD/targeted/corsy_findings.txt"
             rm -f /tmp/corsy_out.json
           else
@@ -1901,9 +1909,10 @@ jobs:
           # live hosts - a class this pipeline had no dedicated coverage for
           # at all before this step.
           : > "$RD/targeted/crlfuzz_findings.txt"
-          if command -v crlfuzz >/dev/null 2>&1 && [ -s "$RD/live/live.txt" ]; then
-            echo "✂️ Running CRLFuzz against live hosts..."
-            proxychains4 -q crlfuzz -l "$RD/live/live.txt" -o "$RD/targeted/crlfuzz_findings.txt" 2>>"$RD/logs/crlfuzz.log" || true
+          CRLF_LIST="$RD/live/scan_order.txt"; [ -s "$CRLF_LIST" ] || CRLF_LIST="$RD/live/live.txt"
+          if command -v crlfuzz >/dev/null 2>&1 && [ -s "$CRLF_LIST" ]; then
+            echo "✂️ Running CRLFuzz against prioritized hosts..."
+            proxychains4 -q crlfuzz -l "$CRLF_LIST" -o "$RD/targeted/crlfuzz_findings.txt" 2>>"$RD/logs/crlfuzz.log" || true
           else
             echo "⚠️ crlfuzz not installed or no live hosts - skipping"
           fi
@@ -1915,7 +1924,8 @@ jobs:
         timeout-minutes: 15
         run: |
           RD="results/${{ env.TIMESTAMP }}"
-          INPUT="$RD/live/live.txt"
+          INPUT="$RD/live/scan_order.txt"
+          [ -s "$INPUT" ] || INPUT="$RD/live/live.txt"
           [ -s "$INPUT" ] || { echo "https://${{ env.TARGET }}" > /tmp/fallback.txt; INPUT=/tmp/fallback.txt; }
           : > "$RD/info_disclosure/git_exposure.txt"
           for path in "/.git/HEAD" "/.git/config" "/.git/index" "/.git/logs/HEAD"; do
@@ -2017,7 +2027,8 @@ jobs:
         run: |
           RD="results/${{ env.TIMESTAMP }}"
           mkdir -p "$RD/ai_infra"
-          INPUT="$RD/live/live.txt"
+          INPUT="$RD/live/scan_order.txt"
+          [ -s "$INPUT" ] || INPUT="$RD/live/live.txt"
           [ -s "$INPUT" ] || { echo "https://${{ env.TARGET }}" > /tmp/fallback.txt; INPUT=/tmp/fallback.txt; }
 
           echo "🤖 Phase 1: AI Service Endpoint Discovery..."
@@ -2405,18 +2416,10 @@ jobs:
           # from GitHub, not the target itself.
           curl -sL --max-time 15 "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/common.txt" -o /tmp/content_wordlist.txt 2>/dev/null || true
           : > "$RD/fuzzing/discovered.txt"
-          if [ -s /tmp/content_wordlist.txt ] && [ -s "$RD/live/live.txt" ] && command -v ffuf >/dev/null; then
+          FUZZ_INPUT="$RD/live/scan_order.txt"; [ -s "$FUZZ_INPUT" ] || FUZZ_INPUT="$RD/live/live.txt"
+          if [ -s /tmp/content_wordlist.txt ] && [ -s "$FUZZ_INPUT" ] && command -v ffuf >/dev/null; then
             mode="${HUNTING_MODE:-normal}"
             budget=$({ [ "$mode" = "light" ] && echo 300; } || { [ "$mode" = "aggressive" ] && echo 1400; } || echo 700)
-            # Prefer interesting hosts (admin/api/staging/dev/nonstd-ports) first
-            FUZZ_INPUT="$RD/live/interesting.txt"
-            [ -s "$FUZZ_INPUT" ] || FUZZ_INPUT="$RD/live/live.txt"
-            # Append remaining live hosts after interesting ones (no duplicates)
-            if [ -s "$RD/live/interesting.txt" ] && [ -s "$RD/live/live.txt" ]; then
-              cat "$RD/live/interesting.txt" > /tmp/fuzz_order.txt
-              grep -Fxv -f "$RD/live/interesting.txt" "$RD/live/live.txt" >> /tmp/fuzz_order.txt 2>/dev/null || true
-              FUZZ_INPUT=/tmp/fuzz_order.txt
-            fi
             total=$(wc -l < "$FUZZ_INPUT")
             per_host=90
             i=0
@@ -2443,7 +2446,8 @@ jobs:
         timeout-minutes: 10
         run: |
           RD="results/${{ env.TIMESTAMP }}"
-          INPUT="$RD/live/live.txt"
+          INPUT="$RD/live/scan_order.txt"
+          [ -s "$INPUT" ] || INPUT="$RD/live/live.txt"
           [ -s "$INPUT" ] || { echo "https://${{ env.TARGET }}" > /tmp/fallback.txt; INPUT=/tmp/fallback.txt; }
           : > "$RD/js/swagger.txt"
           for path in "/swagger.json" "/v2/api-docs" "/v3/api-docs" "/openapi.json" "/api/docs" "/swagger-ui.html"; do
@@ -2489,7 +2493,8 @@ jobs:
         timeout-minutes: 10
         run: |
           RD="results/${{ env.TIMESTAMP }}"
-          INPUT="$RD/live/live.txt"
+          INPUT="$RD/live/scan_order.txt"
+          [ -s "$INPUT" ] || INPUT="$RD/live/live.txt"
           [ -s "$INPUT" ] || { echo "https://${{ env.TARGET }}" > /tmp/fallback.txt; INPUT=/tmp/fallback.txt; }
           : > "$RD/cors/vulnerable.txt"
           for origin in "https://evil.com" "null" "https://evil.${{ env.TARGET }}"; do
@@ -2608,16 +2613,13 @@ jobs:
         run: |
           RD="results/${{ env.TIMESTAMP }}"
           mkdir -p "$RD/screenshots"
-          if [ -s "$RD/live/live.txt" ] && command -v gowitness >/dev/null; then
+          SCREEN_LIST="$RD/live/scan_order.txt"; [ -s "$SCREEN_LIST" ] || SCREEN_LIST="$RD/live/live.txt"
+          if [ -s "$SCREEN_LIST" ] && command -v gowitness >/dev/null; then
             mode="${HUNTING_MODE:-normal}"
             budget=$({ [ "$mode" = "light" ] && echo 240; } || { [ "$mode" = "aggressive" ] && echo 900; } || echo 500)
-            total=$(wc -l < "$RD/live/live.txt")
-            # No arbitrary cap on which hosts get in - gowitness is a batch tool with
-            # its own internal concurrency, so it works through however many were
-            # actually found (all $total of them); the time budget below (which
-            # scales with mode) bounds the total work, not a fixed host count that
-            # would silently ignore most of a large real result set.
-            cp "$RD/live/live.txt" /tmp/screenshot_targets.txt
+            total=$(wc -l < "$SCREEN_LIST")
+            # Interesting hosts first so high-value panels appear early if budget cuts off
+            cp "$SCREEN_LIST" /tmp/screenshot_targets.txt
             # BUGFIX: this used to wrap gowitness in `proxychains4` (LD_PRELOAD-based
             # socket interception) - confirmed on a real run: 0 screenshots AND 0
             # bytes in logs/gowitness.log, the exact same "silent complete failure"
@@ -2651,14 +2653,10 @@ jobs:
           RD="results/${{ env.TIMESTAMP }}"
           # Prefer interesting hosts (admin/api/staging/dev/nonstd-ports) first —
           # main apex alone rarely yields critical findings; subdomains + odd ports do.
-          INPUT="$RD/live/live.txt"
-          if [ -s "$RD/live/interesting.txt" ]; then
-            cat "$RD/live/interesting.txt" > /tmp/nuclei_targets.txt
-            grep -Fxv -f "$RD/live/interesting.txt" "$RD/live/live.txt" >> /tmp/nuclei_targets.txt 2>/dev/null || true
-            INPUT=/tmp/nuclei_targets.txt
-            echo "🎯 Nuclei target order: interesting first ($(wc -l < "$RD/live/interesting.txt") high-value) then rest"
-          fi
+          INPUT="$RD/live/scan_order.txt"
+          [ -s "$INPUT" ] || INPUT="$RD/live/live.txt"
           [ -s "$INPUT" ] || { echo "https://${{ env.TARGET }}" > /tmp/fallback.txt; INPUT=/tmp/fallback.txt; }
+          echo "🎯 Nuclei targets: $(wc -l < "$INPUT") hosts (interesting-first via scan_order)"
           AUTH_ARGS=()
           [ -n "${{ env.AUTH_COOKIE }}" ] && AUTH_ARGS+=(-H "Cookie: ${{ env.AUTH_COOKIE }}")
           [ -n "${{ env.AUTH_HEADER }}" ] && AUTH_ARGS+=(-H "${{ env.AUTH_HEADER }}")
@@ -2733,12 +2731,13 @@ jobs:
         run: |
           RD="results/${{ env.TIMESTAMP }}"
           : > "$RD/nuclei/nikto_findings.txt"
+          NIKTO_LIST="$RD/live/scan_order.txt"; [ -s "$NIKTO_LIST" ] || NIKTO_LIST="$RD/live/live.txt"
           if ! command -v nikto >/dev/null 2>&1; then
             echo "⚠️ nikto not installed, skipping"
-          elif [ -s "$RD/live/live.txt" ]; then
+          elif [ -s "$NIKTO_LIST" ]; then
             mode="${HUNTING_MODE:-normal}"
             budget=$({ [ "$mode" = "light" ] && echo 150; } || { [ "$mode" = "aggressive" ] && echo 800; } || echo 350)
-            total=$(wc -l < "$RD/live/live.txt")
+            total=$(wc -l < "$NIKTO_LIST")
             per_host=90
             i=0
             SECONDS=0
@@ -2759,7 +2758,7 @@ jobs:
                 grep -E '^\+ (GET|POST|HEAD) ' /tmp/nikto_one.txt | sed "s#^#[$host] #" >> "$RD/nuclei/nikto_findings.txt" || true
               fi
               rm -f /tmp/nikto_one.txt
-            done < "$RD/live/live.txt"
+            done < "$NIKTO_LIST"
           fi
           echo "✅ Nikto findings: $(wc -l < "$RD/nuclei/nikto_findings.txt" 2>/dev/null || echo 0) (from $i/$total host(s) - time-budget driven, not a fixed count)"
 

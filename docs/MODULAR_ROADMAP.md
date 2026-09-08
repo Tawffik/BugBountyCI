@@ -63,3 +63,12 @@ This made it:
 - Ranked live hosts by interestingness (admin/api/staging/dev/internal/CI/DB + nonstd ports).
 - ffuf / Arjun / Nuclei now hit interesting hosts FIRST, then the rest.
 - Goal: stop wasting scan budget on apex-only; push exploitation toward where bugs actually live.
+
+### ✅ 2026-09-08 — Unified scan_order integration
+- Created `live/scan_order.txt` as single source of truth (interesting hosts first, then rest).
+- Wired ALL major downstream scanners to it:
+  katana, hakrawler, robots/sitemap, cariddi, arjun, corsy, crlfuzz,
+  info-disclosure, AI-infra, ffuf, API discovery, security analysis,
+  screenshots, nuclei, nikto.
+- Removed duplicated prioritization logic from individual steps.
+- Result: attack-surface ranking actually drives exploitation coverage end-to-end.
