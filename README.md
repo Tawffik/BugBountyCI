@@ -145,7 +145,7 @@ results/<run-id>-<target>/
 
 Start with:
 
-1. **`triage/hunter_queue.md`** — operator queue (priority hosts, high secrets, top findings, delta hosts)
+1. **`triage/hunter_queue.md`** — operator queue: **delta since last scan**, priority hosts, high secrets, top findings
 2. `live/interesting_ranked.txt` — where the pipeline focused
 3. `js/secrets_high.txt` — high-confidence credentials/patterns
 4. `nuclei/findings.jsonl` — confirmed template hits

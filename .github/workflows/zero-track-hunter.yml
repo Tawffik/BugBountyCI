@@ -4186,7 +4186,68 @@ jobs:
           diff_section "Subdomains" ".previous_snapshot/subdomains.txt" "$RD/subdomains/all_subs.txt"
           diff_section "Live_Hosts" ".previous_snapshot/live.txt" "$RD/live/live.txt"
           diff_section "URLs" ".previous_snapshot/urls.txt" "$RD/urls/all.txt"
-          echo "✅ Diff report written to diff/diff.md"
+          diff_section "JS_Files" ".previous_snapshot/js_files.txt" "$RD/js/files.txt"
+          diff_section "Secrets_High" ".previous_snapshot/secrets_high.txt" "$RD/js/secrets_high.txt"
+
+          # Machine-readable NEW sets for hunter_queue (must be written HERE,
+          # before Save Snapshot overwrites .previous_snapshot with this run).
+          write_new() {
+            local oldf="$1" newf="$2" outf="$3"
+            touch "$oldf" "$newf"
+            comm -13 <(sort -u "$oldf" 2>/dev/null) <(sort -u "$newf" 2>/dev/null) > "$outf" 2>/dev/null || : > "$outf"
+          }
+          write_new ".previous_snapshot/subdomains.txt" "$RD/subdomains/all_subs.txt" "$RD/diff/new_subdomains.txt"
+          write_new ".previous_snapshot/live.txt" "$RD/live/live.txt" "$RD/diff/new_live.txt"
+          write_new ".previous_snapshot/urls.txt" "$RD/urls/all.txt" "$RD/diff/new_urls.txt"
+          write_new ".previous_snapshot/js_files.txt" "$RD/js/files.txt" "$RD/diff/new_js.txt"
+          write_new ".previous_snapshot/secrets_high.txt" "$RD/js/secrets_high.txt" "$RD/diff/new_secrets_high.txt"
+          write_new ".previous_snapshot/interesting.txt" "$RD/live/interesting.txt" "$RD/diff/new_interesting.txt"
+
+          # Nuclei: normalize to "template|host" for stable identity
+          python3 - << 'NUCLEIDIFF'
+          import json, os
+          rd = "results/" + os.environ.get("TIMESTAMP", "")
+          def load_norm(path):
+              out = set()
+              try:
+                  with open(path) as f:
+                      for line in f:
+                          line = line.strip()
+                          if not line:
+                              continue
+                          try:
+                              j = json.loads(line)
+                              tid = j.get("template-id") or j.get("templateID") or j.get("template") or "?"
+                              host = j.get("host") or j.get("matched-at") or j.get("url") or j.get("ip") or ""
+                              out.add(f"{tid}|{host}")
+                          except Exception:
+                              out.add(line[:200])
+              except Exception:
+                  pass
+              return out
+          prev = load_norm(".previous_snapshot/nuclei.jsonl")
+          cur = load_norm(os.path.join(rd, "nuclei", "findings.jsonl"))
+          # also exposure pass
+          cur |= load_norm(os.path.join(rd, "nuclei", "findings_exposure.jsonl"))
+          new = sorted(cur - prev)
+          with open(os.path.join(rd, "diff", "new_nuclei.txt"), "w") as f:
+              f.write("\n".join(new) + ("\n" if new else ""))
+          print(f"Nuclei delta: {len(new)} new normalized findings")
+          NUCLEIDIFF
+
+          # Summary counts for operators
+          {
+            echo "## Delta summary (machine counts)"
+            echo "- new_subdomains: $(wc -l < "$RD/diff/new_subdomains.txt" | tr -d ' ')"
+            echo "- new_live: $(wc -l < "$RD/diff/new_live.txt" | tr -d ' ')"
+            echo "- new_interesting: $(wc -l < "$RD/diff/new_interesting.txt" | tr -d ' ')"
+            echo "- new_js: $(wc -l < "$RD/diff/new_js.txt" | tr -d ' ')"
+            echo "- new_secrets_high: $(wc -l < "$RD/diff/new_secrets_high.txt" | tr -d ' ')"
+            echo "- new_nuclei: $(wc -l < "$RD/diff/new_nuclei.txt" | tr -d ' ')"
+            echo "- new_urls: $(wc -l < "$RD/diff/new_urls.txt" | tr -d ' ')"
+            echo ""
+          } >> "$RD/diff/diff.md"
+          echo "✅ Diff report + machine-readable new_*.txt written"
 
           # Snapshot the counts BEFORE the next step overwrites .previous_snapshot/
           # with this run's own data - this is what lets Pipeline Health Report
@@ -4227,6 +4288,12 @@ jobs:
           cp "$RD/live/live.txt" .previous_snapshot/live.txt 2>/dev/null || touch .previous_snapshot/live.txt
           cp "$RD/urls/all.txt" .previous_snapshot/urls.txt 2>/dev/null || touch .previous_snapshot/urls.txt
           cp "$RD/subdomains/asn_ips.txt" .previous_snapshot/asn_ips.txt 2>/dev/null || touch .previous_snapshot/asn_ips.txt
+          # Extended snapshot for professional continuous-recon deltas
+          cp "$RD/js/files.txt" .previous_snapshot/js_files.txt 2>/dev/null || touch .previous_snapshot/js_files.txt
+          cp "$RD/js/secrets_high.txt" .previous_snapshot/secrets_high.txt 2>/dev/null || touch .previous_snapshot/secrets_high.txt
+          cp "$RD/live/interesting.txt" .previous_snapshot/interesting.txt 2>/dev/null || touch .previous_snapshot/interesting.txt
+          # Merge nuclei findings into one snapshot file
+          cat "$RD/nuclei/findings.jsonl" "$RD/nuclei/findings_exposure.jsonl" 2>/dev/null > .previous_snapshot/nuclei.jsonl || touch .previous_snapshot/nuclei.jsonl
           # Cache entries are immutable once saved, so this run's snapshot needs the old
           # one deleted first, otherwise the save below would just be silently skipped
           # and future diffs would keep comparing against a stale, outdated baseline.
@@ -4596,27 +4663,76 @@ jobs:
               f.write("\n".join(lines))
           print(f"✅ Triage: {len(confirmed)} confirmed (sorted), {len(leads)} recon leads -> triage/triage.md")
 
-          # --- Hunter Queue (2026-09-08) ---
-          # Elite pipelines (recon0, bugbounty.info continuous recon, CrounsEngine)
-          # optimize for "what should a human do next?", not tool volume.
-          # This file is the operator queue: ranked hosts + high-signal secrets +
-          # confirmed findings + delta assets when available.
-          hq = ["# Hunter Queue — start here\n"]
-          hq.append("Generated for manual follow-up. Authorized targets only.\n")
-          hq.append("---\n")
+          # --- Hunter Queue (professional continuous-recon delta) ---
+          # Reads machine-readable RD/diff/new_*.txt produced BEFORE snapshot overwrite.
+          hq = []
+          target = os.environ.get("TARGET", "target")
+          hq.append(f"# Hunter Queue — `{target}`\n")
+          hq.append("Operator-first view: **what changed** + **what to test next**.\n")
+          hq.append("Authorized targets only. Validate findings manually before reporting.\n")
+          hq.append("\n---\n")
 
+          def rl_diff(name, limit=40):
+              rows = rl(f"diff/{name}")
+              return rows[:limit], len(rows)
+
+          # ---- 1) Delta (the continuous-recon signal) ----
+          hq.append("## 1. Delta since last scan\n")
+          delta_sections = [
+              ("new_interesting.txt", "New interesting hosts", 25),
+              ("new_live.txt", "New live hosts", 30),
+              ("new_subdomains.txt", "New subdomains (DNS)", 30),
+              ("new_js.txt", "New JavaScript URLs", 25),
+              ("new_secrets_high.txt", "New high-confidence secrets", 20),
+              ("new_nuclei.txt", "New Nuclei findings (template|host)", 25),
+          ]
+          any_delta = False
+          baseline = not any(
+              os.path.exists(os.path.join(rd, "diff", n)) and rl(f"diff/{n}")
+              for n, _, _ in delta_sections
+          )
+          # baseline detection: no previous counts
+          try:
+              with open(os.path.join(rd, "meta", "previous_run_counts.json")) as pf:
+                  prev_counts = json.load(pf)
+              is_baseline = all(v is None for v in prev_counts.values())
+          except Exception:
+              is_baseline = True
+
+          if is_baseline:
+              hq.append("_First scan for this target (or no restored snapshot) — establishing baseline. Next run will show true deltas._\n")
+          else:
+              for fname, title, lim in delta_sections:
+                  rows, total = rl_diff(fname, lim)
+                  if total == 0:
+                      continue
+                  any_delta = True
+                  hq.append(f"### {title} ({total})\n")
+                  for r in rows:
+                      hq.append(f"- `{r[:200]}`")
+                  if total > lim:
+                      hq.append(f"- … +{total - lim} more in `diff/{fname}`")
+                  hq.append("")
+              if not any_delta:
+                  hq.append("_No new assets/findings vs previous snapshot — surface may be stable._\n")
+          hq.append("")
+
+          # ---- 2) Priority hosts (interesting-first) ----
           ranked = rl("live/interesting_ranked.txt")[:15]
-          hq.append("## 1. Priority hosts (interesting-first)\n")
+          hq.append("## 2. Priority hosts (interesting-first)\n")
           if ranked:
               for row in ranked:
                   hq.append(f"- `{row}`")
           else:
-              for u in rl("live/scan_order.txt")[:10] or rl("live/live.txt")[:10]:
+              for u in (rl("live/scan_order.txt")[:10] or rl("live/live.txt")[:10]):
                   hq.append(f"- `{u}`")
+          if not ranked and not rl("live/live.txt"):
+              hq.append("_No live hosts this run — see `meta/pipeline_health.md`._")
           hq.append("")
 
+          # ---- 3) High-confidence secrets (current run) ----
           high_sec = rl("js/secrets_high.txt")[:25]
-          hq.append("## 2. High-confidence secrets / key formats\n")
+          hq.append("## 3. High-confidence secrets (this run)\n")
           if high_sec:
               for s in high_sec:
                   hq.append(f"- `{s[:180]}`")
@@ -4624,45 +4740,36 @@ jobs:
               hq.append("_None this run._")
           hq.append("")
 
-          hq.append("## 3. Top confirmed findings\n")
+          # ---- 4) Top confirmed findings ----
+          hq.append("## 4. Top confirmed findings\n")
           if confirmed:
               for rank, sev, cat, detail in confirmed[:20]:
                   hq.append(f"- **{sev.upper()}** `{cat}` — {detail[:160]}")
           else:
-              hq.append("_None this run — focus on priority hosts + content discovery leads._")
+              hq.append("_None this run — use priority hosts + delta for manual focus._")
           hq.append("")
 
-          # Delta: new live hosts vs previous snapshot when present
-          new_hosts = []
-          prev = os.path.join(".previous_snapshot", "live.txt")
-          cur_hosts = set(rl("live/live.txt"))
-          try:
-              with open(prev) as f:
-                  prev_hosts = {l.strip() for l in f if l.strip()}
-              new_hosts = sorted(cur_hosts - prev_hosts)
-          except Exception:
-              new_hosts = []
-          hq.append("## 4. Delta — new live hosts since last scan\n")
-          if new_hosts:
-              for h in new_hosts[:30]:
-                  hq.append(f"- `{h}`")
-              if len(new_hosts) > 30:
-                  hq.append(f"- … +{len(new_hosts)-30} more")
+          # ---- 5) Suggested focus ----
+          hq.append("## 5. Suggested manual focus\n")
+          if not is_baseline and any_delta:
+              hq.append("1. **Start with Delta** — new interesting/live hosts and new JS are highest ROI.")
+              hq.append("2. Validate **new Nuclei** / **new secrets_high** only in scope.")
+              hq.append("3. Then work remaining priority hosts in section 2.")
           else:
-              hq.append("_No previous snapshot delta, or no new hosts._")
+              hq.append("1. Open priority hosts in a browser/proxy; map auth and APIs.")
+              hq.append("2. Validate high-confidence secrets only against in-scope systems.")
+              hq.append("3. Reproduce any CRITICAL/HIGH findings; document impact.")
+          hq.append("4. Use `fuzzing/discovered.txt` and `targeted/arjun_params.txt` for param hunting.")
+          hq.append("5. Full narrative: `diff/diff.md` · health: `meta/pipeline_health.md`.")
           hq.append("")
 
-          hq.append("## 5. Suggested manual focus (methodology)\n")
-          hq.append("1. Open priority hosts in a browser/proxy; map auth and APIs.")
-          hq.append("2. Validate high-confidence secrets only against in-scope systems.")
-          hq.append("3. Reproduce any CRITICAL/HIGH findings; document impact.")
-          hq.append("4. If delta hosts exist, treat them as fresh attack surface first.")
-          hq.append("5. Use `fuzzing/discovered.txt` and `targeted/arjun_params.txt` for param hunting.")
-          hq.append("")
-
+          os.makedirs(os.path.join(rd, "triage"), exist_ok=True)
           with open(os.path.join(rd, "triage", "hunter_queue.md"), "w") as f:
               f.write("\n".join(hq))
-          print(f"✅ Hunter queue -> triage/hunter_queue.md ({len(ranked)} ranked hosts, {len(high_sec)} high secrets, {len(new_hosts)} new hosts)")
+          n_live = len(rl("diff/new_live.txt"))
+          n_js = len(rl("diff/new_js.txt"))
+          n_nuc = len(rl("diff/new_nuclei.txt"))
+          print(f"✅ Hunter queue -> triage/hunter_queue.md (delta: live+{n_live} js+{n_js} nuclei+{n_nuc}, baseline={is_baseline})")
           PYEOF
 
       - name: "🔑 Manual Follow-up Commands (credential/SQLi candidates)"

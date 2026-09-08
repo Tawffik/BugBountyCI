@@ -90,3 +90,9 @@ Fixes:
   require domain/base in repo path, cap 80 triage hits (kyc.com noise lesson)
 - JS body download: Tor first, then DIRECT retry for failures (403/timeouts);
   better Accept headers; diag file keeps both paths
+
+### ✅ 2026-09-08 — Professional continuous-recon delta
+- Diff step writes machine-readable `diff/new_{live,subdomains,urls,js,secrets_high,interesting,nuclei}.txt`
+  BEFORE snapshot overwrite (critical ordering fix for accurate deltas)
+- Snapshot extended: js_files, secrets_high, interesting, nuclei.jsonl
+- `triage/hunter_queue.md` prioritizes Delta section for operators; baseline-aware
