@@ -1620,6 +1620,7 @@ jobs:
               # 2" discovery logic right below already successfully uses.
               python3 << 'PYEOF'
           import os, hashlib, socket, concurrent.futures, urllib.request
+          _orig_socket = socket.socket
           try:
               import socks
               socks.set_default_proxy(socks.SOCKS5, "127.0.0.1", 9050)
@@ -1636,7 +1637,7 @@ jobs:
                   urls = [l.strip() for l in f if l.strip()]
           except Exception:
               pass
-          # DIAGNOSTIC: a prior real run downloaded 0/200 JS bodies with zero
+          # DIAGNOSTIC + DIRECT retry: kyc.com run got HTTP 403 via Tor on JS bodies
           # visibility into why (every failure was silently swallowed by a bare
           # `except: pass`). Record the exception TYPE+message for the first few
           # failures so the next run's artifact shows exactly what's failing
@@ -1644,29 +1645,62 @@ jobs:
           # requiring another guess-and-check round.
           errors_seen = []
           errors_lock = __import__("threading").Lock()
+          failed_urls = []
+          failed_lock = __import__("threading").Lock()
           def fetch(url):
               try:
-                  req = urllib.request.Request(url, headers={"User-Agent": ua})
+                  req = urllib.request.Request(url, headers={
+                      "User-Agent": ua,
+                      "Accept": "*/*",
+                      "Accept-Language": "en-US,en;q=0.9",
+                  })
                   body = urllib.request.urlopen(req, timeout=12).read(1000000)
                   fname = hashlib.md5(url.encode()).hexdigest() + ".js"
                   with open(os.path.join(bodies_dir, fname), "wb") as out:
                       out.write(body)
               except Exception as e:
+                  with failed_lock:
+                      failed_urls.append(url)
                   with errors_lock:
-                      if len(errors_seen) < 5:
-                          errors_seen.append(f"{url} -> {type(e).__name__}: {e}")
-          with concurrent.futures.ThreadPoolExecutor(max_workers=4) as ex:  # lowered 10→4 for Tor stability
+                      if len(errors_seen) < 8:
+                          errors_seen.append(f"[tor] {url} -> {type(e).__name__}: {e}")
+          with concurrent.futures.ThreadPoolExecutor(max_workers=4) as ex:
               list(ex.map(fetch, urls))
+          # DIRECT retry for failures (kyc.com: Tor/proxy path got HTTP 403 on many JS URLs)
+          # Restore real sockets once, then fetch failed list without SOCKS.
+          if failed_urls:
+              socket.socket = _orig_socket
+              def fetch_direct(url):
+                  try:
+                      req = urllib.request.Request(url, headers={
+                          "User-Agent": ua,
+                          "Accept": "*/*",
+                          "Accept-Language": "en-US,en;q=0.9",
+                      })
+                      body = urllib.request.urlopen(req, timeout=12).read(1000000)
+                      fname = hashlib.md5(url.encode()).hexdigest() + ".js"
+                      path = os.path.join(bodies_dir, fname)
+                      if not os.path.exists(path):
+                          with open(path, "wb") as out:
+                              out.write(body)
+                  except Exception as e:
+                      with errors_lock:
+                          if len(errors_seen) < 12:
+                              errors_seen.append(f"[direct] {url} -> {type(e).__name__}: {e}")
+              with concurrent.futures.ThreadPoolExecutor(max_workers=6) as ex:
+                  list(ex.map(fetch_direct, list(dict.fromkeys(failed_urls))))
           downloaded = len(os.listdir(bodies_dir))
-          print(f"✅ Downloaded {downloaded} JS bodies (round 1)")
-          if downloaded == 0 and errors_seen:
-              print("⚠️ 0 downloads - sample errors:")
-              for e in errors_seen: print("   " + e)
+          print(f"✅ Downloaded {downloaded} JS bodies (round 1; direct-retry for {len(failed_urls)} failures)")
+          if errors_seen:
               try:
                   with open(os.path.join(rd, "meta", "js_download_diag.txt"), "w") as f:
                       f.write("\n".join(errors_seen))
               except Exception:
                   pass
+              if downloaded == 0:
+                  print("⚠️ 0 downloads - sample errors:")
+                  for e in errors_seen[:5]:
+                      print("   " + e)
           PYEOF
 
               # Round 2: a plain URL crawl only ever finds JS files that appear as an
@@ -2271,15 +2305,64 @@ jobs:
 
           echo "🔍 GitHub code search for leaked secrets mentioning ${TARGET}..."
           : > "$RD/js/github_recon.txt"
+          : > "$RD/js/github_recon_raw.txt"
           if [ -n "${{ secrets.GITHUB_TOKEN }}" ]; then
-            for q in "${TARGET} password" "${TARGET} api_key" "${TARGET} secret"; do
-              curl -s --max-time 10 -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -H "Accept: application/vnd.github+json" \
+            # Prefer exact domain string + credential keywords. Avoid bare BASE_NAME
+            # queries (e.g. "kyc") that match thousands of unrelated hobby repos.
+            for q in \
+              "\"${TARGET}\" password" \
+              "\"${TARGET}\" api_key OR apikey OR secret" \
+              "\"${TARGET}\" aws_access OR AKIA" \
+              "\"${TARGET}\" filename:.env" \
+              "\"${TARGET}\" filename:credentials"
+            do
+              curl -s --max-time 12 -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -H "Accept: application/vnd.github+json" \
                 "https://api.github.com/search/code?q=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$q")" \
-                2>/dev/null | jq -r '.items[]? | "\(.repository.full_name) :: \(.path)"' 2>/dev/null >> "$RD/js/github_recon.txt" || true
-              sleep 3  # stay well under the search API's rate limit
+                2>/dev/null | jq -r '.items[]? | "\(.repository.full_name) :: \(.path)"' 2>/dev/null >> "$RD/js/github_recon_raw.txt" || true
+              sleep 3
             done
-            sort -u -o "$RD/js/github_recon.txt" "$RD/js/github_recon.txt"
-            echo "✅ GitHub recon hits (repo/file references only, not fetched): $(wc -l < "$RD/js/github_recon.txt" 2>/dev/null || echo 0)"
+            sort -u -o "$RD/js/github_recon_raw.txt" "$RD/js/github_recon_raw.txt"
+            # Noise filter (kyc.com run taught us): drop known junk patterns and
+            # require the domain OR a close org token to appear in repo/path.
+            # Keep raw file for debugging; write filtered list for triage.
+            python3 << 'GHFILT'
+          import os, re
+          rd = "results/" + os.environ.get("TIMESTAMP", "")
+          target = os.environ.get("TARGET", "").lower()
+          base = re.sub(r"\.(com|net|org|io|co|dev|app|ch)(\.[a-z]{2})?$", "", target)
+          base = base.split(".")[-1] if base else target
+          noise = re.compile(
+              r"expired-domain|cirosantilli|domain-list|wordlist|secLists|payloads|"
+              r"bug-bounty-wordlist|all\.txt|common\.txt|dirbuster",
+              re.I,
+          )
+          raw_path = os.path.join(rd, "js", "github_recon_raw.txt")
+          out_path = os.path.join(rd, "js", "github_recon.txt")
+          kept = []
+          try:
+              lines = open(raw_path).read().splitlines()
+          except Exception:
+              lines = []
+          for line in lines:
+              if not line.strip():
+                  continue
+              if noise.search(line):
+                  continue
+              low = line.lower()
+              # Prefer hits that mention the full domain somewhere in repo/path
+              if target and target in low:
+                  kept.append(line)
+                  continue
+              # Secondary: base name in repo full_name (not only random path noise)
+              repo = low.split("::")[0] if "::" in low else low
+              if base and len(base) >= 3 and base in repo:
+                  kept.append(line)
+          # Cap triage noise
+          kept = sorted(set(kept))[:80]
+          open(out_path, "w").write("\n".join(kept) + ("\n" if kept else ""))
+          print(f"GitHub recon filtered: {len(kept)} kept / {len(lines)} raw")
+          GHFILT
+            echo "✅ GitHub recon hits (filtered): $(wc -l < "$RD/js/github_recon.txt" 2>/dev/null || echo 0) (raw: $(wc -l < "$RD/js/github_recon_raw.txt" 2>/dev/null || echo 0))"
           else
             echo "⚠️ GITHUB_TOKEN not available, skipping GitHub recon"
           fi

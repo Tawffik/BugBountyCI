@@ -84,3 +84,9 @@ Fixes:
 3. After port scan, if live still empty → DIRECT probe URLs derived from naabu ports
 4. Nuclei stage gate: skip when no live hosts (write nuclei/skipped.txt)
 5. Security report: never say "Clean scan" when live_hosts=0
+
+### ✅ 2026-09-08 — GitHub recon filter + JS download direct retry
+- GitHub code search: quoted domain queries, raw+filtered outputs, noise denylist,
+  require domain/base in repo path, cap 80 triage hits (kyc.com noise lesson)
+- JS body download: Tor first, then DIRECT retry for failures (403/timeouts);
+  better Accept headers; diag file keeps both paths
