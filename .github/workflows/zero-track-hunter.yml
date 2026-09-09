@@ -1530,9 +1530,12 @@ jobs:
           # the explicit exit-code check makes it obvious next time if 300s still
           # isn't enough (124 = timeout killed it) versus a genuine clean-but-
           # empty completion.
-          timeout 300 bash -c 'echo "${{ env.TARGET }}" | waybackurls' > "$RD/urls/wayback.txt" 2>>"$RD/logs/wayback.log"
-          wb_exit=$?
-          [ "$wb_exit" -eq 124 ] && echo "⚠️ waybackurls was killed by the 300s timeout (didn't finish downloading the full CDX response in time) - not a clean empty result" >> "$RD/logs/wayback.log"
+          # GHA runs bash -e: timeout exit 124 would abort the whole step.
+          timeout 300 bash -c 'echo "${{ env.TARGET }}" | waybackurls' > "$RD/urls/wayback.txt" 2>>"$RD/logs/wayback.log" || wb_exit=$?
+          wb_exit=${wb_exit:-0}
+          if [ "$wb_exit" -eq 124 ]; then
+            echo "⚠️ waybackurls killed by 300s timeout (partial/empty possible)" | tee -a "$RD/logs/wayback.log"
+          fi
           # Diagnostic: confirmed via httpx that this runner's outbound network is
           # fine in general, but public archive APIs (unlike the target) are a
           # DIFFERENT, third-party dependency with their own independent rate-
@@ -1543,17 +1546,23 @@ jobs:
           # archived history" apart from "this runner's IP got rate-limited".
           if [ ! -s "$RD/urls/wayback.txt" ]; then
             echo "ℹ️ waybackurls returned empty - multi-strategy CDX fallback..."
-            # Diag (superdrug run: diag had JSON rows while text dump was empty)
-            curl -sL --max-time 20 -o "$RD/meta/archive_cdx_diag.txt" -w "\nHTTP_STATUS:%{http_code}\n" \
-              "https://web.archive.org/cdx/search/cdx?url=${{ env.TARGET }}/*&output=json&limit=5&filter=statuscode:200" 2>>"$RD/logs/wayback.log" || true
-            # Strategy A: text fl=original
-            curl -sL --max-time 120 \
-              "https://web.archive.org/cdx/search/cdx?url=${{ env.TARGET }}/*&output=text&fl=original&collapse=urlkey&limit=5000" \
-              2>>"$RD/logs/wayback.log" | grep -Eo 'https?://[^[:space:]"]+' | sort -u > "$RD/urls/wayback.txt" || true
-            # Strategy B: JSON parse (handles partial/HTML error pages better)
+            # Diag (may return 503 when archive.org is overloaded - capital.com run)
+            cdx_code=$(curl -sL --max-time 20 -o "$RD/meta/archive_cdx_diag.txt" -w "%{http_code}" \
+              "https://web.archive.org/cdx/search/cdx?url=${{ env.TARGET }}/*&output=json&limit=5&filter=statuscode:200" 2>>"$RD/logs/wayback.log" || echo "000")
+            echo "HTTP_STATUS:${cdx_code}" | tee -a "$RD/meta/archive_cdx_diag.txt"
+            # Strategy A: text fl=original (retry once on 503)
+            for attempt in 1 2; do
+              curl -sL --max-time 90 \
+                "https://web.archive.org/cdx/search/cdx?url=${{ env.TARGET }}/*&output=text&fl=original&collapse=urlkey&limit=5000" \
+                2>>"$RD/logs/wayback.log" | grep -Eo 'https?://[^[:space:]"]+' | sort -u > "$RD/urls/wayback.txt" || true
+              [ -s "$RD/urls/wayback.txt" ] && break
+              echo "ℹ️ CDX attempt $attempt empty - sleep 5s and retry..."
+              sleep 5
+            done
+            # Strategy B: JSON parse
             if [ ! -s "$RD/urls/wayback.txt" ]; then
               echo "ℹ️ CDX text empty - trying JSON CDX parse..."
-              curl -sL --max-time 120 -o /tmp/cdx.json \
+              curl -sL --max-time 90 -o /tmp/cdx.json \
                 "https://web.archive.org/cdx/search/cdx?url=${{ env.TARGET }}/*&output=json&fl=original&collapse=urlkey&limit=5000" \
                 2>>"$RD/logs/wayback.log" || true
               if [ -s /tmp/cdx.json ]; then
@@ -1564,27 +1573,38 @@ jobs:
             # Strategy C: apex + www separately
             if [ ! -s "$RD/urls/wayback.txt" ]; then
               for host in "${{ env.TARGET }}" "www.${{ env.TARGET }}"; do
-                curl -sL --max-time 60 \
+                curl -sL --max-time 45 \
                   "https://web.archive.org/cdx/search/cdx?url=${host}/*&output=text&fl=original&collapse=urlkey&limit=2000" \
                   2>>"$RD/logs/wayback.log" | grep -Eo 'https?://[^[:space:]"]+' >> "$RD/urls/wayback.txt" || true
               done
               sort -u -o "$RD/urls/wayback.txt" "$RD/urls/wayback.txt" 2>/dev/null || true
             fi
+            # Strategy D: AlienVault OTX passive URL list (independent of archive.org)
+            if [ ! -s "$RD/urls/wayback.txt" ] || [ "$(wc -l < "$RD/urls/wayback.txt")" -lt 20 ]; then
+              echo "ℹ️ Fetching AlienVault OTX URL list for ${{ env.TARGET }}..."
+              curl -sL --max-time 30 \
+                "https://otx.alienvault.com/api/v1/indicators/domain/${{ env.TARGET }}/url_list?limit=200" \
+                2>>"$RD/logs/wayback.log" | jq -r '.url_list[]?.url // empty' 2>/dev/null \
+                | grep -Eo 'https?://[^[:space:]"]+' >> "$RD/urls/wayback.txt" || true
+              sort -u -o "$RD/urls/wayback.txt" "$RD/urls/wayback.txt" 2>/dev/null || true
+            fi
             if [ -s "$RD/urls/wayback.txt" ]; then
-              echo "✅ CDX fallback recovered $(wc -l < "$RD/urls/wayback.txt") URLs"
+              echo "✅ CDX/OTX fallback recovered $(wc -l < "$RD/urls/wayback.txt") URLs"
             else
-              echo "ℹ️ CDX fallback also empty - see meta/archive_cdx_diag.txt"
+              echo "ℹ️ CDX/OTX fallback empty - see meta/archive_cdx_diag.txt"
             fi
           fi
           touch "$RD/urls/wayback.txt" "$RD/urls/gau.txt" "$RD/urls/katana.txt" "$RD/urls/hakrawler.txt" "$RD/urls/urlscan.txt" "$RD/urls/robots_sitemap.txt"
           echo "🔍 Gau..."
-          timeout 300 gau "${{ env.TARGET }}" --subs --o "$RD/urls/gau.txt" 2>>"$RD/logs/gau.log"
-          gau_exit=$?
-          [ "$gau_exit" -eq 124 ] && echo "⚠️ gau was killed by the 300s timeout" >> "$RD/logs/gau.log"
-          # If gau also empty, try without --subs (sometimes more reliable) as secondary
+          # bash -e: must absorb timeout 124 or step dies before katana/urlscan/merge
+          timeout 180 gau "${{ env.TARGET }}" --subs --o "$RD/urls/gau.txt" 2>>"$RD/logs/gau.log" || gau_exit=$?
+          gau_exit=${gau_exit:-0}
+          if [ "$gau_exit" -eq 124 ]; then
+            echo "⚠️ gau killed by timeout - continuing with other URL sources" | tee -a "$RD/logs/gau.log"
+          fi
           if [ ! -s "$RD/urls/gau.txt" ]; then
-            echo "ℹ️ gau --subs empty - retrying without --subs (30s)..."
-            timeout 30 gau "${{ env.TARGET }}" --o "$RD/urls/gau.txt" 2>>"$RD/logs/gau.log" || true
+            echo "ℹ️ gau --subs empty - retrying without --subs (45s)..."
+            timeout 45 gau "${{ env.TARGET }}" --o "$RD/urls/gau.txt" 2>>"$RD/logs/gau.log" || true
           fi
           echo "🔍 Katana..."
           KATANA_LIST="$RD/live/expensive_targets.txt"; [ -s "$KATANA_LIST" ] || KATANA_LIST="$RD/live/scan_order.txt"; [ -s "$KATANA_LIST" ] || KATANA_LIST="$RD/live/live.txt"
@@ -1630,8 +1650,10 @@ jobs:
           # Last-resort seed: if every passive/active URL source failed (superdrug
           # regression: 549→0), at least put live host roots into all.txt so JS
           # discovery and downstream param hunting are not totally starved.
-          if [ ! -s /tmp/urls_merged.txt ]; then
-            echo "⚠️ All URL sources empty - seeding host roots from live/scan_order"
+          merged_n=$(wc -l < /tmp/urls_merged.txt 2>/dev/null || echo 0)
+          # Seed host roots when empty OR very thin (capital.com: CDX 503 → only 3 URLs)
+          if [ ! -s /tmp/urls_merged.txt ] || [ "$merged_n" -lt 30 ]; then
+            echo "⚠️ URL sources thin ($merged_n) - seeding host roots from live/scan_order"
             SEED_LIST="$RD/live/expensive_targets.txt"
             [ -s "$SEED_LIST" ] || SEED_LIST="$RD/live/scan_order.txt"
             [ -s "$SEED_LIST" ] || SEED_LIST="$RD/live/live.txt"
@@ -1640,8 +1662,11 @@ jobs:
                 h="$(echo "$h" | tr -d '\r' | xargs)"; [ -z "$h" ] && continue
                 echo "$h" >> /tmp/urls_merged.txt
                 echo "${h}/" >> /tmp/urls_merged.txt
+                echo "${h}/robots.txt" >> /tmp/urls_merged.txt
+                echo "${h}/sitemap.xml" >> /tmp/urls_merged.txt
               done < "$SEED_LIST"
             fi
+            sort -u -o /tmp/urls_merged.txt /tmp/urls_merged.txt 2>/dev/null || true
           fi
           timeout 90 uro < /tmp/urls_merged.txt > "$RD/urls/all.txt" 2>/dev/null || cp /tmp/urls_merged.txt "$RD/urls/all.txt"
           echo "✅ Total URLs: $(wc -l < "$RD/urls/all.txt")"
