@@ -1162,16 +1162,39 @@ jobs:
               echo "direct" > "$RD/meta/live_probe_path.txt"
             else
               echo "ℹ️ DIRECT fallback also found 0 live hosts" | tee -a "$RD/logs/httpx_direct.log"
-              # Last resort: if curl can see apex, seed live.txt so downstream is not totally blind
+              # Last resort recovery: NEVER leave downstream blind when DNS already
+              # confirmed subdomains (or open ports). Real runs (superdrug, kec, kyc)
+              # proved Tor+httpx can return 0 AND GitHub-runner direct can be WAF-blocked
+              # (403) while the hosts are still real. Seed from evidence we already have.
+              : > "$RD/live/live.txt"
+              # 1) Every DNS-resolved subdomain → try both schemes as candidates
+              if [ -s "$RD/subdomains/resolved.txt" ]; then
+                while IFS= read -r h; do
+                  h="$(echo "$h" | tr -d '\r' | xargs)"; [ -z "$h" ] && continue
+                  echo "https://$h" >> "$RD/live/live.txt"
+                  echo "http://$h" >> "$RD/live/live.txt"
+                done < "$RD/subdomains/resolved.txt"
+              fi
+              # 2) Apex + www always
+              echo "https://${{ env.TARGET }}" >> "$RD/live/live.txt"
+              echo "https://www.${{ env.TARGET }}" >> "$RD/live/live.txt"
+              echo "http://${{ env.TARGET }}" >> "$RD/live/live.txt"
+              echo "http://www.${{ env.TARGET }}" >> "$RD/live/live.txt"
+              # 3) Hosts that naabu already proved have open ports (written later into
+              # ports.txt in the next step — at this point we may not have it yet, so
+              # also accept all_subs as soft candidates if resolved was empty)
+              if [ ! -s "$RD/live/live.txt" ] && [ -s "$RD/subdomains/all_subs.txt" ]; then
+                while IFS= read -r h; do
+                  h="$(echo "$h" | tr -d '\r' | xargs)"; [ -z "$h" ] && continue
+                  echo "https://$h" >> "$RD/live/live.txt"
+                done < "$RD/subdomains/all_subs.txt"
+              fi
+              sort -u -o "$RD/live/live.txt" "$RD/live/live.txt"
+              n=$(wc -l < "$RD/live/live.txt" 2>/dev/null || echo 0)
               apex_code=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 10 -H "User-Agent: $SCAN_USER_AGENT" "https://${{ env.TARGET }}/" 2>/dev/null || echo "000")
               apex_code="${apex_code: -3}"
-              if [ "$apex_code" != "000" ] && [ -n "$apex_code" ]; then
-                echo "https://${{ env.TARGET }}" > "$RD/live/live.txt"
-                echo "https://www.${{ env.TARGET }}" >> "$RD/live/live.txt"
-                sort -u -o "$RD/live/live.txt" "$RD/live/live.txt"
-                echo "⚠️ Seeded live.txt with apex/www only (curl status=$apex_code) — limited coverage" | tee -a "$RD/meta/scan_health_warning.txt"
-                echo "apex-seed" > "$RD/meta/live_probe_path.txt"
-              fi
+              echo "⚠️ Probe failed (Tor+direct empty). Seeded live.txt with $n DNS/port-backed candidates (apex curl=$apex_code). Downstream still runs; treat as unverified-live." | tee -a "$RD/meta/scan_health_warning.txt"
+              echo "dns-seed" > "$RD/meta/live_probe_path.txt"
             fi
           else
             [ -s "$RD/live/live.txt" ] && echo "tor" > "$RD/meta/live_probe_path.txt"
@@ -1364,42 +1387,37 @@ jobs:
             echo "⚠️ naabu not available, skipping port scan"
           fi
 
-          # If live.txt still empty but naabu found open ports, probe those URLs DIRECTLY
-          # (kyc.com case: ports listed 80/443 on many hosts while Tor live probe was empty)
-          if [ ! -s "$RD/live/live.txt" ] && [ -s "$RD/live/ports.txt" ]; then
-            echo "🔄 Port-based DIRECT fallback: building URLs from naabu open ports..."
+          # Always enrich live.txt from naabu open ports (union, never shrink).
+          # Critical for cases where Tor/direct probe failed but DNS+ports succeeded
+          # (superdrug: 6 resolved subs with 80/443 open, live probe returned 0).
+          if [ -s "$RD/live/ports.txt" ]; then
+            echo "🔗 Enriching live.txt from open ports..."
             : > /tmp/port_urls.txt
             while IFS= read -r hp; do
               [ -z "$hp" ] && continue
               host="${hp%%:*}"; port="${hp##*:}"
               [ -z "$host" ] || [ -z "$port" ] && continue
-              if [ "$port" = "443" ] || [ "$port" = "8443" ]; then
-                echo "https://${host}:${port}" >> /tmp/port_urls.txt
+              if [ "$port" = "443" ] || [ "$port" = "8443" ] || [ "$port" = "9443" ]; then
+                echo "https://${host}" >> /tmp/port_urls.txt
+                [ "$port" != "443" ] && echo "https://${host}:${port}" >> /tmp/port_urls.txt
+              elif [ "$port" = "80" ]; then
+                echo "http://${host}" >> /tmp/port_urls.txt
                 echo "https://${host}" >> /tmp/port_urls.txt
               else
+                # non-standard: both schemes with explicit port
                 echo "http://${host}:${port}" >> /tmp/port_urls.txt
-                [ "$port" = "80" ] && echo "http://${host}" >> /tmp/port_urls.txt
+                echo "https://${host}:${port}" >> /tmp/port_urls.txt
               fi
             done < "$RD/live/ports.txt"
             sort -u -o /tmp/port_urls.txt /tmp/port_urls.txt
-            tmp_p=$(mktemp -d); idx=0; running=0; start_sec=$SECONDS
-            while IFS= read -r u; do
-              [ -z "$u" ] && continue
-              [ $((SECONDS - start_sec)) -ge 120 ] && break
-              idx=$((idx+1))
-              (
-                httpx -u "$u" -silent -status-code -title -follow-redirects                   -H "User-Agent: $SCAN_USER_AGENT" -timeout 10 -retries 1 -json                   2>>"$RD/logs/httpx_direct.log" > "$tmp_p/$(printf '%05d' $idx).json" || true
-              ) &
-              running=$((running+1))
-              if [ "$running" -ge 8 ]; then wait -n 2>/dev/null || wait; running=$((running-1)); fi
-            done < /tmp/port_urls.txt
-            wait
-            cat "$tmp_p"/*.json 2>/dev/null | grep -v '^\s*$' > "$RD/live/live_from_ports.json" || true
-            rm -rf "$tmp_p"
-            if [ -s "$RD/live/live_from_ports.json" ]; then
-              jq -r 'select(. != null) | (.url // .input // empty)' "$RD/live/live_from_ports.json" 2>/dev/null                 | grep -v '^\s*$' | sort -u > "$RD/live/live.txt" || true
-              echo "✅ Port DIRECT fallback recovered $(wc -l < "$RD/live/live.txt") live URL(s)" | tee -a "$RD/meta/scan_health_warning.txt"
-              echo "ports-direct" > "$RD/meta/live_probe_path.txt"
+            before=$(wc -l < "$RD/live/live.txt" 2>/dev/null || echo 0)
+            cat /tmp/port_urls.txt >> "$RD/live/live.txt" 2>/dev/null || true
+            sort -u -o "$RD/live/live.txt" "$RD/live/live.txt"
+            after=$(wc -l < "$RD/live/live.txt" 2>/dev/null || echo 0)
+            echo "✅ live.txt after port enrichment: $after (was $before)"
+            # If we still have zero verified JSON but have candidates, keep path marker honest
+            if [ ! -s "$RD/live/live.json" ] && [ -s "$RD/live/live.txt" ]; then
+              echo "ports-enriched" > "$RD/meta/live_probe_path.txt"
             fi
           fi
 
@@ -2508,14 +2526,18 @@ jobs:
               status="${status: -3}"
               [ "$status" = "000" ] && continue
               test_len=$(wc -c < /tmp/origin_test.html 2>/dev/null || echo 0)
-              # A real bypass: the origin actually answered (not connection-
-              # refused/timeout) AND the response looks like the real site
-              # (similar body size to the baseline), not a default-vhost page
-              # or a WAF/CDN's own block page served by the IP itself.
+              # Real bypass requires ALL of:
+              # 1) origin answered (status not 000)
+              # 2) status is a success-ish code (2xx/3xx) — 403/401/429 matching
+              #    the CDN/WAF block page is NOT a bypass (superdrug false positives)
+              # 3) body is not an obvious WAF/CDN block page
+              # 4) body size is in the same ballpark as the real site baseline
               size_diff=$(( test_len > base_len ? test_len - base_len : base_len - test_len ))
-              if [ "$test_len" -gt 200 ] && [ "$base_len" -gt 0 ] && [ "$size_diff" -lt $((base_len / 3)) ]; then
+              is_block_page=0
+              grep -qiE 'access denied|attention required|cloudflare|akamai|request blocked|forbidden|captcha|ray id' /tmp/origin_test.html 2>/dev/null && is_block_page=1
+              if [ "$status" -ge 200 ] 2>/dev/null && [ "$status" -lt 400 ] 2>/dev/null                  && [ "$test_len" -gt 200 ] && [ "$base_len" -gt 0 ]                  && [ "$size_diff" -lt $((base_len / 3 + 1)) ] && [ "$is_block_page" -eq 0 ]; then
                 echo "[ORIGIN-BYPASS-CONFIRMED] ${scheme}://${ip}/ (Host: ${{ env.TARGET }}) | status=${status} | body_len=${test_len} vs baseline=${base_len}" >> "$RD/waf_bypass/origin_bypass.txt"
-              elif [ "$status" != "000" ]; then
+              elif [ "$status" != "000" ] && [ "$status" -ge 200 ] 2>/dev/null && [ "$status" -lt 400 ] 2>/dev/null && [ "$is_block_page" -eq 0 ]; then
                 echo "[origin-reachable-but-content-differs] ${scheme}://${ip}/ (Host: ${{ env.TARGET }}) | status=${status} | body_len=${test_len} vs baseline=${base_len}" >> "$RD/waf_bypass/origin_bypass.txt"
               fi
             done
