@@ -96,3 +96,24 @@ Fixes:
   BEFORE snapshot overwrite (critical ordering fix for accurate deltas)
 - Snapshot extended: js_files, secrets_high, interesting, nuclei.jsonl
 - `triage/hunter_queue.md` prioritizes Delta section for operators; baseline-aware
+
+### ✅ 2026-09-09 — Full integration pass (post superdrug run 7)
+
+Verified + completed end-to-end:
+
+| Fix | Status |
+|-----|--------|
+| dns-seed / ports-enriched live recovery | ✅ |
+| probe resolved.txt + scheme URLs | ✅ |
+| interesting scoring (api-*, non-apex +25) | ✅ |
+| scan_order + expensive_targets (top 15–20) | ✅ |
+| CDX multi-strategy (text/JSON/www) | ✅ |
+| URL root seed if all sources empty | ✅ |
+| cariddi via stdin (no invalid -l/-c) | ✅ |
+| ffuf -fs 0 + length>0 filter + expensive_targets | ✅ |
+| Nuclei/WAF/Info/API/Security/Nikto/Arjun/Corsy/CRLF/Katana caps | ✅ |
+| backup content validation + origin block-page filter | ✅ |
+
+Data flow:
+resolved → probe → live (seed if needed) → ports enrich → rank → scan_order → expensive_targets
+ → crawlers/URLs → JS → targeted → fuzz/nuclei (capped when unverified)

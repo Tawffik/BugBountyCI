@@ -1627,6 +1627,22 @@ jobs:
           fi
           echo "🔄 Merging..."
           cat "$RD"/urls/*.txt 2>/dev/null | sort -u > /tmp/urls_merged.txt
+          # Last-resort seed: if every passive/active URL source failed (superdrug
+          # regression: 549→0), at least put live host roots into all.txt so JS
+          # discovery and downstream param hunting are not totally starved.
+          if [ ! -s /tmp/urls_merged.txt ]; then
+            echo "⚠️ All URL sources empty - seeding host roots from live/scan_order"
+            SEED_LIST="$RD/live/expensive_targets.txt"
+            [ -s "$SEED_LIST" ] || SEED_LIST="$RD/live/scan_order.txt"
+            [ -s "$SEED_LIST" ] || SEED_LIST="$RD/live/live.txt"
+            if [ -s "$SEED_LIST" ]; then
+              while IFS= read -r h; do
+                h="$(echo "$h" | tr -d '\r' | xargs)"; [ -z "$h" ] && continue
+                echo "$h" >> /tmp/urls_merged.txt
+                echo "${h}/" >> /tmp/urls_merged.txt
+              done < "$SEED_LIST"
+            fi
+          fi
           timeout 90 uro < /tmp/urls_merged.txt > "$RD/urls/all.txt" 2>/dev/null || cp /tmp/urls_merged.txt "$RD/urls/all.txt"
           echo "✅ Total URLs: $(wc -l < "$RD/urls/all.txt")"
 
@@ -1974,10 +1990,15 @@ jobs:
           # this covers pages/JS our own katana crawl config might not have
           # reached, so it's genuinely complementary to the pipeline above,
           # not a duplicate of it.
-          CARIDDI_LIST="$RD/live/scan_order.txt"; [ -s "$CARIDDI_LIST" ] || CARIDDI_LIST="$RD/live/live.txt"
+          # cariddi reads targets from STDIN (no -l flag). Invalid flags print full
+          # help to stdout and zero findings (confirmed superdrug run).
+          CARIDDI_LIST="$RD/live/expensive_targets.txt"
+          [ -s "$CARIDDI_LIST" ] || CARIDDI_LIST="$RD/live/scan_order.txt"
+          [ -s "$CARIDDI_LIST" ] || CARIDDI_LIST="$RD/live/live.txt"
           if command -v cariddi >/dev/null 2>&1 && [ -s "$CARIDDI_LIST" ]; then
-            echo "🕷️ Running Cariddi against prioritized hosts..."
-            proxychains4 -q cariddi -l "$CARIDDI_LIST" -ua "$SCAN_USER_AGENT" -t 10 -c 20 -e -s -info -err -plain > "$RD/js_deep/cariddi_findings.txt" 2>>"$RD/logs/cariddi.log" || true
+            echo "🕷️ Running Cariddi against prioritized hosts ($(wc -l < "$CARIDDI_LIST"))..."
+            # Valid flags: -e endpoints -s secrets -info -err -plain -ua -t timeout
+            timeout 180 proxychains4 -q bash -c "cat '$CARIDDI_LIST' | cariddi -e -s -info -err -plain -ua '$SCAN_USER_AGENT' -t 10"               > "$RD/js_deep/cariddi_findings.txt" 2>>"$RD/logs/cariddi.log" || true
           else
             echo "⚠️ cariddi not installed or no live hosts - skipping"
             touch "$RD/js_deep/cariddi_findings.txt"
@@ -2041,7 +2062,9 @@ jobs:
           # categorization above, which can only ever see params that were
           # already present somewhere in urls/all.txt.
           : > "$RD/targeted/arjun_params.txt"
-          ARJUN_INPUT="$RD/live/scan_order.txt"; [ -s "$ARJUN_INPUT" ] || ARJUN_INPUT="$RD/live/live.txt"
+          ARJUN_INPUT="$RD/live/expensive_targets.txt"
+          [ -s "$ARJUN_INPUT" ] || ARJUN_INPUT="$RD/live/scan_order.txt"
+          [ -s "$ARJUN_INPUT" ] || ARJUN_INPUT="$RD/live/live.txt"
           if command -v arjun >/dev/null 2>&1 && [ -s "$ARJUN_INPUT" ]; then
             echo "🔍 Running Arjun against prioritized hosts (interesting first, cap 30)..."
             head -30 "$ARJUN_INPUT" | while IFS= read -r host; do
@@ -2085,7 +2108,7 @@ jobs:
           # complements (and cross-checks) the hand-rolled bash CORS probe
           # elsewhere in this pipeline rather than replacing it.
           : > "$RD/targeted/corsy_findings.txt"
-          CORSY_LIST="$RD/live/scan_order.txt"; [ -s "$CORSY_LIST" ] || CORSY_LIST="$RD/live/live.txt"
+          CORSY_LIST="$RD/live/expensive_targets.txt"; [ -s "$CORSY_LIST" ] || CORSY_LIST="$RD/live/scan_order.txt"; [ -s "$CORSY_LIST" ] || CORSY_LIST="$RD/live/live.txt"
           if [ -f /tmp/Corsy/corsy.py ] && [ -s "$CORSY_LIST" ]; then
             echo "🌐 Running Corsy against prioritized hosts..."
             proxychains4 -q python3 /tmp/Corsy/corsy.py -i "$CORSY_LIST" -o /tmp/corsy_out.json 2>>"$RD/logs/corsy.log" || true
@@ -2125,7 +2148,7 @@ jobs:
           # live hosts - a class this pipeline had no dedicated coverage for
           # at all before this step.
           : > "$RD/targeted/crlfuzz_findings.txt"
-          CRLF_LIST="$RD/live/scan_order.txt"; [ -s "$CRLF_LIST" ] || CRLF_LIST="$RD/live/live.txt"
+          CRLF_LIST="$RD/live/expensive_targets.txt"; [ -s "$CRLF_LIST" ] || CRLF_LIST="$RD/live/scan_order.txt"; [ -s "$CRLF_LIST" ] || CRLF_LIST="$RD/live/live.txt"
           if command -v crlfuzz >/dev/null 2>&1 && [ -s "$CRLF_LIST" ]; then
             echo "✂️ Running CRLFuzz against prioritized hosts..."
             proxychains4 -q crlfuzz -l "$CRLF_LIST" -o "$RD/targeted/crlfuzz_findings.txt" 2>>"$RD/logs/crlfuzz.log" || true
@@ -2697,7 +2720,9 @@ jobs:
           # from GitHub, not the target itself.
           curl -sL --max-time 15 "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/common.txt" -o /tmp/content_wordlist.txt 2>/dev/null || true
           : > "$RD/fuzzing/discovered.txt"
-          FUZZ_INPUT="$RD/live/scan_order.txt"; [ -s "$FUZZ_INPUT" ] || FUZZ_INPUT="$RD/live/live.txt"
+          FUZZ_INPUT="$RD/live/expensive_targets.txt"
+          [ -s "$FUZZ_INPUT" ] || FUZZ_INPUT="$RD/live/scan_order.txt"
+          [ -s "$FUZZ_INPUT" ] || FUZZ_INPUT="$RD/live/live.txt"
           if [ -s /tmp/content_wordlist.txt ] && [ -s "$FUZZ_INPUT" ] && command -v ffuf >/dev/null; then
             mode="${HUNTING_MODE:-normal}"
             budget=$({ [ "$mode" = "light" ] && echo 300; } || { [ "$mode" = "aggressive" ] && echo 1400; } || echo 700)
@@ -2714,8 +2739,8 @@ jobs:
               fi
               i=$((i+1))
               timeout "$per_host" proxychains4 -q ffuf -w /tmp/content_wordlist.txt -u "${host}/FUZZ" -H "User-Agent: $SCAN_USER_AGENT" \
-                -mc 200,204,301,302,307,401,403 -ac -t 15 -rate 40 -timeout 8 -of json -o /tmp/ffuf_out.json -s 2>>"$RD/logs/ffuf.log" || true
-              jq -r '.results[]? | "\(.url) [\(.status)] \(.length) bytes"' /tmp/ffuf_out.json 2>/dev/null >> "$RD/fuzzing/discovered.txt" || true
+                -mc 200,204,301,302,307,401,403 -fs 0 -ac -t 8 -rate 20 -timeout 8 -of json -o /tmp/ffuf_out.json -s 2>>"$RD/logs/ffuf.log" || true
+              jq -r '.results[]? | select((.length // 0) > 0) | "\(.url) [\(.status)] \(.length) bytes"' /tmp/ffuf_out.json 2>/dev/null >> "$RD/fuzzing/discovered.txt" || true
               rm -f /tmp/ffuf_out.json
             done < "$FUZZ_INPUT"
             sort -u -o "$RD/fuzzing/discovered.txt" "$RD/fuzzing/discovered.txt"
@@ -3043,7 +3068,7 @@ echo "🎯 Nuclei targets: $(wc -l < "$INPUT") hosts (interesting-first via scan
         run: |
           RD="results/${{ env.TIMESTAMP }}"
           : > "$RD/nuclei/nikto_findings.txt"
-          NIKTO_LIST="$RD/live/scan_order.txt"; [ -s "$NIKTO_LIST" ] || NIKTO_LIST="$RD/live/live.txt"
+          NIKTO_LIST="$RD/live/expensive_targets.txt"; [ -s "$NIKTO_LIST" ] || NIKTO_LIST="$RD/live/scan_order.txt"; [ -s "$NIKTO_LIST" ] || NIKTO_LIST="$RD/live/live.txt"
           if ! command -v nikto >/dev/null 2>&1; then
             echo "⚠️ nikto not installed, skipping"
           elif [ -s "$NIKTO_LIST" ]; then
