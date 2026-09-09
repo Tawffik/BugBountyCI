@@ -1001,7 +1001,7 @@ jobs:
           RD="results/${{ env.TIMESTAMP }}"
           INPUT="$RD/subdomains/all_subs.txt"
           [ -s "$INPUT" ] || { echo "${{ env.TARGET }}" > /tmp/fallback.txt; INPUT=/tmp/fallback.txt; }
-          proxychains4 -q nuclei -l "$INPUT" -tags takeover -H "User-Agent: $SCAN_USER_AGENT" -mhe 150 -rl 50 -c 10 -silent -jsonl -o "$RD/nuclei/takeover.jsonl" 2>>"$RD/logs/takeover.log" || true
+          proxychains4 -q nuclei -l "$INPUT" -tags takeover -H "User-Agent: $SCAN_USER_AGENT" -mhe 80 -rl 20 -c 4 -silent -jsonl -o "$RD/nuclei/takeover.jsonl" 2>>"$RD/logs/takeover.log" || true
           echo "✅ Takeover checks done"
 
       - name: "🌍 Live Host Probing & Fingerprinting"
@@ -1009,11 +1009,25 @@ jobs:
         timeout-minutes: 12
         run: |
           RD="results/${{ env.TIMESTAMP }}"
-          INPUT="$RD/subdomains/all_subs.txt"
+          # Prefer DNS-confirmed hosts (resolved.txt) over raw candidates — probing
+          # unresolved names wastes Tor circuits and was a major source of empty live.json.
+          INPUT="$RD/subdomains/resolved.txt"
+          [ -s "$INPUT" ] || INPUT="$RD/subdomains/all_subs.txt"
           [ -s "$INPUT" ] || { echo "${{ env.TARGET }}" > /tmp/fallback.txt; INPUT=/tmp/fallback.txt; }
-          # Optional authenticated scanning: if a session cookie/auth header secret is
-          # configured, every probe below carries it too, so status codes/fingerprints
-          # reflect what a LOGGED-IN user would see, not just the public surface.
+          # Normalize to scheme URLs (httpx -u bare-host is flaky under proxychains)
+          : > /tmp/probe_input_urls.txt
+          {
+            echo "${{ env.TARGET }}"
+            echo "www.${{ env.TARGET }}"
+            cat "$INPUT"
+          } | awk 'NF && !seen[$0]++' | while IFS= read -r h; do
+            h="$(echo "$h" | tr -d '\r' | xargs)"; [ -z "$h" ] && continue
+            case "$h" in
+              http://*|https://*) echo "$h" ;;
+              *) echo "https://$h"; echo "http://$h" ;;
+            esac
+          done > /tmp/probe_input_urls.txt
+          INPUT=/tmp/probe_input_urls.txt
           AUTH_ARGS=()
           [ -n "${{ env.AUTH_COOKIE }}" ] && AUTH_ARGS+=(-H "Cookie: ${{ env.AUTH_COOKIE }}")
           [ -n "${{ env.AUTH_HEADER }}" ] && AUTH_ARGS+=(-H "${{ env.AUTH_HEADER }}")
@@ -1432,16 +1446,22 @@ jobs:
               [ -z "$url" ] && continue
               host=$(echo "$url" | sed -E 's#https?://##' | cut -d/ -f1 | cut -d: -f1)
               score=0
-              echo "$host" | grep -qiE '(^|\.)(admin|adm|administrator|portal|panel|console|dashboard|manage|manager|cms|cpanel|webmail|owa|exchange)(\.|$)' && score=$((score+100))
-              echo "$host" | grep -qiE '(^|\.)(api|graphql|gql|rest|gateway|backend|svc|service|ws|websocket)(\.|$)' && score=$((score+90))
-              echo "$host" | grep -qiE '(^|\.)(staging|stage|stg|dev|devel|development|test|qa|uat|preprod|pre-prod|sandbox|demo|beta|alpha|canary)(\.|$)' && score=$((score+80))
-              echo "$host" | grep -qiE '(^|\.)(internal|intranet|corp|private|vpn|sso|auth|login|id|identity|okta|saml)(\.|$)' && score=$((score+75))
-              echo "$host" | grep -qiE '(^|\.)(jenkins|gitlab|github|git|ci|cd|build|deploy|harbor|registry|nexus|artifactory|sonar)(\.|$)' && score=$((score+70))
-              echo "$host" | grep -qiE '(^|\.)(db|database|mysql|postgres|mongo|redis|elastic|kibana|grafana|prometheus|monitor)(\.|$)' && score=$((score+65))
-              echo "$url" | grep -qE ':[0-9]+' && score=$((score+40))  # non-default port
-              echo "$host" | grep -qiE '(^|\.)(app|apps|mobile|m|cdn|static|assets|img|media)(\.|$)' && score=$((score+10))
-              # Bare apex gets lower priority than interesting subs
-              [ "$host" = "${{ env.TARGET }}" ] && score=$((score+5))
+              # Match label prefixes (api-s1, api1, try-app) not only exact labels
+              echo "$host" | grep -qiE '(^|\.)(admin|adm|administrator|portal|panel|console|dashboard|manage|manager|cms|cpanel|webmail|owa|exchange)([-.]|$)' && score=$((score+100))
+              echo "$host" | grep -qiE '(^|\.)(api|graphql|gql|rest|gateway|backend|svc|service|ws|websocket)([-.]|$)' && score=$((score+90))
+              echo "$host" | grep -qiE '(^|\.)(staging|stage|stg|dev|devel|development|test|qa|uat|preprod|pre-prod|sandbox|demo|beta|alpha|canary|try|innovation)([-.]|$)' && score=$((score+80))
+              echo "$host" | grep -qiE '(^|\.)(internal|intranet|corp|private|vpn|sso|auth|login|id|identity|okta|saml|client|kuma)([-.]|$)' && score=$((score+75))
+              echo "$host" | grep -qiE '(^|\.)(jenkins|gitlab|github|git|ci|cd|build|deploy|harbor|registry|nexus|artifactory|sonar)([-.]|$)' && score=$((score+70))
+              echo "$host" | grep -qiE '(^|\.)(db|database|mysql|postgres|mongo|redis|elastic|kibana|grafana|prometheus|monitor|health|clinic)([-.]|$)' && score=$((score+65))
+              echo "$url" | grep -qE ':[0-9]{2,5}(/|$)' && score=$((score+40))  # non-default port
+              echo "$host" | grep -qiE '(^|\.)(app|apps|mobile|m|cdn|static|assets|img|media)([-.]|$)' && score=$((score+10))
+              # Any non-apex subdomain gets a base boost so they outrank bare apex
+              apex="${{ env.TARGET }}"
+              if [ "$host" = "$apex" ] || [ "$host" = "www.$apex" ]; then
+                score=$((score+5))
+              else
+                score=$((score+25))
+              fi
               echo "${score} ${url}"
             done < "$RD/live/live.txt" | sort -rn | tee "$RD/live/interesting_ranked.txt" | awk '$1>=40 {print $2}' > "$RD/live/interesting.txt" || true
             # Ensure we always have something: if nothing scored high, take top 15 by score
@@ -2106,9 +2126,19 @@ jobs:
             for path in "/index${ext}" "/backup${ext}" "/db${ext}" "/database${ext}" "/dump${ext}"; do
               while IFS= read -r host; do
                 host="$(echo "$host" | tr -d '\r' | xargs)"; [ -z "$host" ] && continue
-                s=$(proxychains4 -q curl -sk -o /dev/null -w "%{http_code}" --max-time 5 -H "User-Agent: $SCAN_USER_AGENT" "${host}${path}" 2>/dev/null || echo "000")
+                s=$(proxychains4 -q curl -sk -o /tmp/backup_body -w "%{http_code}" --max-time 5 -H "User-Agent: $SCAN_USER_AGENT" "${host}${path}" 2>/dev/null || echo "000")
                 s="${s: -3}"
-                [ "$s" = "200" ] && echo "[BACKUP] ${host}${path}" >> "$RD/info_disclosure/backup_files.txt"
+                [ "$s" = "200" ] || continue
+                # Reject soft-404 HTML/SPA shells (kec.com noise: every .zip returned 200 HTML)
+                if grep -qiE '<html|<!doctype|text/html' /tmp/backup_body 2>/dev/null; then
+                  continue
+                fi
+                blen=$(wc -c < /tmp/backup_body 2>/dev/null || echo 0)
+                [ "$blen" -lt 50 ] && continue
+                # Prefer archive/db magic when detectable; still accept large non-HTML
+                if grep -aqE '^(PK|\x1f\x8b|SQLite format|MySQL dump|PostgreSQL|INSERT INTO|CREATE TABLE)' /tmp/backup_body 2>/dev/null                    || [ "$blen" -gt 2048 ]; then
+                  echo "[BACKUP] ${host}${path} (${blen}b)" >> "$RD/info_disclosure/backup_files.txt"
+                fi
               done < "$INPUT"
             done
           done
@@ -2912,14 +2942,16 @@ jobs:
           # open. Only the confirmed critical/high scan (this one) is exported -
           # the separate lower-signal "-as" tech-detect pass below stays JSONL-only
           # since it's not really "findings" in the vulnerability sense.
-          proxychains4 -q nuclei -l "$INPUT" -severity critical,high -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}" "${WAF_ARGS[@]}" -mhe 150 -rl 40 -c 6 -timeout 20 -retries 2 -stats -si 30 -jsonl -o "$RD/nuclei/findings.jsonl" -sarif-export "$RD/nuclei/findings.sarif" 2>>"$RD/logs/nuclei.log" || true
+          # Tor cannot sustain high request rates — 59-63% error rates on superdrug/kec
+          # came from -rl 40 -c 6. Prefer fewer successful requests over noisy failures.
+          proxychains4 -q nuclei -l "$INPUT" -severity critical,high -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}" "${WAF_ARGS[@]}" -mhe 80 -rl 15 -c 3 -timeout 25 -retries 2 -stats -si 30 -jsonl -o "$RD/nuclei/findings.jsonl" -sarif-export "$RD/nuclei/findings.sarif" 2>>"$RD/logs/nuclei.log" || true
           # Complement the broad severity-based pass with a tech-aware pass: nuclei's
           # -as (automatic-scan) reads the detected tech stack and only runs templates
           # relevant to it (e.g. WordPress-specific checks only if WordPress was
           # actually detected) - catches tech-specific issues the broad pass's template
           # selection might not prioritize, without wasting time on irrelevant checks.
           if [ -s "$RD/live/tech.json" ]; then
-            proxychains4 -q nuclei -l "$INPUT" -as -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}" "${WAF_ARGS[@]}" -mhe 150 -rl 40 -c 6 -timeout 20 -retries 2 -jsonl -o "$RD/nuclei/findings_tech.jsonl" 2>>"$RD/logs/nuclei.log" || true
+            proxychains4 -q nuclei -l "$INPUT" -as -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}" "${WAF_ARGS[@]}" -mhe 80 -rl 15 -c 3 -timeout 25 -retries 2 -jsonl -o "$RD/nuclei/findings_tech.jsonl" 2>>"$RD/logs/nuclei.log" || true
             cat "$RD/nuclei/findings_tech.jsonl" 2>/dev/null >> "$RD/nuclei/findings.jsonl" || true
           fi
           # The severity filter above skips info/low templates entirely - but that's
@@ -2927,7 +2959,7 @@ jobs:
           # page" live in nuclei-templates. Those are high recon value even though
           # their official severity is low, so run them as their own unrestricted-
           # severity pass instead of losing them to the severity filter.
-          proxychains4 -q nuclei -l "$INPUT" -tags exposure,panel,config,default-login,exposed-panels -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}" "${WAF_ARGS[@]}" -mhe 150 -rl 40 -c 6 -timeout 20 -retries 2 -jsonl -o "$RD/nuclei/findings_exposure.jsonl" 2>>"$RD/logs/nuclei.log" || true
+          proxychains4 -q nuclei -l "$INPUT" -tags exposure,panel,config,default-login,exposed-panels -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}" "${WAF_ARGS[@]}" -mhe 80 -rl 15 -c 3 -timeout 25 -retries 2 -jsonl -o "$RD/nuclei/findings_exposure.jsonl" 2>>"$RD/logs/nuclei.log" || true
           cat "$RD/nuclei/findings_exposure.jsonl" 2>/dev/null >> "$RD/nuclei/findings.jsonl" || true
           # If the 40-minute timeout killed nuclei mid-write, the last line of the
           # jsonl output could be a truncated/invalid JSON fragment. Strip anything
