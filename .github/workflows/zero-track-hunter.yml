@@ -2988,7 +2988,7 @@ jobs:
                 ;;
             esac
           fi
-echo "🎯 Nuclei targets: $(wc -l < "$INPUT") hosts (interesting-first via scan_order)"
+          echo "🎯 Nuclei targets: $(wc -l < "$INPUT") hosts (interesting-first via scan_order)"
           if [ -f "$RD/meta/live_probe_path.txt" ]; then
             echo "ℹ️ Live probe path used: $(cat "$RD/meta/live_probe_path.txt")"
           fi
