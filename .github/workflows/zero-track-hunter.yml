@@ -1497,7 +1497,7 @@ jobs:
 
       - name: "📜 URL Collection"
         continue-on-error: true
-        timeout-minutes: 18
+        timeout-minutes: 22
         run: |
           RD="results/${{ env.TIMESTAMP }}"
           INPUT="$RD/subdomains/all_subs.txt"
@@ -1594,7 +1594,7 @@ jobs:
               echo "ℹ️ CDX/OTX fallback empty - see meta/archive_cdx_diag.txt"
             fi
           fi
-          touch "$RD/urls/wayback.txt" "$RD/urls/gau.txt" "$RD/urls/katana.txt" "$RD/urls/hakrawler.txt" "$RD/urls/urlscan.txt" "$RD/urls/robots_sitemap.txt"
+          touch "$RD/urls/wayback.txt" "$RD/urls/wayback_js.txt" "$RD/urls/gau.txt" "$RD/urls/katana.txt" "$RD/urls/hakrawler.txt" "$RD/urls/urlscan.txt" "$RD/urls/otx.txt" "$RD/urls/html_extract.txt" "$RD/urls/robots_sitemap.txt" "$RD/urls/juicy.txt"
           echo "🔍 Gau..."
           # bash -e: must absorb timeout 124 or step dies before katana/urlscan/merge
           timeout 180 gau "${{ env.TARGET }}" --subs --o "$RD/urls/gau.txt" 2>>"$RD/logs/gau.log" || gau_exit=$?
@@ -1608,7 +1608,10 @@ jobs:
           fi
           echo "🔍 Katana..."
           KATANA_LIST="$RD/live/expensive_targets.txt"; [ -s "$KATANA_LIST" ] || KATANA_LIST="$RD/live/scan_order.txt"; [ -s "$KATANA_LIST" ] || KATANA_LIST="$RD/live/live.txt"
-          [ -s "$KATANA_LIST" ] && timeout 180 proxychains4 -q katana -list "$KATANA_LIST" -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}" -silent -depth 2 -jc -d 3 -o "$RD/urls/katana.txt" 2>>"$RD/logs/katana.log" || true
+          # depth 3 + js crawl + known files; apex always appended for max surface
+          { cat "$KATANA_LIST" 2>/dev/null; echo "https://${{ env.TARGET }}"; echo "https://www.${{ env.TARGET }}"; } | awk 'NF && !seen[$0]++' > /tmp/katana_in.txt
+          [ -s /tmp/katana_in.txt ] && timeout 240 proxychains4 -q katana -list /tmp/katana_in.txt -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}" -silent -depth 3 -jc -jsl -kf all -d 4 -o "$RD/urls/katana.txt" 2>>"$RD/logs/katana.log" || true
+          echo "ℹ️ katana URLs: $(wc -l < "$RD/urls/katana.txt" 2>/dev/null || echo 0)"
           echo "🔍 Hakrawler (independent crawler - different JS/link parser than katana, catches URLs katana's config misses)..."
           HAK_LIST="$RD/live/expensive_targets.txt"; [ -s "$HAK_LIST" ] || HAK_LIST="$RD/live/scan_order.txt"; [ -s "$HAK_LIST" ] || HAK_LIST="$RD/live/live.txt"
           if command -v hakrawler >/dev/null 2>&1 && [ -s "$HAK_LIST" ]; then
@@ -1624,6 +1627,79 @@ jobs:
             "https://urlscan.io/api/v1/search/?q=domain:${{ env.TARGET }}&size=100" 2>>"$RD/logs/urlscan.log" \
             | jq -r '.results[]?.page.url // empty' 2>/dev/null | grep -E '^https?://' | sort -u > "$RD/urls/urlscan.txt" || true
           echo "ℹ️ urlscan.io URLs: $(wc -l < "$RD/urls/urlscan.txt" 2>/dev/null || echo 0)"
+
+          # --- CDX JS-only pass (high-signal for source maps / bundles) ---
+          echo "🔍 CDX JS-focused harvest..."
+          : > "$RD/urls/wayback_js.txt"
+          curl -sL --max-time 90 \
+            "https://web.archive.org/cdx/search/cdx?url=${{ env.TARGET }}/*&output=text&fl=original&collapse=urlkey&filter=mimetype:application/javascript&limit=3000" \
+            2>>"$RD/logs/wayback.log" | grep -Eo 'https?://[^[:space:]"]+' >> "$RD/urls/wayback_js.txt" || true
+          curl -sL --max-time 90 \
+            "https://web.archive.org/cdx/search/cdx?url=${{ env.TARGET }}/*.js*&output=text&fl=original&collapse=urlkey&limit=3000" \
+            2>>"$RD/logs/wayback.log" | grep -Eo 'https?://[^[:space:]"]+' >> "$RD/urls/wayback_js.txt" || true
+          sort -u -o "$RD/urls/wayback_js.txt" "$RD/urls/wayback_js.txt" 2>/dev/null || true
+          echo "ℹ️ CDX JS URLs: $(wc -l < "$RD/urls/wayback_js.txt" 2>/dev/null || echo 0)"
+
+          # --- AlienVault OTX (always, additive — not only when wayback empty) ---
+          echo "🔍 AlienVault OTX URL list..."
+          : > "$RD/urls/otx.txt"
+          curl -sL --max-time 35 \
+            "https://otx.alienvault.com/api/v1/indicators/domain/${{ env.TARGET }}/url_list?limit=500" \
+            2>>"$RD/logs/urlscan.log" | jq -r '.url_list[]?.url // empty' 2>/dev/null \
+            | grep -Eo 'https?://[^[:space:]"]+' | sort -u > "$RD/urls/otx.txt" || true
+          echo "ℹ️ OTX URLs: $(wc -l < "$RD/urls/otx.txt" 2>/dev/null || echo 0)"
+
+          # --- HTML page scrape: extract script/link/src/href from interesting hosts ---
+          # Gap: JS list was only URLs ending in .js from archives. Real apps load
+          # bundles via <script src> on HTML pages — scrape those from top hosts.
+          echo "🔍 HTML endpoint/JS extraction from prioritized hosts..."
+          : > "$RD/urls/html_extract.txt"
+          HTML_LIST="$RD/live/expensive_targets.txt"
+          [ -s "$HTML_LIST" ] || HTML_LIST="$RD/live/scan_order.txt"
+          [ -s "$HTML_LIST" ] || HTML_LIST="$RD/live/live.txt"
+          if [ -s "$HTML_LIST" ]; then
+            head -20 "$HTML_LIST" > /tmp/html_scrape_hosts.txt
+            # Always include apex roots
+            echo "https://${{ env.TARGET }}/" >> /tmp/html_scrape_hosts.txt
+            echo "https://www.${{ env.TARGET }}/" >> /tmp/html_scrape_hosts.txt
+            sort -u -o /tmp/html_scrape_hosts.txt /tmp/html_scrape_hosts.txt
+            while IFS= read -r host; do
+              host="$(echo "$host" | tr -d '\r' | xargs)"; [ -z "$host" ] && continue
+              # normalize to URL with path
+              case "$host" in
+                http://*|https://*) page="$host" ;;
+                *) page="https://$host/" ;;
+              esac
+              case "$page" in
+                */) ;;
+                *) page="${page}/" ;;
+              esac
+              body=$(proxychains4 -q curl -sk --max-time 12 -H "User-Agent: $SCAN_USER_AGENT" "$page" 2>/dev/null || true)
+              [ -n "$body" ] || body=$(curl -sk --max-time 10 -H "User-Agent: $SCAN_USER_AGENT" "$page" 2>/dev/null || true)
+              [ -n "$body" ] || continue
+              # script src, link href, and quoted .js / api paths
+              echo "$body" | grep -oE '(src|href)=["'\''][^"'\'']+' 2>/dev/null \
+                | sed -E 's/^(src|href)=["'\'']//' | while IFS= read -r ref; do
+                    case "$ref" in
+                      http://*|https://*) echo "$ref" ;;
+                      //*) echo "https:$ref" ;;
+                      /*) echo "${page%/}$ref" ;;
+                      *) echo "${page}${ref}" ;;
+                    esac
+                  done >> "$RD/urls/html_extract.txt" || true
+              echo "$body" | grep -oE '["'\''][^"'\'']+\.js(\?[^"'\'']*)?["'\'']' 2>/dev/null \
+                | tr -d '"\'' | while IFS= read -r ref; do
+                    case "$ref" in
+                      http://*|https://*) echo "$ref" ;;
+                      //*) echo "https:$ref" ;;
+                      /*) echo "${page%/}$ref" ;;
+                      *) echo "${page}${ref}" ;;
+                    esac
+                  done >> "$RD/urls/html_extract.txt" || true
+            done < /tmp/html_scrape_hosts.txt
+            sort -u -o "$RD/urls/html_extract.txt" "$RD/urls/html_extract.txt" 2>/dev/null || true
+          fi
+          echo "ℹ️ HTML-extracted URLs: $(wc -l < "$RD/urls/html_extract.txt" 2>/dev/null || echo 0)"
 
           echo "🔍 robots.txt / sitemap.xml (cheap, often lists paths the owner didn't want indexed)..."
           : > "$RD/urls/robots_sitemap.txt"
@@ -1650,24 +1726,23 @@ jobs:
           # Last-resort seed: if every passive/active URL source failed (superdrug
           # regression: 549→0), at least put live host roots into all.txt so JS
           # discovery and downstream param hunting are not totally starved.
-          merged_n=$(wc -l < /tmp/urls_merged.txt 2>/dev/null || echo 0)
-          # Seed host roots when empty OR very thin (capital.com: CDX 503 → only 3 URLs)
-          if [ ! -s /tmp/urls_merged.txt ] || [ "$merged_n" -lt 30 ]; then
-            echo "⚠️ URL sources thin ($merged_n) - seeding host roots from live/scan_order"
-            SEED_LIST="$RD/live/expensive_targets.txt"
-            [ -s "$SEED_LIST" ] || SEED_LIST="$RD/live/scan_order.txt"
-            [ -s "$SEED_LIST" ] || SEED_LIST="$RD/live/live.txt"
-            if [ -s "$SEED_LIST" ]; then
-              while IFS= read -r h; do
-                h="$(echo "$h" | tr -d '\r' | xargs)"; [ -z "$h" ] && continue
-                echo "$h" >> /tmp/urls_merged.txt
-                echo "${h}/" >> /tmp/urls_merged.txt
-                echo "${h}/robots.txt" >> /tmp/urls_merged.txt
-                echo "${h}/sitemap.xml" >> /tmp/urls_merged.txt
-              done < "$SEED_LIST"
-            fi
-            sort -u -o /tmp/urls_merged.txt /tmp/urls_merged.txt 2>/dev/null || true
+          # Always add prioritized host roots (additive) so active surface is never missing
+          SEED_LIST="$RD/live/expensive_targets.txt"
+          [ -s "$SEED_LIST" ] || SEED_LIST="$RD/live/scan_order.txt"
+          [ -s "$SEED_LIST" ] || SEED_LIST="$RD/live/live.txt"
+          if [ -s "$SEED_LIST" ]; then
+            while IFS= read -r h; do
+              h="$(echo "$h" | tr -d '\r' | xargs)"; [ -z "$h" ] && continue
+              echo "$h" >> /tmp/urls_merged.txt
+              echo "${h}/" >> /tmp/urls_merged.txt
+              echo "${h}/robots.txt" >> /tmp/urls_merged.txt
+              echo "${h}/sitemap.xml" >> /tmp/urls_merged.txt
+              echo "${h}/.well-known/security.txt" >> /tmp/urls_merged.txt
+            done < "$SEED_LIST"
           fi
+          sort -u -o /tmp/urls_merged.txt /tmp/urls_merged.txt 2>/dev/null || true
+          merged_n=$(wc -l < /tmp/urls_merged.txt 2>/dev/null || echo 0)
+          echo "ℹ️ Merged URL candidates before uro: $merged_n"
           timeout 90 uro < /tmp/urls_merged.txt > "$RD/urls/all.txt" 2>/dev/null || cp /tmp/urls_merged.txt "$RD/urls/all.txt"
           echo "✅ Total URLs: $(wc -l < "$RD/urls/all.txt")"
 
@@ -1681,6 +1756,17 @@ jobs:
           fi
           echo "✅ gf-categorized candidates: $(wc -l < "$RD/urls/gf_categorized.txt" 2>/dev/null || echo 0)"
 
+          # High-value URL shortlist for hunters (params, admin, api, config, backup, js.map)
+          : > "$RD/urls/juicy.txt"
+          if [ -s "$RD/urls/all.txt" ]; then
+            grep -iE '[?&](id|user|account|order|file|path|url|redirect|next|data|token|key|secret|query|search)=' "$RD/urls/all.txt" >> "$RD/urls/juicy.txt" || true
+            grep -iE '/(admin|api|graphql|internal|debug|swagger|actuator|manage|console|backend)/' "$RD/urls/all.txt" >> "$RD/urls/juicy.txt" || true
+            grep -iE '\.(map|json|xml|sql|bak|old|config|env)(\?|$)' "$RD/urls/all.txt" >> "$RD/urls/juicy.txt" || true
+            sort -u -o "$RD/urls/juicy.txt" "$RD/urls/juicy.txt" 2>/dev/null || true
+          fi
+          echo "✅ Juicy URLs (params/admin/api/config): $(wc -l < "$RD/urls/juicy.txt" 2>/dev/null || echo 0)"
+          echo "📊 URL source breakdown: wayback=$(wc -l < "$RD/urls/wayback.txt" 2>/dev/null || echo 0) js_cdx=$(wc -l < "$RD/urls/wayback_js.txt" 2>/dev/null || echo 0) otx=$(wc -l < "$RD/urls/otx.txt" 2>/dev/null || echo 0) urlscan=$(wc -l < "$RD/urls/urlscan.txt" 2>/dev/null || echo 0) katana=$(wc -l < "$RD/urls/katana.txt" 2>/dev/null || echo 0) html=$(wc -l < "$RD/urls/html_extract.txt" 2>/dev/null || echo 0) all=$(wc -l < "$RD/urls/all.txt" 2>/dev/null || echo 0)"
+
       - name: "📦 JavaScript Analysis"
         continue-on-error: true
         timeout-minutes: 12
@@ -1690,19 +1776,21 @@ jobs:
           mode="${HUNTING_MODE:-normal}"
           cap=$({ [ "$mode" = "light" ] && echo 100; } || { [ "$mode" = "aggressive" ] && echo 500; } || echo 200)
           if [ -s "$INPUT" ]; then
-            # BUGFIX: with a small urls/all.txt this never showed an issue, but now
-            # that URL Collection can legitimately find tens of thousands of URLs,
-            # `sort -u | head -N` triggers the same SIGPIPE-class problem fixed
-            # elsewhere in this file: head closes its read end after N lines while
-            # sort is still trying to write the rest, so sort gets EPIPE ("sort:
-            # write error: Broken pipe" - confirmed verbatim in a real run's log).
-            # The old `|| true` kept this from being fatal, but it still spammed
-            # scary-looking errors into an otherwise-clean log. Writing sort's full
-            # output to a real file first, then head-ing THAT file, removes the
-            # pipe-closing-early scenario entirely instead of just suppressing it.
-            grep -iE '\.js(\?|#|$)' "$INPUT" | sort -u > /tmp/js_candidates_sorted.txt || true
+            # Raise caps: more JS = more endpoints/secrets signal (recon depth)
+            cap=$({ [ "$mode" = "light" ] && echo 150; } || { [ "$mode" = "aggressive" ] && echo 800; } || echo 400)
+            # Collect .js from ALL URL sources (all + wayback_js + html_extract + katana)
+            : > /tmp/js_candidates_sorted.txt
+            for src in "$RD/urls/all.txt" "$RD/urls/wayback_js.txt" "$RD/urls/html_extract.txt" "$RD/urls/katana.txt" "$RD/urls/wayback.txt"; do
+              [ -s "$src" ] || continue
+              grep -iE '\.js(\?|#|$)|/static/|/assets/|/chunks/|_next/static' "$src" 2>/dev/null >> /tmp/js_raw.txt || true
+            done
+            # Also any script-like paths from html_extract without requiring .js suffix noise filter later
+            if [ -s "$RD/urls/html_extract.txt" ]; then
+              grep -iE '\.mjs(\?|#|$)|\.jsx(\?|#|$)|bundle|chunk|webpack|vendor' "$RD/urls/html_extract.txt" >> /tmp/js_raw.txt 2>/dev/null || true
+            fi
+            grep -iE '^https?://' /tmp/js_raw.txt 2>/dev/null | sort -u > /tmp/js_candidates_sorted.txt || true
             head -n "$cap" /tmp/js_candidates_sorted.txt > "$RD/js/files.txt" || true
-            echo "✅ JS files found (round 1, crawled URLs): $(wc -l < "$RD/js/files.txt" 2>/dev/null || echo 0)"
+            echo "✅ JS files found (round 1, multi-source): $(wc -l < "$RD/js/files.txt" 2>/dev/null || echo 0) (cap=$cap)"
             # BUGFIX: api_endpoints.txt/secrets.txt only got created INSIDE the
             # "$RD/js/files.txt is non-empty" branch below. When it's empty (0 .js
             # URLs found - confirmed on a real run), neither file ever gets created,
