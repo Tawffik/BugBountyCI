@@ -1,1 +1,37 @@
-PLACEHOLDER
+name: Zero Track - AI Autonomous Hunter
+# Temporary bootstrap: restores full pipeline from payload parts, then you re-run.
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Primary target domain (restore mode ignores this)"
+        required: false
+        default: "example.com"
+  push:
+    paths:
+      - ".github/workflows/_payload/**"
+      - "scripts/assemble_workflow.py"
+
+permissions:
+  contents: write
+
+jobs:
+  restore-workflow:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Assemble full zero-track-hunter.yml
+        run: python3 scripts/assemble_workflow.py
+      - name: Commit restored workflow
+        run: |
+          git config user.name "zero-track-bot"
+          git config user.email "zero-track-bot@users.noreply.github.com"
+          git add .github/workflows/zero-track-hunter.yml
+          if git diff --staged --quiet; then
+            echo "No changes"
+          else
+            git commit -m "fix: restore zero-track-hunter.yml (uro all.txt + asnmap DIRECT)"
+            git push
+          fi
