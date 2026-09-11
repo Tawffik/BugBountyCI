@@ -583,6 +583,7 @@ jobs:
           fi
 
           install_if_missing asnmap    go install github.com/projectdiscovery/asnmap/cmd/asnmap@latest
+          install_if_missing chaos     go install github.com/projectdiscovery/chaos-client/cmd/chaos@latest
 
           if ! command -v trufflehog >/dev/null 2>&1; then
             echo "⬇️ Installing trufflehog..."
@@ -810,6 +811,15 @@ jobs:
             echo "⚠️ findomain not installed - skipping"
           fi
           echo "ℹ️ findomain: $(wc -l < "$RD/subdomains/findomain.txt" 2>/dev/null || echo 0)"
+          echo "🔍 Chaos (ProjectDiscovery passive dataset)..."
+          : > "$RD/subdomains/chaos.txt"
+          if [ -n "${{ env.PDCP_API_KEY }}" ] && command -v chaos >/dev/null 2>&1; then
+            export PDCP_API_KEY="${{ env.PDCP_API_KEY }}"
+            timeout 120 chaos -d "$TARGET" -silent -o "$RD/subdomains/chaos.txt" 2>>"$RD/logs/chaos.log" || true
+          else
+            echo "⚠️ chaos skipped (missing PDCP_API_KEY or binary)"
+          fi
+          echo "ℹ️ chaos: $(wc -l < "$RD/subdomains/chaos.txt" 2>/dev/null || echo 0)"
           echo "🔍 Amass (passive - intel + enum, capped so it can never starve the merge/resolve steps below)..."
           # Amass active/brute modes can run for a very long time and hammer
           # the target directly; -passive keeps it to OSINT sources only (same
