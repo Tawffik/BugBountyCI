@@ -20,10 +20,10 @@ jobs:
         with:
           token: ${{ secrets.WORKFLOW_PAT }}
 
-      - name: Fix HTML extract + ffuf budget
+      - name: Fix URL Collection syntax (gospider + quote)
         run: |
           set -euo pipefail
-          python3 scripts/fix_html_and_ffuf.py
+          python3 scripts/fix_url_syntax.py
           python3 -c "import yaml; yaml.safe_load(open('.github/workflows/zero-track-hunter.yml')); print('YAML OK')"
 
       - name: Commit if changed
@@ -34,6 +34,6 @@ jobs:
           if git diff --staged --quiet; then
             echo "No changes"
           else
-            git commit -m "fix(pipeline): HTML extract syntax (run14 exit2) + ffuf budget under step timeout"
+            git commit -m "fix(pipeline): gospider quote broke URL step before merge (all.txt=0)"
             git push origin HEAD
           fi
