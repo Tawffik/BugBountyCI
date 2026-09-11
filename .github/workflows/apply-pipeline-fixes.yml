@@ -20,12 +20,12 @@ jobs:
         with:
           token: ${{ secrets.WORKFLOW_PAT }}
 
-      - name: Apply root-cause patches
+      - name: Fix asnmap block only
         run: |
           set -euo pipefail
-          python3 scripts/apply_root_fixes.py || true
           python3 scripts/fix_asnmap_block.py
           python3 -c "import yaml; yaml.safe_load(open('.github/workflows/zero-track-hunter.yml')); print('YAML OK')"
+          echo "DIRECT count: $(grep -c 'asnmap DIRECT empty' .github/workflows/zero-track-hunter.yml || true)"
 
       - name: Commit if changed
         run: |
@@ -35,6 +35,6 @@ jobs:
           if git diff --staged --quiet; then
             echo "No changes"
           else
-            git commit -m "fix(pipeline): clean asnmap DIRECT/Tor block + remaining patches"
+            git commit -m "fix(pipeline): clean asnmap DIRECT then Tor (no nested if)"
             git push origin HEAD
           fi
