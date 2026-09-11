@@ -918,7 +918,11 @@ jobs:
             timeout 45 asnmap -d "${{ env.TARGET }}" -silent -o /tmp/asn_cidrs.txt 2>>"$RD/logs/asnmap.log" || true
             if [ ! -s /tmp/asn_cidrs.txt ]; then
               echo "⚠️ asnmap DIRECT empty — trying Tor..."
+              timeout 45 asnmap -d "${{ env.TARGET }}" -silent -o /tmp/asn_cidrs.txt 2>>"$RD/logs/asnmap.log" || true
+            if [ ! -s /tmp/asn_cidrs.txt ]; then
+              echo "⚠️ asnmap DIRECT empty — trying Tor..."
               timeout 60 proxychains4 -q asnmap -d "${{ env.TARGET }}" -silent -o /tmp/asn_cidrs.txt 2>>"$RD/logs/asnmap.log" || true
+            fi
             fi
             attempt=1
             while [ ! -s /tmp/asn_cidrs.txt ] && [ "$attempt" -le 2 ]; do
@@ -2146,7 +2150,15 @@ jobs:
           if command -v cariddi >/dev/null 2>&1 && [ -s "$CARIDDI_LIST" ]; then
             echo "🕷️ Running Cariddi against prioritized hosts ($(wc -l < "$CARIDDI_LIST"))..."
             # Valid flags: -e endpoints -s secrets -info -err -plain -ua -t timeout
-            timeout 180 proxychains4 -q bash -c "cat '$CARIDDI_LIST' | cariddi -e -s -info -err -plain -ua '$SCAN_USER_AGENT' -t 10"               > "$RD/js_deep/cariddi_findings.txt" 2>>"$RD/logs/cariddi.log" || true
+            timeout 180 proxychains4 -q bash -c "cat '$CARIDDI_LIST' | cariddi -e -s -info -err -ua '$SCAN_USER_AGENT' -t 10 -ot /tmp/cariddi_out" 2>>"$RD/logs/cariddi.log" || true
+            : > "$RD/js_deep/cariddi_findings.txt"
+            cat /tmp/cariddi_out.txt /tmp/cariddi_out.*.txt 2>/dev/null >> "$RD/js_deep/cariddi_findings.txt" || true
+            if [ ! -s "$RD/js_deep/cariddi_findings.txt" ]; then
+              timeout 120 proxychains4 -q bash -c "cat '$CARIDDI_LIST' | cariddi -e -s -ua '$SCAN_USER_AGENT' -t 8"                 > /tmp/cariddi_stdout.txt 2>>"$RD/logs/cariddi.log" || true
+              grep -viE "plain mode|you should define|Examples:|cariddi -" /tmp/cariddi_stdout.txt >> "$RD/js_deep/cariddi_findings.txt" 2>/dev/null || true
+            fi
+            grep -viE "plain mode|you should define|Examples:" "$RD/js_deep/cariddi_findings.txt" | grep -v "^$" > /tmp/cariddi_clean.txt 2>/dev/null || true
+            if [ -s /tmp/cariddi_clean.txt ]; then cp /tmp/cariddi_clean.txt "$RD/js_deep/cariddi_findings.txt"; fi
           else
             echo "⚠️ cariddi not installed or no live hosts - skipping"
             touch "$RD/js_deep/cariddi_findings.txt"
@@ -3129,9 +3141,13 @@ jobs:
             case "$probe_path" in
               dns-seed|ports-enriched|apex-seed)
                 if [ -s "$RD/live/interesting_ranked.txt" ]; then
-                  awk '{print $2}' "$RD/live/interesting_ranked.txt" | head -25 > /tmp/nuclei_capped.txt
+                  awk '{print $2}' "$RD/live/interesting_ranked.txt" | head -8 > /tmp/nuclei_capped.txt
                   INPUT=/tmp/nuclei_capped.txt
-                  echo "⚠️ Unverified live ($probe_path) - Nuclei capped to top 25 ranked hosts"
+                  echo "⚠️ Unverified live ($probe_path) - Nuclei capped to top 8 ranked hosts (Tor/WAF error budget)"
+                elif [ -s "$RD/live/expensive_targets.txt" ]; then
+                  head -8 "$RD/live/expensive_targets.txt" > /tmp/nuclei_capped.txt
+                  INPUT=/tmp/nuclei_capped.txt
+                  echo "⚠️ Unverified live ($probe_path) - Nuclei capped to top 8 expensive_targets"
                 fi
                 ;;
             esac
