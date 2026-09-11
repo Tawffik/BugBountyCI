@@ -14,19 +14,21 @@ needle = (
 if needle not in c:
     raise SystemExit("uro needle not found — abort")
 
-replacement = """timeout 90 uro < /tmp/urls_merged.txt > /tmp/urls_uro.txt 2>/dev/null || true
-          if [ -s /tmp/urls_uro.txt ]; then
-            cp /tmp/urls_uro.txt \"$RD/urls/all.txt\"
-            echo \"✅ Total URLs after uro: $(wc -l < \"$RD/urls/all.txt\")\"
-          else
-            cp /tmp/urls_merged.txt \"$RD/urls/all.txt\"
-            echo \"⚠️ uro empty — keeping merged URLs in all.txt: $(wc -l < \"$RD/urls/all.txt\")\"
-          fi
-          if [ ! -s \"$RD/urls/all.txt\" ] && [ -s /tmp/urls_merged.txt ]; then
-            cp /tmp/urls_merged.txt \"$RD/urls/all.txt\"
-            echo \"⚠️ Safety restore all.txt from merge\"
-          fi
-          echo \"✅ Final all.txt: $(wc -l < \"$RD/urls/all.txt\" 2>/dev/null || echo 0) URLs\""""
+replacement = (
+    'timeout 90 uro < /tmp/urls_merged.txt > /tmp/urls_uro.txt 2>/dev/null || true\n'
+    '          if [ -s /tmp/urls_uro.txt ]; then\n'
+    '            cp /tmp/urls_uro.txt "$RD/urls/all.txt"\n'
+    '            echo "✅ Total URLs after uro: $(wc -l < "$RD/urls/all.txt")"\n'
+    '          else\n'
+    '            cp /tmp/urls_merged.txt "$RD/urls/all.txt"\n'
+    '            echo "⚠️ uro empty — keeping merged URLs in all.txt: $(wc -l < "$RD/urls/all.txt")"\n'
+    '          fi\n'
+    '          if [ ! -s "$RD/urls/all.txt" ] && [ -s /tmp/urls_merged.txt ]; then\n'
+    '            cp /tmp/urls_merged.txt "$RD/urls/all.txt"\n'
+    '            echo "⚠️ Safety restore all.txt from merge"\n'
+    '          fi\n'
+    '          echo "✅ Final all.txt: $(wc -l < "$RD/urls/all.txt" 2>/dev/null || echo 0) URLs"'
+)
 
 c = c.replace(needle, replacement, 1)
 print("uro fix applied")
@@ -47,7 +49,7 @@ if old_cat in c:
 else:
     print("WARN: cat glob not found")
 
-# Fix 3: asnmap DIRECT first (first Tor-only invocation only)
+# Fix 3: asnmap DIRECT first
 old_asn = 'timeout 60 proxychains4 -q asnmap -d "${{ env.TARGET }}" -silent -o /tmp/asn_cidrs.txt 2>>"$RD/logs/asnmap.log" || true'
 new_asn = (
     'timeout 45 asnmap -d "${{ env.TARGET }}" -silent -o /tmp/asn_cidrs.txt 2>>"$RD/logs/asnmap.log" || true\n'
