@@ -918,11 +918,7 @@ jobs:
             timeout 45 asnmap -d "${{ env.TARGET }}" -silent -o /tmp/asn_cidrs.txt 2>>"$RD/logs/asnmap.log" || true
             if [ ! -s /tmp/asn_cidrs.txt ]; then
               echo "⚠️ asnmap DIRECT empty — trying Tor..."
-              timeout 45 asnmap -d "${{ env.TARGET }}" -silent -o /tmp/asn_cidrs.txt 2>>"$RD/logs/asnmap.log" || true
-            if [ ! -s /tmp/asn_cidrs.txt ]; then
-              echo "⚠️ asnmap DIRECT empty — trying Tor..."
               timeout 60 proxychains4 -q asnmap -d "${{ env.TARGET }}" -silent -o /tmp/asn_cidrs.txt 2>>"$RD/logs/asnmap.log" || true
-            fi
             fi
             attempt=1
             while [ ! -s /tmp/asn_cidrs.txt ] && [ "$attempt" -le 2 ]; do
