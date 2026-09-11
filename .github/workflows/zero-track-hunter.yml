@@ -1722,25 +1722,12 @@ jobs:
               body=$(proxychains4 -q curl -sk --max-time 12 -H "User-Agent: $SCAN_USER_AGENT" "$page" 2>/dev/null || true)
               [ -n "$body" ] || body=$(curl -sk --max-time 10 -H "User-Agent: $SCAN_USER_AGENT" "$page" 2>/dev/null || true)
               [ -n "$body" ] || continue
-              # script src, link href, and quoted .js / api paths
-              echo "$body" | grep -oE '(src|href)=["'\''][^"'\'']+' 2>/dev/null \
-                | sed -E 's/^(src|href)=["'\'']//' | while IFS= read -r ref; do
-                    case "$ref" in
-                      http://*|https://*) echo "$ref" ;;
-                      //*) echo "https:$ref" ;;
-                      /*) echo "${page%/}$ref" ;;
-                      *) echo "${page}${ref}" ;;
-                    esac
-                  done >> "$RD/urls/html_extract.txt" || true
-              echo "$body" | grep -oE '["'\''][^"'\'']+\.js(\?[^"'\'']*)?["'\'']' 2>/dev/null \
-                | tr -d '"\'' | while IFS= read -r ref; do
-                    case "$ref" in
-                      http://*|https://*) echo "$ref" ;;
-                      //*) echo "https:$ref" ;;
-                      /*) echo "${page%/}$ref" ;;
-                      *) echo "${page}${ref}" ;;
-                    esac
-                  done >> "$RD/urls/html_extract.txt" || true
+              # Safe extract (run#14: nested quotes caused exit 2 syntax error)
+              printf '%s\n' "$body" | grep -oE 'https?://[^ ]+' >> "$RD/urls/html_extract.txt" 2>/dev/null || true
+              printf '%s\n' "$body" | grep -oiE 'src=/[^ >]+' | sed 's/^[Ss][Rr][Cc]=//' | while IFS= read -r ref; do
+                [ -z "$ref" ] && continue
+                echo "${page%/}$ref"
+              done >> "$RD/urls/html_extract.txt" 2>/dev/null || true
             done < /tmp/html_scrape_hosts.txt
             sort -u -o "$RD/urls/html_extract.txt" "$RD/urls/html_extract.txt" 2>/dev/null || true
           fi
@@ -2909,7 +2896,7 @@ jobs:
 
       - name: "🔎 Content Discovery Fuzzing"
         continue-on-error: true
-        timeout-minutes: 20
+        timeout-minutes: 25
         run: |
           RD="results/${{ env.TIMESTAMP }}"
           mkdir -p "$RD/fuzzing"
@@ -2922,9 +2909,9 @@ jobs:
           [ -s "$FUZZ_INPUT" ] || FUZZ_INPUT="$RD/live/live.txt"
           if [ -s /tmp/content_wordlist.txt ] && [ -s "$FUZZ_INPUT" ] && command -v ffuf >/dev/null; then
             mode="${HUNTING_MODE:-normal}"
-            budget=$({ [ "$mode" = "light" ] && echo 300; } || { [ "$mode" = "aggressive" ] && echo 1400; } || echo 700)
+            budget=$({ [ "$mode" = "light" ] && echo 240; } || { [ "$mode" = "aggressive" ] && echo 900; } || echo 500)
             total=$(wc -l < "$FUZZ_INPUT")
-            per_host=90
+            per_host=60
             i=0
             SECONDS=0
             echo "⏱️ Time-budget driven (${budget}s, ~${per_host}s/host) across $total hosts (interesting first)"
