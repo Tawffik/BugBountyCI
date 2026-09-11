@@ -572,6 +572,7 @@ jobs:
           # never actually installed anywhere in this step - so that fallback fired
           # on literally every single run regardless of live hosts.
           install_if_missing hakrawler go install github.com/hakluke/hakrawler@latest
+          install_if_missing gospider go install github.com/jaeles-project/gospider@latest
 
           if ! command -v gowitness >/dev/null 2>&1; then
             echo "⬇️ Installing gowitness..."
@@ -1629,7 +1630,7 @@ jobs:
               echo "ℹ️ CDX/OTX fallback empty - see meta/archive_cdx_diag.txt"
             fi
           fi
-          touch "$RD/urls/wayback.txt" "$RD/urls/wayback_js.txt" "$RD/urls/gau.txt" "$RD/urls/katana.txt" "$RD/urls/hakrawler.txt" "$RD/urls/urlscan.txt" "$RD/urls/otx.txt" "$RD/urls/html_extract.txt" "$RD/urls/robots_sitemap.txt" "$RD/urls/juicy.txt"
+          touch "$RD/urls/wayback.txt" "$RD/urls/wayback_js.txt" "$RD/urls/gau.txt" "$RD/urls/katana.txt" "$RD/urls/hakrawler.txt" "$RD/urls/gospider.txt" "$RD/urls/urlscan.txt" "$RD/urls/otx.txt" "$RD/urls/html_extract.txt" "$RD/urls/robots_sitemap.txt" "$RD/urls/juicy.txt"
           echo "🔍 Gau..."
           # bash -e: must absorb timeout 124 or step dies before katana/urlscan/merge
           timeout 180 gau "${{ env.TARGET }}" --subs --o "$RD/urls/gau.txt" 2>>"$RD/logs/gau.log" || gau_exit=$?
@@ -1655,6 +1656,15 @@ jobs:
             echo "⚠️ hakrawler not installed or no live hosts - skipping"
             touch "$RD/urls/hakrawler.txt"
           fi
+          echo "🔍 Gospider..."
+          : > "$RD/urls/gospider.txt"
+          GS_LIST="$RD/live/expensive_targets.txt"; [ -s "$GS_LIST" ] || GS_LIST="$RD/live/scan_order.txt"; [ -s "$GS_LIST" ] || GS_LIST="$RD/live/live.txt"
+          if command -v gospider >/dev/null 2>&1 && [ -s "$GS_LIST" ]; then
+            timeout 120 proxychains4 -q gospider -S "$GS_LIST" -t 10 -d 2 --js --sitemap --robots -a -w -c 10 2>>"$RD/logs/gospider.log"             | grep -Eo "https?://[^[:space:]"]+" | sort -u > "$RD/urls/gospider.txt" || true
+          else
+            echo "⚠️ gospider skipped"
+          fi
+          echo "ℹ️ gospider: $(wc -l < "$RD/urls/gospider.txt" 2>/dev/null || echo 0)"
           echo "🔍 urlscan.io passive (often works when archive.org rate-limits GitHub runner IPs)..."
           : > "$RD/urls/urlscan.txt"
           # Free search endpoint, no API key required for basic domain search
@@ -1758,7 +1768,7 @@ jobs:
           fi
           echo "🔄 Merging..."
           : > /tmp/urls_merged.txt
-          for src in wayback wayback_js gau katana hakrawler urlscan otx html_extract robots_sitemap; do
+          for src in wayback wayback_js gau katana hakrawler gospider urlscan otx html_extract robots_sitemap; do
             f="$RD/urls/${src}.txt"
             [ -s "$f" ] && cat "$f" >> /tmp/urls_merged.txt
           done
