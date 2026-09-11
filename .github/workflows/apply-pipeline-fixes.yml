@@ -23,7 +23,8 @@ jobs:
       - name: Apply root-cause patches
         run: |
           set -euo pipefail
-          python3 scripts/apply_root_fixes.py
+          python3 scripts/apply_root_fixes.py || true
+          python3 scripts/fix_asnmap_block.py
           python3 -c "import yaml; yaml.safe_load(open('.github/workflows/zero-track-hunter.yml')); print('YAML OK')"
 
       - name: Commit if changed
@@ -34,6 +35,6 @@ jobs:
           if git diff --staged --quiet; then
             echo "No changes"
           else
-            git commit -m "fix(pipeline): cariddi -ot + nuclei top-8 cap on unverified live"
+            git commit -m "fix(pipeline): clean asnmap DIRECT/Tor block + remaining patches"
             git push origin HEAD
           fi
