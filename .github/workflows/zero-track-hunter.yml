@@ -541,6 +541,19 @@ jobs:
           install_if_missing nuclei    go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@v3.8.0
           install_if_missing dnsx      go install github.com/projectdiscovery/dnsx/cmd/dnsx@v1.2.1
           install_if_missing assetfinder go install github.com/tomnomnom/assetfinder@v0.1.1
+          # findomain: passive CT/OSINT (optional; soft-fail)
+          if ! command -v findomain >/dev/null 2>&1; then
+            mkdir -p logs
+            curl -sL --max-time 40 -o /tmp/findomain.zip "https://github.com/Findomain/Findomain/releases/latest/download/findomain-linux.zip" 2>>logs/tool_install.log || true
+            if [ -s /tmp/findomain.zip ]; then
+              unzip -qo /tmp/findomain.zip -d /tmp/findomain_bin 2>>logs/tool_install.log || true
+              FIND_BIN=$(find /tmp/findomain_bin -type f -name findomain 2>/dev/null | head -1)
+              if [ -n "$FIND_BIN" ]; then
+                (sudo install -m 755 "$FIND_BIN" /usr/local/bin/findomain || install -m 755 "$FIND_BIN" "$HOME/go/bin/findomain") 2>>logs/tool_install.log || true
+                export PATH="$HOME/go/bin:$PATH"
+              fi
+            fi
+          fi
           install_if_missing waybackurls go install github.com/tomnomnom/waybackurls@v0.1.0
           install_if_missing gau       go install github.com/lc/gau/v2/cmd/gau@v2.2.4
           install_if_missing gf        go install github.com/tomnomnom/gf@v0.0.0-20200618134122-dcd4c361f9f5
@@ -789,6 +802,14 @@ jobs:
           assetfinder --subs-only "$TARGET" > "$RD/subdomains/assetfinder.txt" 2>>"$RD/logs/assetfinder.log" || true
           echo "🔍 crt.sh..."
           curl -s --max-time 30 "https://crt.sh/?q=%25.${TARGET}&output=json" | jq -r '.[].name_value' 2>/dev/null | tr ',' '\n' | sed 's/^\*\.//' | sort -u > "$RD/subdomains/crtsh.txt" 2>/dev/null || true
+          echo "🔍 Findomain (passive)..."
+          : > "$RD/subdomains/findomain.txt"
+          if command -v findomain >/dev/null 2>&1; then
+            timeout 120 findomain -t "$TARGET" -q -u "$RD/subdomains/findomain.txt" 2>>"$RD/logs/findomain.log" || true
+          else
+            echo "⚠️ findomain not installed - skipping"
+          fi
+          echo "ℹ️ findomain: $(wc -l < "$RD/subdomains/findomain.txt" 2>/dev/null || echo 0)"
           echo "🔍 Amass (passive - intel + enum, capped so it can never starve the merge/resolve steps below)..."
           # Amass active/brute modes can run for a very long time and hammer
           # the target directly; -passive keeps it to OSINT sources only (same
