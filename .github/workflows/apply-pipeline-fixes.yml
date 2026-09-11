@@ -20,12 +20,12 @@ jobs:
         with:
           token: ${{ secrets.WORKFLOW_PAT }}
 
-      - name: Add findomain (idempotent)
+      - name: Add chaos (PDCP)
         run: |
           set -euo pipefail
-          python3 scripts/add_findomain.py
+          python3 scripts/add_chaos.py
           python3 -c "import yaml; yaml.safe_load(open('.github/workflows/zero-track-hunter.yml')); print('YAML OK')"
-          grep -n findomain .github/workflows/zero-track-hunter.yml | head -15
+          grep -n chaos .github/workflows/zero-track-hunter.yml | head -12
 
       - name: Commit if changed
         run: |
@@ -35,6 +35,6 @@ jobs:
           if git diff --staged --quiet; then
             echo "No changes"
           else
-            git commit -m "feat(recon): add findomain passive subdomain source (soft-fail)"
+            git commit -m "feat(recon): chaos passive subs via existing PDCP_API_KEY"
             git push origin HEAD
           fi
