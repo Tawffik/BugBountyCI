@@ -1660,7 +1660,7 @@ jobs:
           : > "$RD/urls/gospider.txt"
           GS_LIST="$RD/live/expensive_targets.txt"; [ -s "$GS_LIST" ] || GS_LIST="$RD/live/scan_order.txt"; [ -s "$GS_LIST" ] || GS_LIST="$RD/live/live.txt"
           if command -v gospider >/dev/null 2>&1 && [ -s "$GS_LIST" ]; then
-            timeout 120 proxychains4 -q gospider -S "$GS_LIST" -t 10 -d 2 --js --sitemap --robots -a -w -c 10 2>>"$RD/logs/gospider.log"             | grep -Eo "https?://[^[:space:]"]+" | sort -u > "$RD/urls/gospider.txt" || true
+            timeout 120 proxychains4 -q gospider -S "$GS_LIST" -t 10 -d 2 --js --sitemap --robots -a -w -c 10 2>>"$RD/logs/gospider.log" | grep -Eo 'https?://[^[:space:]]+' | sort -u > "$RD/urls/gospider.txt" || true
           else
             echo "⚠️ gospider skipped"
           fi
@@ -1792,7 +1792,7 @@ jobs:
             cp /tmp/urls_merged.txt "$RD/urls/all.txt"
             echo "⚠️ Safety restore all.txt from merge"
           fi
-          echo "✅ Final all.txt: $(wc -l < "$RD/urls/all.txt" 2>/dev/null || echo 0) URLs
+          echo "✅ Final all.txt: $(wc -l < "$RD/urls/all.txt" 2>/dev/null || echo 0) URLs"
 
           echo "🎯 Categorizing URLs by vulnerability-relevant parameters (gf patterns)..."
           : > "$RD/urls/gf_categorized.txt"
