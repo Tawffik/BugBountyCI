@@ -20,12 +20,12 @@ jobs:
         with:
           token: ${{ secrets.WORKFLOW_PAT }}
 
-      - name: Add chaos (PDCP)
+      - name: Add gospider
         run: |
           set -euo pipefail
-          python3 scripts/add_chaos.py
+          python3 scripts/add_gospider.py
           python3 -c "import yaml; yaml.safe_load(open('.github/workflows/zero-track-hunter.yml')); print('YAML OK')"
-          grep -n chaos .github/workflows/zero-track-hunter.yml | head -12
+          grep -n gospider .github/workflows/zero-track-hunter.yml | head -15
 
       - name: Commit if changed
         run: |
@@ -35,6 +35,6 @@ jobs:
           if git diff --staged --quiet; then
             echo "No changes"
           else
-            git commit -m "feat(recon): chaos passive subs via existing PDCP_API_KEY"
+            git commit -m "feat(recon): gospider crawl on expensive targets (soft-fail)"
             git push origin HEAD
           fi
