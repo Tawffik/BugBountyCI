@@ -20,12 +20,11 @@ jobs:
         with:
           token: ${{ secrets.WORKFLOW_PAT }}
 
-      - name: Add gospider
+      - name: Fix HTML extract + ffuf budget
         run: |
           set -euo pipefail
-          python3 scripts/add_gospider.py
+          python3 scripts/fix_html_and_ffuf.py
           python3 -c "import yaml; yaml.safe_load(open('.github/workflows/zero-track-hunter.yml')); print('YAML OK')"
-          grep -n gospider .github/workflows/zero-track-hunter.yml | head -15
 
       - name: Commit if changed
         run: |
@@ -35,6 +34,6 @@ jobs:
           if git diff --staged --quiet; then
             echo "No changes"
           else
-            git commit -m "feat(recon): gospider crawl on expensive targets (soft-fail)"
+            git commit -m "fix(pipeline): HTML extract syntax (run14 exit2) + ffuf budget under step timeout"
             git push origin HEAD
           fi
