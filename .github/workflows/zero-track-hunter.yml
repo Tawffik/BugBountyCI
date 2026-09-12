@@ -254,43 +254,67 @@ jobs:
 
 
       - name: "🔒 Verify Target Is In Authorized Scope"
-        # NOTE: continue-on-error was REMOVED on purpose. This step actively sends
-        # exploit payloads (SQLi/XSS/SSTI/SSRF/etc.) further down the pipeline, so an
-        # "authorization" check that can never actually stop the job is not a real
-        # control - it previously always printed a warning and ran anyway either way.
+        # FAIL-CLOSED: missing scope.txt or invalid/out-of-scope target stops the job.
+        # continue-on-error must stay OFF — this gates active/exploit phases.
         env:
           TARGET_INPUT: ${{ inputs.target }}
         run: |
+          set -euo pipefail
           target="$(echo "${TARGET_INPUT}" | xargs)"
-          if [[ ! -f "scope.txt" ]]; then
-            echo "⚠️ No scope.txt found in repo — allowing any target (open scope mode)."
-            echo "   Add a scope.txt (one domain or *.domain per line) to enforce an allow-list."
-            echo "✅ Target authorized: $target"
-            exit 0
+          target="${target%/}"
+          if [[ "$target" == http://* || "$target" == https://* ]]; then
+            echo "::error::Target must be a bare domain (e.g. example.com), not a URL: '$target'"
+            exit 1
+          fi
+          if [[ "$target" == */* ]]; then
+            echo "::error::Target must not contain a path: '$target'"
+            exit 1
+          fi
+          if [[ "$target" =~ [[:space:]] ]] || [[ "$target" =~ [\;\|\&\$\`\(\)\{\}\<\>\'\"\!] ]]; then
+            echo "::error::Target contains forbidden characters: '$target'"
+            exit 1
+          fi
+          if [[ "$target" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Target must be a domain name, not an IP address: '$target'"
+            exit 1
+          fi
+          if [[ "$target" == \** ]]; then
+            echo "::error::Target must be a concrete domain (example.com), not a wildcard pattern: '$target'"
+            exit 1
           fi
           target_lower="$(echo "$target" | tr '[:upper:]' '[:lower:]')"
+          if [[ ! "$target_lower" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$ ]]; then
+            echo "::error::Target is not a valid domain name: '$target'"
+            exit 1
+          fi
+          if [[ ! -f "scope.txt" ]]; then
+            echo "::error::scope.txt is missing. Refusing to run (fail-closed)."
+            echo "   Create scope.txt in the repo root with one authorized domain or *.domain per line."
+            echo "   See scope.txt.example for the format."
+            exit 1
+          fi
+          if [[ ! -s "scope.txt" ]]; then
+            echo "::error::scope.txt exists but is empty. Add at least one authorized domain."
+            exit 1
+          fi
           matched=0
-          while IFS= read -r raw_line; do
+          while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
             line="${raw_line%%#*}"; line="$(echo "$line" | xargs)"
             [[ -z "$line" ]] && continue
             ll="$(echo "$line" | tr '[:upper:]' '[:lower:]')"
             if [[ "$ll" == "$target_lower" ]]; then matched=1; break; fi
             if [[ "$ll" == \*.* ]]; then
               base="${ll:2}"
-              # BUGFIX: a "*.domain" scope entry only matched actual subdomains
-              # ("api.domain") and rejected the bare apex domain itself ("domain"),
-              # even though "*.domain in scope" conventionally includes the apex
-              # too in most bug bounty programs. This caused the authorization
-              # gate to incorrectly refuse an actually-authorized bare-domain scan.
               if [[ "$target_lower" == *".$base" || "$target_lower" == "$base" ]]; then matched=1; break; fi
             fi
           done < scope.txt
           if [[ "$matched" != "1" ]]; then
-            echo "::error::'$target' is NOT listed in scope.txt. Refusing to run active/exploit steps against an unauthorized target."
-            echo "   Add '$target' (or '*.$target') to scope.txt if this target is actually authorized, then re-run."
+            echo "::error::'$target' is NOT listed in scope.txt. Refusing to run against an unauthorized target."
+            echo "   Add '$target' or a matching '*.parent.tld' entry to scope.txt, then re-run."
             exit 1
           fi
-          echo "✅ Target authorized: $target (matched scope.txt)"
+          echo "✅ Target authorized: $target_lower (matched scope.txt)"
+          echo "TARGET=$target_lower" >> "$GITHUB_ENV"
 
       - name: "✅ Environment Validation"
         env:
@@ -1400,7 +1424,8 @@ jobs:
           done < "$INPUT"
           : > "$RD/waf_bypass/path_bypass.txt"
           while IFS= read -r host; do
-            host="$(echo "$host" | tr -d '' | xargs)"; [ -z "$host" ] && continue
+            host="$(echo "$host" | tr -d '
+' | xargs)"; [ -z "$host" ] && continue
             base_s=$(proxychains4 -q curl -sk -o /tmp/path_base_body -w "%{http_code}" --max-time 5 -H "User-Agent: $SCAN_USER_AGENT" "${host}/" 2>/dev/null || echo "000")
             base_s="${base_s: -3}"
             base_hash=$(md5sum /tmp/path_base_body 2>/dev/null | awk '{print $1}')
