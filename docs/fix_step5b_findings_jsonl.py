@@ -6,20 +6,14 @@ assert "Final all.txt" in t
 if "Canonical findings schema" in t:
     print("already")
     raise SystemExit(0)
-marker = 'print(f"\u2705 Triage: {len(confirmed)} confirmed (sorted), {len(leads)} recon leads -> triage/triage.md")'
-# file may contain literal emoji not escape
-if marker not in t:
-    marker = 'print(f"\u2705 Triage: {len(confirmed)} confirmed (sorted), {len(leads)} recon leads -> triage/triage.md")'
-# search by unique substring
-key = "confirmed (sorted), {len(leads)} recon leads -> triage/triage.md")"
+key = "recon leads -> triage/triage.md"
 idx = t.find(key)
 if idx < 0:
     raise SystemExit("triage print missing")
-# expand to full print(...)
 start = t.rfind("print(", 0, idx)
 end = t.find(")", idx) + 1
 marker = t[start:end]
-print("marker", marker[:60])
+print("marker ok", len(marker))
 insert = (
     "# Canonical findings schema\n"
     "          import hashlib\n"
