@@ -1400,13 +1400,23 @@ jobs:
           done < "$INPUT"
           : > "$RD/waf_bypass/path_bypass.txt"
           while IFS= read -r host; do
-            host="$(echo "$host" | tr -d '\r' | xargs)"; [ -z "$host" ] && continue
+            host="$(echo "$host" | tr -d '' | xargs)"; [ -z "$host" ] && continue
+            base_s=$(proxychains4 -q curl -sk -o /tmp/path_base_body -w "%{http_code}" --max-time 5 -H "User-Agent: $SCAN_USER_AGENT" "${host}/" 2>/dev/null || echo "000")
+            base_s="${base_s: -3}"
+            base_hash=$(md5sum /tmp/path_base_body 2>/dev/null | awk '{print $1}')
             for test_path in "/%252e%252e%252f" "/%c0%af" "/ADMIN" "/./" "/;foo=bar"; do
-              s=$(proxychains4 -q curl -sk -o /dev/null -w "%{http_code}" --max-time 5 -H "User-Agent: $SCAN_USER_AGENT" "${host}${test_path}" 2>/dev/null || echo "000")
+              s=$(proxychains4 -q curl -sk -o /tmp/path_test_body -w "%{http_code}" --max-time 5 -H "User-Agent: $SCAN_USER_AGENT" "${host}${test_path}" 2>/dev/null || echo "000")
               s="${s: -3}"
-              if [ "$s" = "200" ] || [ "$s" = "301" ] || [ "$s" = "302" ]; then
-                echo "[PATH-BYPASS] ${host}${test_path} | status=${s}" >> "$RD/waf_bypass/path_bypass.txt"
-                break
+              [ "$s" = "000" ] && continue
+              test_hash=$(md5sum /tmp/path_test_body 2>/dev/null | awk '{print $1}')
+              if [ "$s" -ge 200 ] 2>/dev/null && [ "$s" -lt 300 ] 2>/dev/null; then
+                if [ "$base_s" = "403" ] || [ "$base_s" = "401" ] || [ "$base_s" = "429" ] || [ "$base_s" = "000" ]; then
+                  echo "[PATH-BYPASS] ${host}${test_path} | status=${s} baseline=${base_s} (unblocked vs blocked baseline)" >> "$RD/waf_bypass/path_bypass.txt"
+                  break
+                elif [ -n "$test_hash" ] && [ -n "$base_hash" ] && [ "$test_hash" != "$base_hash" ]; then
+                  echo "[PATH-BYPASS-LEAD] ${host}${test_path} | status=${s} baseline=${base_s} (2xx body differs from /)" >> "$RD/waf_bypass/path_bypass.txt"
+                  break
+                fi
               fi
             done
           done < "$INPUT"
@@ -2832,10 +2842,18 @@ jobs:
               size_diff=$(( test_len > base_len ? test_len - base_len : base_len - test_len ))
               is_block_page=0
               grep -qiE 'access denied|attention required|cloudflare|akamai|request blocked|forbidden|captcha|ray id' /tmp/origin_test.html 2>/dev/null && is_block_page=1
-              if [ "$status" -ge 200 ] 2>/dev/null && [ "$status" -lt 400 ] 2>/dev/null                  && [ "$test_len" -gt 200 ] && [ "$base_len" -gt 0 ]                  && [ "$size_diff" -lt $((base_len / 3 + 1)) ] && [ "$is_block_page" -eq 0 ]; then
+              # CONFIRMED = real site content via origin IP (2xx only, not redirects).
+              # content-differs = lead only (triage must NOT promote to Confirmed).
+              # bare 3xx / empty body = IP responds but not a WAF-bypass finding.
+              if [ "$status" -ge 200 ] 2>/dev/null && [ "$status" -lt 300 ] 2>/dev/null \
+                  && [ "$test_len" -gt 200 ] && [ "$base_len" -gt 0 ] \
+                  && [ "$size_diff" -lt $((base_len / 3 + 1)) ] && [ "$is_block_page" -eq 0 ]; then
                 echo "[ORIGIN-BYPASS-CONFIRMED] ${scheme}://${ip}/ (Host: ${{ env.TARGET }}) | status=${status} | body_len=${test_len} vs baseline=${base_len}" >> "$RD/waf_bypass/origin_bypass.txt"
-              elif [ "$status" != "000" ] && [ "$status" -ge 200 ] 2>/dev/null && [ "$status" -lt 400 ] 2>/dev/null && [ "$is_block_page" -eq 0 ]; then
+              elif [ "$status" != "000" ] && [ "$status" -ge 200 ] 2>/dev/null && [ "$status" -lt 300 ] 2>/dev/null \
+                  && [ "$is_block_page" -eq 0 ] && [ "$test_len" -gt 50 ]; then
                 echo "[origin-reachable-but-content-differs] ${scheme}://${ip}/ (Host: ${{ env.TARGET }}) | status=${status} | body_len=${test_len} vs baseline=${base_len}" >> "$RD/waf_bypass/origin_bypass.txt"
+              elif [ "$status" != "000" ] && [ "$status" -ge 300 ] 2>/dev/null && [ "$status" -lt 400 ] 2>/dev/null; then
+                echo "[origin-ip-responds-redirect-only] ${scheme}://${ip}/ (Host: ${{ env.TARGET }}) | status=${status} | body_len=${test_len} (not a confirmed bypass)" >> "$RD/waf_bypass/origin_bypass.txt"
               fi
             done
           done < /tmp/origin_candidates.txt
@@ -4918,6 +4936,7 @@ jobs:
                   return []
 
           confirmed = []  # (severity_rank, severity_label, category, detail)
+          leads = []  # recon leads — NOT confirmed findings
           # Information disclosure findings
           for l in rl("info_disclosure/git_exposure.txt"):
               confirmed.append((SEV_RANK["high"], "high", "Git Exposure", l))
@@ -4934,11 +4953,15 @@ jobs:
           for l in rl("waf_bypass/bypass_results.txt"):
               confirmed.append((SEV_RANK["high"], "high", "WAF Bypass (header)", l))
           for l in rl("waf_bypass/origin_bypass.txt"):
-              # Direct-origin access is a stronger finding than a header trick -
-              # it means the WAF/CDN can be skipped entirely, not just tricked
-              # into thinking a request came from a trusted source.
-              sev = "critical" if l.startswith("[ORIGIN-BYPASS-CONFIRMED]") else "medium"
-              confirmed.append((SEV_RANK[sev], sev, "WAF Bypass (direct origin IP)", l))
+              if l.startswith("[ORIGIN-BYPASS-CONFIRMED]"):
+                  confirmed.append((SEV_RANK["critical"], "critical", "WAF Bypass (direct origin IP)", l))
+              elif l.startswith("[origin-reachable-but-content-differs]") or l.startswith("[origin-ip-responds-redirect-only]"):
+                  leads.append(("Origin IP signal (not confirmed bypass)", l))
+          for l in rl("waf_bypass/path_bypass.txt"):
+              if l.startswith("[PATH-BYPASS]"):
+                  confirmed.append((SEV_RANK["medium"], "medium", "Path encoding WAF bypass", l))
+              elif l.startswith("[PATH-BYPASS-LEAD]"):
+                  leads.append(("Path encoding lead (verify manually)", l))
           for l in rl("waf_bypass/ip_spoof_bypass.txt"):
               confirmed.append((SEV_RANK["high"], "high", "Access Control Bypass (spoofed IP header)", l))
 
