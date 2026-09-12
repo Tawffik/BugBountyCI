@@ -947,7 +947,7 @@ jobs:
             # Find IP ranges owned by the org behind this domain - this can surface
             # servers/services that have NO subdomain or DNS record pointing to them
             # at all, which nothing else in this pipeline would ever find.
-            timeout 45 asnmap -d "${{ env.TARGET }}" -silent -o /tmp/asn_cidrs.txt 2>>"$RD/logs/asnmap.log" || true
+            timeout 90 asnmap -d "${{ env.TARGET }}" -silent -o /tmp/asn_cidrs.txt 2>>"$RD/logs/asnmap.log" || true
             if [ ! -s /tmp/asn_cidrs.txt ]; then
               echo "⚠️ asnmap DIRECT empty — trying Tor..."
               timeout 60 proxychains4 -q asnmap -d "${{ env.TARGET }}" -silent -o /tmp/asn_cidrs.txt 2>>"$RD/logs/asnmap.log" || true
@@ -977,6 +977,31 @@ jobs:
               reason="asnmap produced zero output across 3 attempts (including 2 fresh-circuit retries) with no error ever logged in logs/asnmap.log - this is the same flaky-Tor-circuit signature seen elsewhere (single lightweight requests succeed, this tool's request(s) don't), not a config problem, since PDCP_API_KEY is set and asnmap is installed."
               echo "$reason" > "$RD/meta/asn_skipped_reason.txt"
               echo "⚠️ $reason"
+              echo "   Falling back to BGPView free API after asnmap exhaustion..."
+              python3 << 'PYEOF'
+          import os, json, socket, urllib.request
+          rd = "results/" + os.environ.get("TIMESTAMP", "")
+          target = os.environ.get("TARGET", "")
+          prefixes = set()
+          try:
+              ip = socket.gethostbyname(target)
+              req = urllib.request.Request("https://api.bgpview.io/ip/" + ip, headers={"User-Agent": "Mozilla/5.0"})
+              with urllib.request.urlopen(req, timeout=15) as resp:
+                  data = json.loads(resp.read().decode("utf-8", "replace"))
+              for item in (data.get("data") or {}).get("prefixes", []):
+                  pfx = item.get("prefix")
+                  if pfx:
+                      prefixes.add(pfx)
+          except Exception as e:
+              os.makedirs(os.path.join(rd, "logs"), exist_ok=True)
+              open(os.path.join(rd, "logs", "bgpview.log"), "w").write("BGPView lookup failed: %s" % e)
+          open("/tmp/bgpview_cidrs.txt", "w").write("\n".join(prefixes))
+          print("BGPView: %d CIDR(s)" % len(prefixes) if prefixes else "BGPView: no usable data")
+          PYEOF
+              if [ -s /tmp/bgpview_cidrs.txt ]; then
+                timeout 120 proxychains4 -q naabu -l /tmp/bgpview_cidrs.txt -top-ports 100 -exclude-cdn -silent -rate 1000 -c 25 2>>"$RD/logs/naabu.log" | awk -F: '{print "https://"$1":"$2}' > "$RD/subdomains/asn_ips.txt" || true
+                echo "bgpview (after asnmap empty)" > "$RD/meta/asn_source.txt"
+              fi
             fi
           else
             if [ -z "${{ env.PDCP_API_KEY }}" ]; then
@@ -4825,14 +4850,16 @@ jobs:
                   prev = json.load(open(prev_path))
               except Exception:
                   prev = {}
-              regress_map = [("subdomains", counts["all_subs"], "Total confirmed subdomains"),
-                             ("live_hosts", counts["live"], "Live hosts"),
-                             ("urls", counts["urls"], "Collected URLs"),
-                             ("asn_ips", counts["asn_ips"], "ASN/CIDR-derived candidates")]
-              for key, cur_val, label in regress_map:
+              core_regress = [("subdomains", counts["all_subs"], "Total confirmed subdomains"),
+                              ("live_hosts", counts["live"], "Live hosts"),
+                              ("urls", counts["urls"], "Collected URLs")]
+              for key, cur_val, label in core_regress:
                   prev_val = prev.get(key)
                   if prev_val is not None and prev_val >= 3 and cur_val == 0:
                       flags.append(f"📉 **REGRESSION**: {label} was {prev_val} on the previous run against this same target and is 0 now. This is very likely a NEW bug introduced since then, not normal run-to-run variance - worth investigating before trusting this run's results.")
+              prev_asn = prev.get("asn_ips")
+              if prev_asn is not None and prev_asn >= 3 and counts["asn_ips"] == 0:
+                  flags.append(f"ℹ️ **ASN variance**: ASN/CIDR-derived candidates was {prev_asn} previously and is 0 now (asnmap/Tor flaky; BGPView fallback may still populate). Not treated as pipeline BROKEN.")
 
           verdict = "🟢 HEALTHY"
           red_count = sum(1 for f in flags if f.startswith("🔴") or f.startswith("📉"))
