@@ -5070,9 +5070,11 @@ jobs:
           for l in rl("files/cms_findings.txt"):
               confirmed.append((SEV_RANK["medium"], "medium", "CMS", l))
           for l in rl("ai_agent/idor_findings.txt"):
-              if l.startswith("[IDOR-CANDIDATE]"): confirmed.append((SEV_RANK["medium"], "medium", "IDOR (needs manual confirmation)", l))
+              if l.startswith("[IDOR-CANDIDATE]"): leads.append(("IDOR candidate (needs manual verification)", l))
+              elif l.startswith("[IDOR]"): confirmed.append((SEV_RANK["medium"], "medium", "IDOR", l))
           for l in rl("ai_agent/graphql_findings.txt"):
-              if l.startswith("[GRAPHQL"): confirmed.append((SEV_RANK["medium"], "medium", "GraphQL", l))
+              if l.startswith("[GRAPHQL-INTROSPECTION]") or l.startswith("[GRAPHQL-BATCHING]"): leads.append(("GraphQL capability (not vuln alone)", l))
+              elif l.startswith("[GRAPHQL"): confirmed.append((SEV_RANK["medium"], "medium", "GraphQL", l))
           for l in rl("cors/vulnerable.txt"):
               confirmed.append((SEV_RANK["medium"], "medium", "CORS", l))
           for l in rl("files/sensitive.txt"):
