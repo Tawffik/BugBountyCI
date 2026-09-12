@@ -1,0 +1,15 @@
+# Authorized targets only — one entry per line.
+# Copy to scope.txt and list domains you are allowed to test.
+#
+# Exact apex:
+# example.com
+#
+# Apex + all subdomains:
+# *.example.com
+#
+# Specific subdomain only:
+# api.example.com
+#
+# Lines starting with # are comments. Empty lines ignored.
+#
+# REQUIRED: without a non-empty scope.txt the workflow refuses to run (fail-closed).
