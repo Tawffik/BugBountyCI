@@ -1323,6 +1323,22 @@ jobs:
           # small at this point (confirmed hosts only), so no time budget is needed.
           probe_hosts "$RD/live/live.txt" "$RD/live/tech.json" 15 2 4 ""
           echo "✅ Live hosts: $(wc -l < "$RD/live/live.txt")"
+          # Classify verified vs unverified for operators + downstream caps
+          : > "$RD/live/verified.txt"
+          : > "$RD/live/unverified.txt"
+          probe_path=$(cat "$RD/meta/live_probe_path.txt" 2>/dev/null || echo "unknown")
+          case "$probe_path" in
+            dns-seed|ports-enriched|apex-seed)
+              cp "$RD/live/live.txt" "$RD/live/unverified.txt" 2>/dev/null || true
+              echo "ℹ️ live classification: $(wc -l < "$RD/live/unverified.txt" 2>/dev/null || echo 0) UNVERIFIED ($probe_path)"
+              ;;
+            *)
+              if [ -s "$RD/live/live.txt" ]; then
+                cp "$RD/live/live.txt" "$RD/live/verified.txt" 2>/dev/null || true
+                echo "ℹ️ live classification: $(wc -l < "$RD/live/verified.txt" 2>/dev/null || echo 0) VERIFIED ($probe_path)"
+              fi
+              ;;
+          esac
           live_count=$(wc -l < "$RD/live/live.txt" 2>/dev/null || echo 0)
           input_count=$(wc -l < "$INPUT" 2>/dev/null || echo 0)
           if [ "$live_count" -eq 0 ] && [ "$input_count" -gt 0 ] && [ ! -s "$RD/meta/scan_health_warning.txt" ]; then
@@ -2297,7 +2313,7 @@ jobs:
           RD="results/${{ env.TIMESTAMP }}"
           mkdir -p "$RD/targeted"
           AUTH_ARGS=()
-          [ -n "${{ env.AUTH_COOKIE }}" ] && AUTH_ARGS+=(-C "${{ env.AUTH_COOKIE }}")
+          [ -n "${{ env.AUTH_COOKIE }}" ] && AUTH_ARGS+=(--headers "Cookie: ${{ env.AUTH_COOKIE }}")
 
           # --- Arjun: hidden/undocumented parameter discovery (brute-forced
           # against a wordlist, not just parameters we already happened to
@@ -2312,7 +2328,7 @@ jobs:
             echo "🔍 Running Arjun against prioritized hosts (interesting first, cap 30)..."
             head -30 "$ARJUN_INPUT" | while IFS= read -r host; do
               [ -z "$host" ] && continue
-              proxychains4 -q arjun -u "$host" -t 10 --rate-limit 20 -oT /tmp/arjun_out.txt 2>>"$RD/logs/arjun.log" >/dev/null || true
+              proxychains4 -q arjun -u "$host" -t 10 --rate-limit 20 "${AUTH_ARGS[@]}" -oT /tmp/arjun_out.txt 2>>"$RD/logs/arjun.log" >/dev/null || true
               [ -s /tmp/arjun_out.txt ] && sed "s#^#[$host] #" /tmp/arjun_out.txt >> "$RD/targeted/arjun_params.txt"
               rm -f /tmp/arjun_out.txt
             done
