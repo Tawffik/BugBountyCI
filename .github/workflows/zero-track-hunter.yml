@@ -207,7 +207,7 @@ jobs:
     timeout-minutes: 358  # GitHub-hosted: install tools from scratch
     outputs:
       run_url:       "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-      finding_count: ${{ steps.count_findings.outputs.finding_count }}
+      finding_count: ${{ steps.triage.outputs.finding_count }}
       artifact_name: "results-${{ env.TIMESTAMP }}-${{ env.TARGET }}"
 
     steps:
@@ -4999,6 +4999,7 @@ jobs:
           PYEOF
 
       - name: "📋 Triage & Prioritization"
+        id: triage
         if: always()
         continue-on-error: true
         timeout-minutes: 3
@@ -5115,7 +5116,23 @@ jobs:
           os.makedirs(os.path.join(rd, "triage"), exist_ok=True)
           with open(os.path.join(rd, "triage", "triage.md"), "w") as f:
               f.write("\n".join(lines))
+          # Canonical findings schema
+          import hashlib
+          findings_path = os.path.join(rd, "triage", "findings.jsonl")
+          leads_path = os.path.join(rd, "triage", "leads.jsonl")
+          seen = set()
+          with open(findings_path, "w") as ff:
+              for rank, sev, cat, detail in confirmed:
+                  dedupe_key = hashlib.sha256(f"{cat}|{sev}|{detail}".encode("utf-8", errors="ignore")).hexdigest()[:16]
+                  if dedupe_key in seen: continue
+                  seen.add(dedupe_key)
+                  ff.write(json.dumps({"id": dedupe_key, "source": (cat.split()[0].lower() if cat else "unknown"), "type": cat, "severity": sev, "status": "confirmed", "confidence": "high" if sev in ("critical", "high") else "medium", "evidence": detail[:2000], "dedupe_key": dedupe_key}, ensure_ascii=False) + chr(10))
+          with open(leads_path, "w") as lf:
+              for cat, detail in leads:
+                  dedupe_key = hashlib.sha256(f"lead|{cat}|{detail}".encode("utf-8", errors="ignore")).hexdigest()[:16]
+                  lf.write(json.dumps({"id": dedupe_key, "source": "recon", "type": cat, "severity": "info", "status": "lead", "confidence": "low", "evidence": detail[:2000], "dedupe_key": dedupe_key}, ensure_ascii=False) + chr(10))
           print(f"✅ Triage: {len(confirmed)} confirmed (sorted), {len(leads)} recon leads -> triage/triage.md")
+          print(f"Canonical findings: {len(seen)} -> triage/findings.jsonl")
 
           # --- Hunter Queue (professional continuous-recon delta) ---
           # Reads machine-readable RD/diff/new_*.txt produced BEFORE snapshot overwrite.
@@ -5225,6 +5242,14 @@ jobs:
           n_nuc = len(rl("diff/new_nuclei.txt"))
           print(f"✅ Hunter queue -> triage/hunter_queue.md (delta: live+{n_live} js+{n_js} nuclei+{n_nuc}, baseline={is_baseline})")
           PYEOF
+          if [ -f "results/${{ env.TIMESTAMP }}/triage/findings.jsonl" ]; then
+            FC=$(wc -l < "results/${{ env.TIMESTAMP }}/triage/findings.jsonl" | tr -d " ")
+          else
+            FC=0
+          fi
+          echo "finding_count=$FC" >> "$GITHUB_OUTPUT"
+          echo "finding_count=$FC (from triage/findings.jsonl)"
+
 
       - name: "🔑 Manual Follow-up Commands (credential/SQLi candidates)"
         continue-on-error: true
