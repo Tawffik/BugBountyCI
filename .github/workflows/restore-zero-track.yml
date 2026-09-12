@@ -1,10 +1,10 @@
-name: apply-scope-fail-closed
+name: apply-scope-open-if-missing
 on:
   workflow_dispatch:
   push:
     paths:
       - '.github/workflows/restore-zero-track.yml'
-      - 'docs/apply_scope_fail_closed.py'
+      - 'docs/apply_scope_open_if_missing.py'
 permissions:
   contents: write
 jobs:
@@ -15,23 +15,19 @@ jobs:
         with:
           token: ${{ secrets.WORKFLOW_PAT }}
           fetch-depth: 1
-      - name: Apply scope fail-closed #1
+      - name: Soften missing-scope to open mode
         env:
           TOKEN: ${{ secrets.WORKFLOW_PAT }}
         run: |
           set -euo pipefail
-          python3 docs/apply_scope_fail_closed.py
-          grep -c 'scope.txt is missing. Refusing to run' .github/workflows/zero-track-hunter.yml
+          python3 docs/apply_scope_open_if_missing.py
+          grep -c 'continuing without allow-list' .github/workflows/zero-track-hunter.yml
           grep -c 'Final all.txt' .github/workflows/zero-track-hunter.yml
-          grep -c 'bgpview (after asnmap empty)' .github/workflows/zero-track-hunter.yml
-          test -f scope.txt.example
           git config user.name "Tawffik"
           git config user.email "150173255+Tawffik@users.noreply.github.com"
           git remote set-url origin "https://x-access-token:${TOKEN}@github.com/Tawffik/BugBountyCI.git"
-          git add .github/workflows/zero-track-hunter.yml scope.txt.example docs/apply_scope_fail_closed.py
-          if git diff --cached --quiet; then
-            echo no changes
-          else
-            git commit -m "fix(#1): scope fail-closed + target format validation"
+          git add .github/workflows/zero-track-hunter.yml
+          if git diff --cached --quiet; then echo no changes; else
+            git commit -m "fix(scope): missing scope.txt continues (open mode); non-empty still enforced"
             git push origin HEAD:main
           fi
