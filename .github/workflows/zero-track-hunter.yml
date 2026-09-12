@@ -205,7 +205,7 @@ jobs:
     name: "🛡️ Full Autonomous Scan - ${{ inputs.target }}"
     runs-on: ubuntu-latest
     timeout-minutes: 358  # GitHub-hosted: install tools from scratch
-    # BUDGET_REDIST_2026_09: screenshots/nikto/fuzz trimmed; direct-origin/cloud/info bumped
+    # YAML_TR_CR_FIX + BUDGET_REDIST_2026_09: screenshots/nikto/fuzz trimmed; direct-origin/cloud/info bumped
     outputs:
       run_url:       "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
       finding_count: ${{ steps.triage.outputs.finding_count }}
@@ -1440,8 +1440,7 @@ jobs:
           done < "$INPUT"
           : > "$RD/waf_bypass/path_bypass.txt"
           while IFS= read -r host; do
-            host="$(echo "$host" | tr -d '
-' | xargs)"; [ -z "$host" ] && continue
+            host="$(echo "$host" | tr -d '\r' | xargs)"; [ -z "$host" ] && continue
             base_s=$(proxychains4 -q curl -sk -o /tmp/path_base_body -w "%{http_code}" --max-time 5 -H "User-Agent: $SCAN_USER_AGENT" "${host}/" 2>/dev/null || echo "000")
             base_s="${base_s: -3}"
             base_hash=$(md5sum /tmp/path_base_body 2>/dev/null | awk '{print $1}')
