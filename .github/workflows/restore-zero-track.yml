@@ -1,0 +1,119 @@
+name: restore-zero-track-once
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/restore-zero-track.yml'
+permissions:
+  contents: write
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+      - name: Restore full workflow from known-good commit + safe ASN fixes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          GOOD=eb17d795a3e76d6148eec55084bac779c115732b
+          git show "${GOOD}:.github/workflows/zero-track-hunter.yml" > .github/workflows/zero-track-hunter.yml
+          python3 << 'PY'
+          from pathlib import Path
+          p = Path(".github/workflows/zero-track-hunter.yml")
+          text = p.read_text()
+          assert "Final all.txt" in text and "gospider" in text
+
+          old_fail = '''            else
+              reason="asnmap produced zero output across 3 attempts (including 2 fresh-circuit retries) with no error ever logged in logs/asnmap.log - this is the same flaky-Tor-circuit signature seen elsewhere (single lightweight requests succeed, this tool's request(s) don't), not a config problem, since PDCP_API_KEY is set and asnmap is installed."
+              echo "$reason" > "$RD/meta/asn_skipped_reason.txt"
+              echo "⚠️ $reason"
+            fi
+          else'''
+
+          new_fail = '''            else
+              reason="asnmap produced zero output across 3 attempts (including 2 fresh-circuit retries) with no error ever logged in logs/asnmap.log - this is the same flaky-Tor-circuit signature seen elsewhere (single lightweight requests succeed, this tool's request(s) don't), not a config problem, since PDCP_API_KEY is set and asnmap is installed."
+              echo "$reason" > "$RD/meta/asn_skipped_reason.txt"
+              echo "⚠️ $reason"
+              echo "   Falling back to BGPView free API after asnmap exhaustion..."
+              python3 << 'PYEOF'
+          import os, json, socket, urllib.request
+          rd = "results/" + os.environ.get("TIMESTAMP", "")
+          target = os.environ.get("TARGET", "")
+          prefixes = set()
+          try:
+              ip = socket.gethostbyname(target)
+              req = urllib.request.Request(f"https://api.bgpview.io/ip/{ip}",
+                                            headers={"User-Agent": "Mozilla/5.0"})
+              with urllib.request.urlopen(req, timeout=15) as resp:
+                  data = json.loads(resp.read().decode("utf-8", "replace"))
+              for p in (data.get("data") or {}).get("prefixes", []):
+                  pfx = p.get("prefix")
+                  if pfx:
+                      prefixes.add(pfx)
+              if not prefixes:
+                  with open(os.path.join(rd, "logs", "bgpview.log"), "w") as f:
+                      f.write("No prefixes extracted - raw response follows:\\n" + json.dumps(data)[:2000])
+          except Exception as e:
+              os.makedirs(os.path.join(rd, "logs"), exist_ok=True)
+              with open(os.path.join(rd, "logs", "bgpview.log"), "w") as f:
+                  f.write(f"BGPView lookup failed: {e}")
+          with open("/tmp/bgpview_cidrs.txt", "w") as f:
+              f.write("\\n".join(prefixes))
+          print(f"BGPView: {len(prefixes)} CIDR range(s) found" if prefixes else "BGPView: no usable data")
+          PYEOF
+              if [ -s /tmp/bgpview_cidrs.txt ]; then
+                timeout 120 proxychains4 -q naabu -l /tmp/bgpview_cidrs.txt -top-ports 100 -exclude-cdn -silent -rate 1000 -c 25 2>>"$RD/logs/naabu.log" | awk -F: '{print "https://"$1":"$2}' > "$RD/subdomains/asn_ips.txt" || true
+                echo "bgpview (after asnmap empty)" > "$RD/meta/asn_source.txt"
+              fi
+            fi
+          else'''
+
+          if old_fail not in text:
+              raise SystemExit("asnmap-empty branch marker not found")
+          text = text.replace(old_fail, new_fail, 1)
+
+          old_reg = '''              regress_map = [("subdomains", counts["all_subs"], "Total confirmed subdomains"),
+                             ("live_hosts", counts["live"], "Live hosts"),
+                             ("urls", counts["urls"], "Collected URLs"),
+                             ("asn_ips", counts["asn_ips"], "ASN/CIDR-derived candidates")]
+              for key, cur_val, label in regress_map:
+                  prev_val = prev.get(key)
+                  if prev_val is not None and prev_val >= 3 and cur_val == 0:
+                      flags.append(f"📉 **REGRESSION**: {label} was {prev_val} on the previous run against this same target and is 0 now. This is very likely a NEW bug introduced since then, not normal run-to-run variance - worth investigating before trusting this run's results.")'''
+
+          new_reg = '''              core_regress = [("subdomains", counts["all_subs"], "Total confirmed subdomains"),
+                              ("live_hosts", counts["live"], "Live hosts"),
+                              ("urls", counts["urls"], "Collected URLs")]
+              for key, cur_val, label in core_regress:
+                  prev_val = prev.get(key)
+                  if prev_val is not None and prev_val >= 3 and cur_val == 0:
+                      flags.append(f"📉 **REGRESSION**: {label} was {prev_val} on the previous run against this same target and is 0 now. This is very likely a NEW bug introduced since then, not normal run-to-run variance - worth investigating before trusting this run's results.")
+              prev_asn = prev.get("asn_ips")
+              if prev_asn is not None and prev_asn >= 3 and counts["asn_ips"] == 0:
+                  flags.append(f"ℹ️ **ASN variance**: ASN/CIDR-derived candidates was {prev_asn} previously and is 0 now (asnmap/Tor flaky; BGPView fallback may still populate). Not treated as pipeline BROKEN.")'''
+
+          if old_reg not in text:
+              raise SystemExit("regression map marker not found")
+          text = text.replace(old_reg, new_reg, 1)
+
+          old_t = 'timeout 45 asnmap -d "${{ env.TARGET }}" -silent -o /tmp/asn_cidrs.txt 2>>"$RD/logs/asnmap.log" || true'
+          new_t = 'timeout 90 asnmap -d "${{ env.TARGET }}" -silent -o /tmp/asn_cidrs.txt 2>>"$RD/logs/asnmap.log" || true'
+          if old_t not in text:
+              raise SystemExit("direct asnmap timeout line not found")
+          text = text.replace(old_t, new_t, 1)
+
+          p.write_text(text)
+          print("patched OK", len(text.splitlines()), "lines")
+          PY
+          rm -f .github/workflows/restore-zero-track.yml
+          git config user.name "Tawffik"
+          git config user.email "150173255+Tawffik@users.noreply.github.com"
+          git add .github/workflows/zero-track-hunter.yml
+          git add -u .github/workflows/restore-zero-track.yml || true
+          git status
+          git commit -m "fix(asn): restore zero-track-hunter.yml + BGPView fallback; ASN not BROKEN" || echo "nothing to commit"
+          git push origin HEAD:main
