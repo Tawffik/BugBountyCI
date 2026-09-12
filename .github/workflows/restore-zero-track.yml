@@ -13,7 +13,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.WORKFLOW_PAT || secrets.GITHUB_TOKEN }}
       - name: Restore zero-track-hunter.yml from known-good commit
+        env:
+          TOKEN: ${{ secrets.WORKFLOW_PAT }}
         run: |
           set -euo pipefail
           GOOD=eb17d795a3e76d6148eec55084bac779c115732b
@@ -21,9 +24,13 @@ jobs:
           wc -l .github/workflows/zero-track-hunter.yml
           grep -c 'Final all.txt' .github/workflows/zero-track-hunter.yml
           grep -c gospider .github/workflows/zero-track-hunter.yml
-          # keep this restore workflow so we can re-run if needed; do not delete yet
+          if [ -z "${TOKEN:-}" ]; then
+            echo "WORKFLOW_PAT secret missing - cannot push workflow file with GITHUB_TOKEN"
+            exit 1
+          fi
           git config user.name "Tawffik"
           git config user.email "150173255+Tawffik@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${TOKEN}@github.com/Tawffik/BugBountyCI.git"
           git add .github/workflows/zero-track-hunter.yml
           git status
           if git diff --cached --quiet; then
