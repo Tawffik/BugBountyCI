@@ -5084,8 +5084,9 @@ jobs:
 
           confirmed.sort(key=lambda x: -x[0])
 
-          # Recon leads - NOT confirmed vulnerabilities, just worth a human looking at
-          leads = []
+          # Recon leads - keep leads already added (origin/path/IDOR/GraphQL)
+          if not isinstance(leads, list):
+              leads = []
           for l in rl("js/github_recon.txt"): leads.append(("GitHub Exposure", l))
           for l in rl("live/vhosts.txt"): leads.append(("Hidden VHost", l))
           for l in rl("live/cloud_buckets.txt"): leads.append(("Cloud Bucket", l))
