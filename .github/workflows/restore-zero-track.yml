@@ -1,10 +1,10 @@
-name: apply-step5-leads-only
+name: apply-step5b-findings-jsonl
 on:
   workflow_dispatch:
   push:
     paths:
       - '.github/workflows/restore-zero-track.yml'
-      - 'docs/fix_step5_leads_only.py'
+      - 'docs/fix_step5b_findings_jsonl.py'
 permissions:
   contents: write
 jobs:
@@ -15,19 +15,21 @@ jobs:
         with:
           token: ${{ secrets.WORKFLOW_PAT }}
           fetch-depth: 1
-      - name: Fix leads wipe
+      - name: Apply findings.jsonl
         env:
           TOKEN: ${{ secrets.WORKFLOW_PAT }}
         run: |
           set -euo pipefail
-          python3 docs/fix_step5_leads_only.py
-          grep -c 'keep leads already added' .github/workflows/zero-track-hunter.yml
+          python3 docs/fix_step5b_findings_jsonl.py
+          grep -c 'Canonical findings' .github/workflows/zero-track-hunter.yml
+          grep -c 'id: triage' .github/workflows/zero-track-hunter.yml
           grep -c 'Final all.txt' .github/workflows/zero-track-hunter.yml
+          grep -c 'keep leads already added' .github/workflows/zero-track-hunter.yml
           git config user.name "Tawffik"
           git config user.email "150173255+Tawffik@users.noreply.github.com"
           git remote set-url origin "https://x-access-token:${TOKEN}@github.com/Tawffik/BugBountyCI.git"
           git add .github/workflows/zero-track-hunter.yml
           if git diff --cached --quiet; then echo no changes; else
-            git commit -m "fix(#5 partial): do not wipe triage leads before recon extend"
+            git commit -m "fix(#5): write triage/findings.jsonl and set finding_count from confirmed"
             git push origin HEAD:main
           fi
