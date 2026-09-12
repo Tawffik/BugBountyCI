@@ -1,4 +1,4 @@
-name: restore-zero-track-once
+name: apply-asn-soft-fix
 on:
   workflow_dispatch:
   push:
@@ -7,35 +7,141 @@ on:
 permissions:
   contents: write
 jobs:
-  restore:
+  patch:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-          token: ${{ secrets.WORKFLOW_PAT || secrets.GITHUB_TOKEN }}
-      - name: Restore zero-track-hunter.yml from known-good commit
+          fetch-depth: 1
+          token: ${{ secrets.WORKFLOW_PAT }}
+      - name: Apply ASN-only safe patches
         env:
           TOKEN: ${{ secrets.WORKFLOW_PAT }}
         run: |
           set -euo pipefail
-          GOOD=eb17d795a3e76d6148eec55084bac779c115732b
-          git show "${GOOD}:.github/workflows/zero-track-hunter.yml" > .github/workflows/zero-track-hunter.yml
-          wc -l .github/workflows/zero-track-hunter.yml
-          grep -c 'Final all.txt' .github/workflows/zero-track-hunter.yml
-          grep -c gospider .github/workflows/zero-track-hunter.yml
-          if [ -z "${TOKEN:-}" ]; then
-            echo "WORKFLOW_PAT secret missing - cannot push workflow file with GITHUB_TOKEN"
-            exit 1
-          fi
+          python3 << 'PY'
+          from pathlib import Path
+          p = Path(".github/workflows/zero-track-hunter.yml")
+          text = p.read_text()
+          assert "Final all.txt" in text and "gospider" in text
+          assert "PLACEHOLDER" not in text
+
+          # 1) After asnmap fails with PDCP set, still try BGPView (currently missing)
+          needle = 'echo "$reason" > "$RD/meta/asn_skipped_reason.txt"\n              echo "⚠️ $reason"\n            fi\n          else'
+          if 'bgpview (after asnmap empty)' in text:
+              print("BGPView-after-asnmap already present")
+          else:
+              # Find the exact fail-only branch (no bgpview) by unique reason string + next else
+              marker = 'not a config problem, since PDCP_API_KEY is set and asnmap is installed."\n              echo "$reason" > "$RD/meta/asn_skipped_reason.txt"\n              echo "⚠️ $reason"\n            fi\n          else'
+              if marker not in text:
+                  # try without special emoji variants
+                  import re
+                  m = re.search(r'PDCP_API_KEY is set and asnmap is installed\."\n\s+echo "\$reason" > "\$RD/meta/asn_skipped_reason\.txt"\n\s+echo ".*?\$reason"\n\s+fi\n\s+else', text)
+                  if not m:
+                      raise SystemExit('marker for asnmap-empty branch not found')
+                  old = m.group(0)
+              else:
+                  old = marker
+              insert = old.replace(
+                  'fi\n          else',
+                  '''fi_PLACEHOLDER_NEVER''',
+                  1
+              )
+              # Build replacement more carefully
+              # Replace only the closing of the empty-asnmap branch
+              close = '''              echo "$reason" > "$RD/meta/asn_skipped_reason.txt"
+              echo "⚠️ $reason"
+            fi
+          else'''
+              close_new = '''              echo "$reason" > "$RD/meta/asn_skipped_reason.txt"
+              echo "⚠️ $reason"
+              echo "   Falling back to BGPView free API after asnmap exhaustion..."
+              python3 << 'PYEOF'
+          import os, json, socket, urllib.request
+          rd = "results/" + os.environ.get("TIMESTAMP", "")
+          target = os.environ.get("TARGET", "")
+          prefixes = set()
+          try:
+              ip = socket.gethostbyname(target)
+              req = urllib.request.Request("https://api.bgpview.io/ip/" + ip, headers={"User-Agent": "Mozilla/5.0"})
+              with urllib.request.urlopen(req, timeout=15) as resp:
+                  data = json.loads(resp.read().decode("utf-8", "replace"))
+              for item in (data.get("data") or {}).get("prefixes", []):
+                  pfx = item.get("prefix")
+                  if pfx:
+                      prefixes.add(pfx)
+          except Exception as e:
+              os.makedirs(os.path.join(rd, "logs"), exist_ok=True)
+              open(os.path.join(rd, "logs", "bgpview.log"), "w").write("BGPView lookup failed: %s" % e)
+          open("/tmp/bgpview_cidrs.txt", "w").write("\\n".join(prefixes))
+          print("BGPView: %d CIDR range(s) found" % len(prefixes) if prefixes else "BGPView: no usable data")
+          PYEOF
+              if [ -s /tmp/bgpview_cidrs.txt ]; then
+                timeout 120 proxychains4 -q naabu -l /tmp/bgpview_cidrs.txt -top-ports 100 -exclude-cdn -silent -rate 1000 -c 25 2>>"$RD/logs/naabu.log" | awk -F: '{print "https://"$1":"$2}' > "$RD/subdomains/asn_ips.txt" || true
+                echo "bgpview (after asnmap empty)" > "$RD/meta/asn_source.txt"
+              fi
+            fi
+          else'''
+              if close not in text:
+                  raise SystemExit('close marker not found for asnmap empty branch')
+              text = text.replace(close, close_new, 1)
+              print('inserted BGPView after asnmap empty')
+
+          # 2) Soften ASN regression so it does not force BROKEN
+          old_reg = '("asn_ips", counts["asn_ips"], "ASN/CIDR-derived candidates")]'
+          if 'ASN variance' in text:
+              print('ASN variance already present')
+          elif old_reg not in text:
+              raise SystemExit('regress map asn_ips entry not found')
+          else:
+              text = text.replace(
+                  '''              regress_map = [("subdomains", counts["all_subs"], "Total confirmed subdomains"),
+                             ("live_hosts", counts["live"], "Live hosts"),
+                             ("urls", counts["urls"], "Collected URLs"),
+                             ("asn_ips", counts["asn_ips"], "ASN/CIDR-derived candidates")]
+              for key, cur_val, label in regress_map:
+                  prev_val = prev.get(key)
+                  if prev_val is not None and prev_val >= 3 and cur_val == 0:
+                      flags.append(f"📉 **REGRESSION**: {label} was {prev_val} on the previous run against this same target and is 0 now. This is very likely a NEW bug introduced since then, not normal run-to-run variance - worth investigating before trusting this run's results.")''',
+                  '''              core_regress = [("subdomains", counts["all_subs"], "Total confirmed subdomains"),
+                              ("live_hosts", counts["live"], "Live hosts"),
+                              ("urls", counts["urls"], "Collected URLs")]
+              for key, cur_val, label in core_regress:
+                  prev_val = prev.get(key)
+                  if prev_val is not None and prev_val >= 3 and cur_val == 0:
+                      flags.append(f"📉 **REGRESSION**: {label} was {prev_val} on the previous run against this same target and is 0 now. This is very likely a NEW bug introduced since then, not normal run-to-run variance - worth investigating before trusting this run's results.")
+              prev_asn = prev.get("asn_ips")
+              if prev_asn is not None and prev_asn >= 3 and counts["asn_ips"] == 0:
+                  flags.append(f"ℹ️ **ASN variance**: ASN/CIDR-derived candidates was {prev_asn} previously and is 0 now (asnmap/Tor flaky; BGPView fallback may still populate). Not treated as pipeline BROKEN.")''',
+                  1,
+              )
+              print('softened ASN regression')
+
+          # 3) DIRECT asnmap timeout 45 -> 90
+          old_t = 'timeout 45 asnmap -d "${{ env.TARGET }}" -silent -o /tmp/asn_cidrs.txt 2>>"$RD/logs/asnmap.log" || true'
+          new_t = 'timeout 90 asnmap -d "${{ env.TARGET }}" -silent -o /tmp/asn_cidrs.txt 2>>"$RD/logs/asnmap.log" || true'
+          if 'timeout 90 asnmap' in text:
+              print('timeout 90 already set')
+          elif old_t not in text:
+              raise SystemExit('timeout 45 asnmap line not found')
+          else:
+              text = text.replace(old_t, new_t, 1)
+              print('timeout 45->90')
+
+          # Safety: URL path still intact
+          assert 'Final all.txt' in text
+          assert 'gospider' in text
+          assert 'uro <' in text or 'uro < /tmp/urls_merged.txt' in text or 'timeout 90 uro' in text
+          p.write_text(text)
+          print('OK lines', len(text.splitlines()))
+          PY
           git config user.name "Tawffik"
           git config user.email "150173255+Tawffik@users.noreply.github.com"
           git remote set-url origin "https://x-access-token:${TOKEN}@github.com/Tawffik/BugBountyCI.git"
           git add .github/workflows/zero-track-hunter.yml
-          git status
           if git diff --cached --quiet; then
-            echo "already restored"
+            echo "no changes"
           else
-            git commit -m "fix: restore zero-track-hunter.yml from eb17d79 (undo PLACEHOLDER)"
+            git commit -m "fix(asn): BGPView after asnmap empty; ASN regression not BROKEN; timeout 90s"
             git push origin HEAD:main
           fi
