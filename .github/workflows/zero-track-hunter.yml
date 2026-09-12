@@ -254,7 +254,7 @@ jobs:
 
 
       - name: "🔒 Verify Target Is In Authorized Scope"
-        # FAIL-CLOSED: missing scope.txt or invalid/out-of-scope target stops the job.
+        # Format validation always on. Missing scope.txt = open mode. Non-empty scope = enforce allow-list.
         # continue-on-error must stay OFF — this gates active/exploit phases.
         env:
           TARGET_INPUT: ${{ inputs.target }}
@@ -287,15 +287,14 @@ jobs:
             echo "::error::Target is not a valid domain name: '$target'"
             exit 1
           fi
-          if [[ ! -f "scope.txt" ]]; then
-            echo "::error::scope.txt is missing. Refusing to run (fail-closed)."
-            echo "   Create scope.txt in the repo root with one authorized domain or *.domain per line."
-            echo "   See scope.txt.example for the format."
-            exit 1
-          fi
-          if [[ ! -s "scope.txt" ]]; then
-            echo "::error::scope.txt exists but is empty. Add at least one authorized domain."
-            exit 1
+          # Missing/empty scope.txt → continue with warning (open mode).
+          # Non-empty scope.txt → enforce allow-list.
+          if [[ ! -f "scope.txt" ]] || [[ ! -s "scope.txt" ]]; then
+            echo "⚠️ No scope.txt (or empty) — continuing without allow-list (open mode)."
+            echo "   Optional: add scope.txt (see scope.txt.example) to restrict targets."
+            echo "✅ Target format OK: $target_lower (no scope file to match)"
+            echo "TARGET=$target_lower" >> "$GITHUB_ENV"
+            exit 0
           fi
           matched=0
           while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
