@@ -205,6 +205,7 @@ jobs:
     name: "🛡️ Full Autonomous Scan - ${{ inputs.target }}"
     runs-on: ubuntu-latest
     timeout-minutes: 358  # GitHub-hosted: install tools from scratch
+    # BUDGET_REDIST_2026_09: screenshots/nikto/fuzz trimmed; direct-origin/cloud/info bumped
     outputs:
       run_url:       "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
       finding_count: ${{ steps.triage.outputs.finding_count }}
@@ -2419,7 +2420,7 @@ jobs:
       - name: "🔓 Information Disclosure Scan (Git, Backups, Configs)"
         if: ${{ env.ENABLE_GIT_EXPOSURE == 'true' }}
         continue-on-error: true
-        timeout-minutes: 15
+        timeout-minutes: 16
         run: |
           RD="results/${{ env.TIMESTAMP }}"
           INPUT="$RD/live/expensive_targets.txt"
@@ -2796,7 +2797,7 @@ jobs:
 
       - name: "🌩️ Cloud Origin Discovery (CloudFail + CloakQuest3r)"
         continue-on-error: true
-        timeout-minutes: 8
+        timeout-minutes: 10
         run: |
           RD="results/${{ env.TIMESTAMP }}"
           : > "$RD/cloud/cloudfail.txt"
@@ -2835,7 +2836,7 @@ jobs:
       - name: "🎯 Direct-to-Origin WAF Bypass (verify discovered IPs)"
         if: ${{ env.ENABLE_WAF_BYPASS == 'true' }}
         continue-on-error: true
-        timeout-minutes: 10
+        timeout-minutes: 12
         run: |
           # This is the highest-value WAF bypass technique available and the
           # pipeline was already collecting the exact data it needs (origin
@@ -2982,7 +2983,7 @@ jobs:
 
       - name: "🔎 Content Discovery Fuzzing"
         continue-on-error: true
-        timeout-minutes: 18
+        timeout-minutes: 14
         run: |
           RD="results/${{ env.TIMESTAMP }}"
           mkdir -p "$RD/fuzzing"
@@ -3187,7 +3188,7 @@ jobs:
 
       - name: "📸 Screenshots"
         continue-on-error: true
-        timeout-minutes: 18
+        timeout-minutes: 12
         run: |
           RD="results/${{ env.TIMESTAMP }}"
           mkdir -p "$RD/screenshots"
@@ -3338,7 +3339,7 @@ jobs:
 
       - name: "🩹 Nikto Scan"
         continue-on-error: true
-        timeout-minutes: 18
+        timeout-minutes: 10
         run: |
           RD="results/${{ env.TIMESTAMP }}"
           : > "$RD/nuclei/nikto_findings.txt"
