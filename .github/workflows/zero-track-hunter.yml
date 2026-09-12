@@ -2286,7 +2286,7 @@ jobs:
 
       - name: "🎯 Targeted Vulnerability Scanners (Dalfox + Corsy + wafw00f + Subzy + CRLFuzz + Arjun)"
         continue-on-error: true
-        timeout-minutes: 25
+        timeout-minutes: 18
         run: |
           # Deterministic, purpose-built scanners as a hard backstop to the
           # AI-driven injection testing elsewhere in this pipeline. The AI
@@ -2963,7 +2963,7 @@ jobs:
 
       - name: "🔎 Content Discovery Fuzzing"
         continue-on-error: true
-        timeout-minutes: 25
+        timeout-minutes: 18
         run: |
           RD="results/${{ env.TIMESTAMP }}"
           mkdir -p "$RD/fuzzing"
@@ -3201,7 +3201,7 @@ jobs:
 
       - name: "☢️ Nuclei Vulnerability Scan"
         continue-on-error: true
-        timeout-minutes: 75
+        timeout-minutes: 40
         run: |
           # Nuclei opens one file handle per template while loading its (6000+)
           # template set, and we run 3 passes in this same step - the runner's
