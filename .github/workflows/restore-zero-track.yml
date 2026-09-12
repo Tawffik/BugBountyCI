@@ -4,7 +4,7 @@ on:
   push:
     paths:
       - '.github/workflows/restore-zero-track.yml'
-      - 'docs/batch_ai_redact_scope_timeout.patch'
+      - 'docs/apply_batch_ai_redact_scope_timeout.py'
 permissions:
   contents: write
 jobs:
@@ -15,16 +15,12 @@ jobs:
         with:
           token: ${{ secrets.WORKFLOW_PAT }}
           fetch-depth: 1
-      - name: Apply unified patch
+      - name: Apply batch
         env:
           TOKEN: ${{ secrets.WORKFLOW_PAT }}
         run: |
           set -euo pipefail
-          if grep -q 'redact_secrets_for_llm' .github/workflows/zero-track-hunter.yml; then
-            echo already applied
-            exit 0
-          fi
-          patch -p1 < docs/batch_ai_redact_scope_timeout.patch
+          python3 docs/apply_batch_ai_redact_scope_timeout.py
           grep -c 'redact_secrets_for_llm' .github/workflows/zero-track-hunter.yml
           grep -c 'timeout-minutes: 40' .github/workflows/zero-track-hunter.yml
           grep -c 'endpoints_annotated' .github/workflows/zero-track-hunter.yml
@@ -34,5 +30,7 @@ jobs:
           git config user.email "150173255+Tawffik@users.noreply.github.com"
           git remote set-url origin "https://x-access-token:${TOKEN}@github.com/Tawffik/BugBountyCI.git"
           git add .github/workflows/zero-track-hunter.yml
-          git commit -m "fix: redact secrets for LLM; AI scope filter; AI-infra URL parse; triage soft; nuclei timeout 40"
-          git push origin HEAD:main
+          if git diff --cached --quiet; then echo no changes; else
+            git commit -m "fix: redact secrets for LLM; AI scope filter; AI-infra URL parse; triage soft; nuclei timeout 40"
+            git push origin HEAD:main
+          fi
