@@ -3493,7 +3493,28 @@ jobs:
                           except: continue
                   return (", ".join(sorted(techs)) or "N/A")[:cap]
               except: return "N/A"
-          live=rf("live/live.txt"); urls=top_param_urls("urls/all.txt"); sec=rf("js/secrets.txt",2000); api=rf("js/api_endpoints.txt",2000); idor=rf("js/idor_candidates.txt",2000); swag=rf("js/swagger.txt",1000); gql=rf("js/graphql.txt",1000); adm=rf("js/admin.txt",1000); tech=top_tech("live/tech.json")
+          def redact_secrets_for_llm(path, cap_lines=80, cap_chars=2500):
+              import hashlib, re as _re
+              out = []
+              try:
+                  with open(os.path.join(rd, path), errors="ignore") as f:
+                      for line in f:
+                          line = line.strip()
+                          if not line: continue
+                          label = "SECRET"
+                          if line.startswith("[") and "]" in line:
+                              label = line[1:line.index("]")]
+                              rest = line[line.index("]")+1:].strip()
+                          else:
+                              rest = line
+                          fp = hashlib.sha256(rest.encode("utf-8", errors="ignore")).hexdigest()[:12]
+                          rest_safe = _re.sub(r"[A-Za-z0-9_\\-/+=]{16,}", "[REDACTED]", rest)[:80]
+                          out.append(f"[{label}_REDACTED sha256={fp}] {rest_safe}")
+                          if len(out) >= cap_lines: break
+              except Exception:
+                  return "N/A"
+              return "\n".join(out)[:cap_chars] if out else "N/A"
+          live=rf("live/live.txt"); urls=top_param_urls("urls/all.txt"); sec=redact_secrets_for_llm("js/secrets.txt"); api=rf("js/api_endpoints.txt",2000); idor=rf("js/idor_candidates.txt",2000); swag=rf("js/swagger.txt",1000); gql=rf("js/graphql.txt",1000); adm=rf("js/admin.txt",1000); tech=top_tech("live/tech.json")
           waf_fp=rf("waf_bypass/waf_fingerprint.txt",1000); git_exp=rf("info_disclosure/git_exposure.txt",1000)
           backup=rf("info_disclosure/backup_files.txt",1000); cfg=rf("info_disclosure/config_files.txt",1000)
           dirlist=rf("info_disclosure/dir_listing.txt",1000); errdisc=rf("info_disclosure/error_disclosure.txt",1000)
@@ -4232,7 +4253,7 @@ jobs:
           arjun=rf("targeted/arjun_params.txt",400); crlfuzz=rf("targeted/crlfuzz_findings.txt",300)
           mantra=rf("js_deep/mantra_findings.txt",500); trufflehog=rf("js_deep/trufflehog_findings.jsonl",500)
           gitleaks=rf("js_deep/gitleaks_findings.json",500); cariddi=rf("js_deep/cariddi_findings.txt",500)
-          linkfinder=rf("js_deep/linkfinder_endpoints.txt",400); secretfinder=rf("js_deep/secretfinder_secrets.txt",400)
+          linkfinder=rf("js_deep/linkfinder_endpoints.txt",400); secretfinder="[REDACTED - local only; not sent to LLM]"
           origin_bypass=rf("waf_bypass/origin_bypass.txt",500); admin=rf("js/admin.txt",300)
           buckets=rf("live/cloud_buckets.txt",300); github_recon=rf("js/github_recon.txt",300)
 
