@@ -1,10 +1,10 @@
-name: apply-vhost-sni-min
+name: fix-yaml-tr-cr
 on:
   workflow_dispatch:
   push:
     paths:
       - '.github/workflows/restore-zero-track.yml'
-      - 'docs/fix_vhost_sni_min.py'
+      - 'docs/fix_yaml_tr_cr.py'
 permissions:
   contents: write
 jobs:
@@ -15,20 +15,21 @@ jobs:
         with:
           token: ${{ secrets.WORKFLOW_PAT }}
           fetch-depth: 1
-      - name: Apply VHost SNI
+      - name: Fix broken tr -d YAML
         env:
           TOKEN: ${{ secrets.WORKFLOW_PAT }}
         run: |
           set -euo pipefail
-          python3 docs/fix_vhost_sni_min.py
-          grep -c 'VHOST_SNI_RESOLVE_2026_09' .github/workflows/zero-track-hunter.yml
+          python3 docs/fix_yaml_tr_cr.py
+          python3 -c "import yaml; yaml.safe_load(open('.github/workflows/zero-track-hunter.yml')); print('YAML_OK')"
           grep -c 'Final all.txt' .github/workflows/zero-track-hunter.yml
           grep -c 'Canonical findings schema' .github/workflows/zero-track-hunter.yml
+          grep -c 'VHOST_SNI_RESOLVE' .github/workflows/zero-track-hunter.yml
           git config user.name "Tawffik"
           git config user.email "150173255+Tawffik@users.noreply.github.com"
           git remote set-url origin "https://x-access-token:${TOKEN}@github.com/Tawffik/BugBountyCI.git"
           git add .github/workflows/zero-track-hunter.yml
           if git diff --cached --quiet; then echo no changes; else
-            git commit -m "fix(#12): VHost discovery uses curl --resolve for correct TLS SNI"
+            git commit -m "fix: YAML validity — tr -d CR in path_bypass host strip (was real newline)"
             git push origin HEAD:main
           fi
