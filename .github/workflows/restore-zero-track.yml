@@ -1,10 +1,10 @@
-name: apply-asn-soft-fix
+name: apply-bypass-classification-fix
 on:
   workflow_dispatch:
   push:
     paths:
       - '.github/workflows/restore-zero-track.yml'
-      - 'docs/apply_asn_soft_fix.py'
+      - 'docs/apply_bypass_classification_fix.py'
 permissions:
   contents: write
 jobs:
@@ -15,16 +15,17 @@ jobs:
         with:
           token: ${{ secrets.WORKFLOW_PAT }}
           fetch-depth: 1
-      - name: Apply ASN soft-fix and push
+      - name: Apply bypass classification fix #4
         env:
           TOKEN: ${{ secrets.WORKFLOW_PAT }}
         run: |
           set -euo pipefail
-          python3 docs/apply_asn_soft_fix.py
-          grep -c 'bgpview (after asnmap empty)' .github/workflows/zero-track-hunter.yml
-          grep -c 'ASN variance' .github/workflows/zero-track-hunter.yml
-          grep -c 'timeout 90 asnmap' .github/workflows/zero-track-hunter.yml
+          python3 docs/apply_bypass_classification_fix.py
+          grep -c 'origin-ip-responds-redirect-only' .github/workflows/zero-track-hunter.yml
+          grep -c 'PATH-BYPASS-LEAD' .github/workflows/zero-track-hunter.yml
+          grep -c 'Origin IP signal (not confirmed bypass)' .github/workflows/zero-track-hunter.yml
           grep -c 'Final all.txt' .github/workflows/zero-track-hunter.yml
+          grep -c 'bgpview (after asnmap empty)' .github/workflows/zero-track-hunter.yml
           git config user.name "Tawffik"
           git config user.email "150173255+Tawffik@users.noreply.github.com"
           git remote set-url origin "https://x-access-token:${TOKEN}@github.com/Tawffik/BugBountyCI.git"
@@ -32,6 +33,6 @@ jobs:
           if git diff --cached --quiet; then
             echo no changes
           else
-            git commit -m "fix(asn): BGPView after asnmap empty; ASN regression not BROKEN; timeout 90s"
+            git commit -m "fix(#4): origin/path bypass — CONFIRMED only; weak signals are leads"
             git push origin HEAD:main
           fi
