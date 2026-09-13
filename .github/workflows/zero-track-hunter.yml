@@ -971,9 +971,24 @@ jobs:
             # Find IP ranges owned by the org behind this domain - this can surface
             # servers/services that have NO subdomain or DNS record pointing to them
             # at all, which nothing else in this pipeline would ever find.
+            : > /tmp/asn_cidrs.txt
+            echo "🌐 asnmap DIRECT by domain..."
             timeout 90 asnmap -d "${{ env.TARGET }}" -silent -o /tmp/asn_cidrs.txt 2>>"$RD/logs/asnmap.log" || true
+            # Fallback: resolve apex/www and query by IP (often works when -d is empty)
             if [ ! -s /tmp/asn_cidrs.txt ]; then
-              echo "⚠️ asnmap DIRECT empty — trying Tor..."
+              echo "⚠️ asnmap -d empty — trying IP-based lookup from DNS..."
+              : > /tmp/asn_ips_seed.txt
+              for h in "${{ env.TARGET }}" "www.${{ env.TARGET }}"; do
+                getent ahostsv4 "$h" 2>/dev/null | awk '{print $1}' | head -3 >> /tmp/asn_ips_seed.txt || true
+                dig +short A "$h" 2>/dev/null | head -3 >> /tmp/asn_ips_seed.txt || true
+              done
+              sort -u /tmp/asn_ips_seed.txt -o /tmp/asn_ips_seed.txt 2>/dev/null || true
+              if [ -s /tmp/asn_ips_seed.txt ]; then
+                timeout 90 asnmap -i /tmp/asn_ips_seed.txt -silent -o /tmp/asn_cidrs.txt 2>>"$RD/logs/asnmap.log" || true
+              fi
+            fi
+            if [ ! -s /tmp/asn_cidrs.txt ]; then
+              echo "⚠️ asnmap DIRECT still empty — trying Tor..."
               timeout 60 proxychains4 -q asnmap -d "${{ env.TARGET }}" -silent -o /tmp/asn_cidrs.txt 2>>"$RD/logs/asnmap.log" || true
             fi
             attempt=1
@@ -1746,7 +1761,7 @@ jobs:
           touch "$RD/urls/wayback.txt" "$RD/urls/wayback_js.txt" "$RD/urls/gau.txt" "$RD/urls/waymore.txt" "$RD/urls/katana.txt" "$RD/urls/hakrawler.txt" "$RD/urls/gospider.txt" "$RD/urls/urlscan.txt" "$RD/urls/otx.txt" "$RD/urls/html_extract.txt" "$RD/urls/robots_sitemap.txt" "$RD/urls/juicy.txt"
           echo "🔍 Gau..."
           # bash -e: must absorb timeout 124 or step dies before katana/urlscan/merge
-          timeout 180 gau "${{ env.TARGET }}" --subs --o "$RD/urls/gau.txt" 2>>"$RD/logs/gau.log" || gau_exit=$?
+          timeout 240 gau "${{ env.TARGET }}" --subs --providers wayback,commoncrawl,otx,urlscan --o "$RD/urls/gau.txt" 2>>"$RD/logs/gau.log" || gau_exit=$?
           gau_exit=${gau_exit:-0}
           if [ "$gau_exit" -eq 124 ]; then
             echo "⚠️ gau killed by timeout - continuing with other URL sources" | tee -a "$RD/logs/gau.log"
@@ -3341,43 +3356,61 @@ jobs:
           # a real run's log: 70,000+ such errors). Raise it before nuclei runs.
           ulimit -n 65535 2>/dev/null || ulimit -n 8192 2>/dev/null || true
           RD="results/${{ env.TIMESTAMP }}"
-          # Prefer interesting hosts (admin/api/staging/dev/nonstd-ports) first —
-          # main apex alone rarely yields critical findings; subdomains + odd ports do.
-          INPUT="$RD/live/scan_order.txt"
-          [ -s "$INPUT" ] || INPUT="$RD/live/live.txt"
-          # STAGE GATE: do not pretend a full nuclei campaign on a synthetic apex-only
-          # fallback when live probing truly failed — that produces false "clean" reports.
+          mkdir -p "$RD/nuclei" "$RD/meta" "$RD/logs"
+          : > "$RD/nuclei/findings.jsonl"
+          : > "$RD/logs/nuclei.log"
+
+          # Prefer VERIFIED live hosts for Nuclei. Soft critical_seeds in live.txt
+          # can include hosts Tor never proved reachable — scanning those via Tor
+          # was a major source of 50%+ error rates (superdrug run 65).
+          if [ -s "$RD/live/verified.txt" ]; then
+            INPUT="$RD/live/verified.txt"
+            echo "ℹ️ Nuclei INPUT=verified.txt"
+          elif [ -s "$RD/live/scan_order.txt" ]; then
+            INPUT="$RD/live/scan_order.txt"
+            echo "ℹ️ Nuclei INPUT=scan_order.txt (verified empty)"
+          else
+            INPUT="$RD/live/live.txt"
+          fi
+
           if [ ! -s "$INPUT" ]; then
             echo "⏭️ STAGE GATE: no live hosts — skipping Nuclei (would produce misleading empty/clean results)"
-            mkdir -p "$RD/nuclei"
-            : > "$RD/nuclei/findings.jsonl"
             echo "skipped-no-live-hosts" > "$RD/nuclei/skipped.txt"
             exit 0
           fi
-          
-          # When live hosts are DNS-seeded (not httpx-verified), scanning all 76+
-          # through Tor burns 75+ minutes at 65% error rate (superdrug run).
-          # Cap to interesting + top ranked for Nuclei only.
-          if [ -f "$RD/meta/live_probe_path.txt" ]; then
-            probe_path=$(cat "$RD/meta/live_probe_path.txt" 2>/dev/null || true)
-            case "$probe_path" in
-              dns-seed|ports-enriched|apex-seed)
-                if [ -s "$RD/live/interesting_ranked.txt" ]; then
-                  awk '{print $2}' "$RD/live/interesting_ranked.txt" | head -8 > /tmp/nuclei_capped.txt
-                  INPUT=/tmp/nuclei_capped.txt
-                  echo "⚠️ Unverified live ($probe_path) - Nuclei capped to top 8 ranked hosts (Tor/WAF error budget)"
-                elif [ -s "$RD/live/expensive_targets.txt" ]; then
-                  head -8 "$RD/live/expensive_targets.txt" > /tmp/nuclei_capped.txt
-                  INPUT=/tmp/nuclei_capped.txt
-                  echo "⚠️ Unverified live ($probe_path) - Nuclei capped to top 8 expensive_targets"
-                fi
-                ;;
-            esac
+
+          # Always hard-cap target count on GH runners (even when "verified").
+          # Full surface through high template counts blows error budget.
+          NUCLEI_CAP=12
+          probe_path=$(cat "$RD/meta/live_probe_path.txt" 2>/dev/null || echo verified)
+          case "$probe_path" in
+            dns-seed|ports-enriched|apex-seed)
+              NUCLEI_CAP=8
+              echo "⚠️ Unverified live path ($probe_path) — tighter Nuclei cap=$NUCLEI_CAP"
+              ;;
+          esac
+          head -n "$NUCLEI_CAP" "$INPUT" > /tmp/nuclei_targets.txt
+          INPUT=/tmp/nuclei_targets.txt
+          # Drop obviously soft-only critical seeds that never got a port/httpx hit
+          # when we have ports.txt — keep URL if host appears in ports or live json.
+          if [ -s "$RD/live/ports.txt" ]; then
+            : > /tmp/nuclei_targets_filtered.txt
+            while IFS= read -r u; do
+              [ -z "$u" ] && continue
+              h=$(echo "$u" | sed -E 's#https?://##;s#/.*##;s#:.*##')
+              if grep -qiE "(^|/)$h([:/]|$)" "$RD/live/ports.txt" 2>/dev/null \
+                || grep -qiE "$h" "$RD/live/interesting.txt" 2>/dev/null \
+                || grep -qiE "$h" "$RD/live/verified.txt" 2>/dev/null; then
+                echo "$u" >> /tmp/nuclei_targets_filtered.txt
+              fi
+            done < "$INPUT"
+            if [ -s /tmp/nuclei_targets_filtered.txt ]; then
+              mv /tmp/nuclei_targets_filtered.txt /tmp/nuclei_targets.txt
+              INPUT=/tmp/nuclei_targets.txt
+            fi
           fi
-          echo "🎯 Nuclei targets: $(wc -l < "$INPUT") hosts (interesting-first via scan_order)"
-          if [ -f "$RD/meta/live_probe_path.txt" ]; then
-            echo "ℹ️ Live probe path used: $(cat "$RD/meta/live_probe_path.txt")"
-          fi
+          echo "🎯 Nuclei targets: $(wc -l < "$INPUT") hosts (cap=$NUCLEI_CAP, path=$probe_path)"
+          echo "direct" > "$RD/meta/nuclei_path.txt"
           AUTH_ARGS=()
           [ -n "${{ env.AUTH_COOKIE }}" ] && AUTH_ARGS+=(-H "Cookie: ${{ env.AUTH_COOKIE }}")
           [ -n "${{ env.AUTH_HEADER }}" ] && AUTH_ARGS+=(-H "${{ env.AUTH_HEADER }}")
@@ -3406,16 +3439,21 @@ jobs:
           # open. Only the confirmed critical/high scan (this one) is exported -
           # the separate lower-signal "-as" tech-detect pass below stays JSONL-only
           # since it's not really "findings" in the vulnerability sense.
-          # Tor cannot sustain high request rates — 59-63% error rates on superdrug/kec
-          # came from -rl 40 -c 6. Prefer fewer successful requests over noisy failures.
-          proxychains4 -q nuclei -l "$INPUT" -severity critical,high -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}" "${WAF_ARGS[@]}" -mhe 80 -rl 15 -c 3 -timeout 25 -retries 2 -stats -si 30 -jsonl -o "$RD/nuclei/findings.jsonl" -sarif-export "$RD/nuclei/findings.sarif" 2>>"$RD/logs/nuclei.log" || true
-          # Complement the broad severity-based pass with a tech-aware pass: nuclei's
-          # -as (automatic-scan) reads the detected tech stack and only runs templates
-          # relevant to it (e.g. WordPress-specific checks only if WordPress was
-          # actually detected) - catches tech-specific issues the broad pass's template
-          # selection might not prioritize, without wasting time on irrelevant checks.
+          # DIRECT first — Tor nuclei was 50%+ errors / 0 matches on superdrug #65.
+          # Prefer fewer successful requests over noisy Tor failures.
+          # Optional WAF_ARGS / AUTH_ARGS still apply on DIRECT path.
+          echo "☢️ Nuclei pass 1: critical+high via DIRECT..."
+          nuclei -l "$INPUT" -severity critical,high -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}" "${WAF_ARGS[@]}" \
+            -mhe 50 -rl 20 -c 4 -timeout 12 -retries 1 -stats -si 30 \
+            -jsonl -o "$RD/nuclei/findings.jsonl" -sarif-export "$RD/nuclei/findings.sarif" \
+            2>>"$RD/logs/nuclei.log" || true
+
           if [ -s "$RD/live/tech.json" ]; then
-            proxychains4 -q nuclei -l "$INPUT" -as -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}" "${WAF_ARGS[@]}" -mhe 80 -rl 15 -c 3 -timeout 25 -retries 2 -jsonl -o "$RD/nuclei/findings_tech.jsonl" 2>>"$RD/logs/nuclei.log" || true
+            echo "☢️ Nuclei pass 2: tech-aware (-as) via DIRECT..."
+            nuclei -l "$INPUT" -as -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}" "${WAF_ARGS[@]}" \
+              -mhe 50 -rl 20 -c 4 -timeout 12 -retries 1 \
+              -jsonl -o "$RD/nuclei/findings_tech.jsonl" \
+              2>>"$RD/logs/nuclei.log" || true
             cat "$RD/nuclei/findings_tech.jsonl" 2>/dev/null >> "$RD/nuclei/findings.jsonl" || true
           fi
           # The severity filter above skips info/low templates entirely - but that's
@@ -3423,8 +3461,24 @@ jobs:
           # page" live in nuclei-templates. Those are high recon value even though
           # their official severity is low, so run them as their own unrestricted-
           # severity pass instead of losing them to the severity filter.
-          proxychains4 -q nuclei -l "$INPUT" -tags exposure,panel,config,default-login,exposed-panels -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}" "${WAF_ARGS[@]}" -mhe 80 -rl 15 -c 3 -timeout 25 -retries 2 -jsonl -o "$RD/nuclei/findings_exposure.jsonl" 2>>"$RD/logs/nuclei.log" || true
+          echo "☢️ Nuclei pass 3: exposure/panel tags via DIRECT..."
+          nuclei -l "$INPUT" -tags exposure,panel,config,default-login,exposed-panels -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}" "${WAF_ARGS[@]}" \
+            -mhe 50 -rl 20 -c 4 -timeout 12 -retries 1 \
+            -jsonl -o "$RD/nuclei/findings_exposure.jsonl" \
+            2>>"$RD/logs/nuclei.log" || true
           cat "$RD/nuclei/findings_exposure.jsonl" 2>/dev/null >> "$RD/nuclei/findings.jsonl" || true
+
+          # If DIRECT still yielded nothing, one low-rate Tor pass (last resort only).
+          findings_n=$(wc -l < "$RD/nuclei/findings.jsonl" 2>/dev/null || echo 0)
+          if [ "${findings_n:-0}" -eq 0 ] && [ -s "$INPUT" ]; then
+            echo "⚠️ Nuclei DIRECT produced 0 findings — last-resort Tor pass (critical,high only, low rate)..."
+            echo "tor-fallback" > "$RD/meta/nuclei_path.txt"
+            proxychains4 -q nuclei -l "$INPUT" -severity critical,high -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}" "${WAF_ARGS[@]}" \
+              -mhe 30 -rl 8 -c 2 -timeout 20 -retries 1 \
+              -jsonl -o "$RD/nuclei/findings_tor.jsonl" \
+              2>>"$RD/logs/nuclei.log" || true
+            cat "$RD/nuclei/findings_tor.jsonl" 2>/dev/null >> "$RD/nuclei/findings.jsonl" || true
+          fi
           # If the 40-minute timeout killed nuclei mid-write, the last line of the
           # jsonl output could be a truncated/invalid JSON fragment. Strip anything
           # that doesn't parse so downstream steps never choke on it.
@@ -3447,6 +3501,13 @@ jobs:
           PYEOF2
           fi
           echo "✅ Nuclei findings: $(wc -l < "$RD/nuclei/findings.jsonl" 2>/dev/null || echo 0)"
+          echo "nuclei_path=$(cat "$RD/meta/nuclei_path.txt" 2>/dev/null || echo unknown)" >> "$RD/meta/nuclei_summary.txt"
+          echo "nuclei_targets=$(wc -l < "$INPUT" 2>/dev/null || echo 0)" >> "$RD/meta/nuclei_summary.txt"
+          echo "nuclei_findings=$(wc -l < "$RD/nuclei/findings.jsonl" 2>/dev/null || echo 0)" >> "$RD/meta/nuclei_summary.txt"
+          # Rough error signal for operators (pipeline_health already parses stats)
+          if grep -q '"errors":"[1-9]' "$RD/logs/nuclei.log" 2>/dev/null; then
+            echo "⚠️ nuclei.log contains non-zero error counters — see pipeline_health for rate" | tee -a "$RD/meta/nuclei_summary.txt"
+          fi
 
       - name: "🩹 Nikto Scan"
         continue-on-error: true
