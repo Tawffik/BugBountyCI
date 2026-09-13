@@ -640,7 +640,7 @@ jobs:
           # requirements.txt could have been silently failing to install. Setting
           # this once covers every pip3 invocation in this step.
           export PIP_BREAK_SYSTEM_PACKAGES=1
-          pip3 install -q --upgrade pip && pip3 install -q requests httpx uro markdown pysocks 2>&1 | tail -5
+          pip3 install -q --upgrade pip && pip3 install -q requests httpx uro markdown pysocks waymore 2>&1 | tail -5
           if [ ! -d /tmp/CloudFail ]; then
             git clone --depth 1 https://github.com/anmolksachan/CloudFail.git /tmp/CloudFail 2>/dev/null || true
           fi
@@ -1606,9 +1606,47 @@ jobs:
               ;;
           esac
 
+          # --- Critical host seeds (2026-09-13) ---
+          # Tor live-probe can drop high-value hosts seen in older runs
+          # (onlinedoctor / photo). Inject additive seeds for crawl lists.
+          TARGET_ROOT="${{ env.TARGET }}"
+          : > "$RD/live/critical_seeds.txt"
+          for ch in \
+            "$TARGET_ROOT" \
+            "www.$TARGET_ROOT" \
+            "onlinedoctor.$TARGET_ROOT" \
+            "photo.$TARGET_ROOT" \
+            "api.$TARGET_ROOT" \
+            "app.$TARGET_ROOT"
+          do
+            [ -z "$ch" ] && continue
+            echo "$ch" >> "$RD/subdomains/all_subs.txt"
+            echo "https://$ch" >> "$RD/live/critical_seeds.txt"
+            echo "http://$ch" >> "$RD/live/critical_seeds.txt"
+          done
+          sort -u "$RD/subdomains/all_subs.txt" -o "$RD/subdomains/all_subs.txt" 2>/dev/null || true
+          sort -u "$RD/live/critical_seeds.txt" -o "$RD/live/critical_seeds.txt" 2>/dev/null || true
+          {
+            cat "$RD/live/critical_seeds.txt" 2>/dev/null
+            cat "$RD/live/expensive_targets.txt" 2>/dev/null
+          } | awk 'NF && !seen[$0]++' > /tmp/expensive_merged.txt
+          mv /tmp/expensive_merged.txt "$RD/live/expensive_targets.txt"
+          {
+            cat "$RD/live/critical_seeds.txt" 2>/dev/null
+            cat "$RD/live/scan_order.txt" 2>/dev/null
+          } | awk 'NF && !seen[$0]++' > /tmp/scan_order_merged.txt
+          mv /tmp/scan_order_merged.txt "$RD/live/scan_order.txt"
+          {
+            cat "$RD/live/live.txt" 2>/dev/null
+            cat "$RD/live/critical_seeds.txt" 2>/dev/null
+          } | awk 'NF && !seen[$0]++' > /tmp/live_merged.txt
+          mv /tmp/live_merged.txt "$RD/live/live.txt"
+          echo "critical_seeds=$(wc -l < "$RD/live/critical_seeds.txt" 2>/dev/null || echo 0)" > "$RD/meta/critical_seeds_note.txt"
+          echo "✅ Critical seeds injected: $(wc -l < "$RD/live/critical_seeds.txt") URLs (live now $(wc -l < "$RD/live/live.txt"))"
+
       - name: "📜 URL Collection"
         continue-on-error: true
-        timeout-minutes: 22
+        timeout-minutes: 30
         run: |
           RD="results/${{ env.TIMESTAMP }}"
           INPUT="$RD/subdomains/all_subs.txt"
@@ -1705,7 +1743,7 @@ jobs:
               echo "ℹ️ CDX/OTX fallback empty - see meta/archive_cdx_diag.txt"
             fi
           fi
-          touch "$RD/urls/wayback.txt" "$RD/urls/wayback_js.txt" "$RD/urls/gau.txt" "$RD/urls/katana.txt" "$RD/urls/hakrawler.txt" "$RD/urls/gospider.txt" "$RD/urls/urlscan.txt" "$RD/urls/otx.txt" "$RD/urls/html_extract.txt" "$RD/urls/robots_sitemap.txt" "$RD/urls/juicy.txt"
+          touch "$RD/urls/wayback.txt" "$RD/urls/wayback_js.txt" "$RD/urls/gau.txt" "$RD/urls/waymore.txt" "$RD/urls/katana.txt" "$RD/urls/hakrawler.txt" "$RD/urls/gospider.txt" "$RD/urls/urlscan.txt" "$RD/urls/otx.txt" "$RD/urls/html_extract.txt" "$RD/urls/robots_sitemap.txt" "$RD/urls/juicy.txt"
           echo "🔍 Gau..."
           # bash -e: must absorb timeout 124 or step dies before katana/urlscan/merge
           timeout 180 gau "${{ env.TARGET }}" --subs --o "$RD/urls/gau.txt" 2>>"$RD/logs/gau.log" || gau_exit=$?
@@ -1717,25 +1755,73 @@ jobs:
             echo "ℹ️ gau --subs empty - retrying without --subs (45s)..."
             timeout 45 gau "${{ env.TARGET }}" --o "$RD/urls/gau.txt" 2>>"$RD/logs/gau.log" || true
           fi
+          echo "🔍 Waymore (passive URL harvest — complements wayback/gau)..."
+          touch "$RD/urls/waymore.txt"
+          if command -v waymore >/dev/null 2>&1; then
+            mkdir -p /tmp/waymore_out
+            timeout 240 waymore -i "${{ env.TARGET }}" -mode U -oU "$RD/urls/waymore.txt" -o /tmp/waymore_out -p 2 -r 2 2>>"$RD/logs/waymore.log" || true
+            if [ ! -s "$RD/urls/waymore.txt" ]; then
+              find /tmp/waymore_out -type f \( -name '*.txt' -o -name '*urls*' \) -exec cat {} + 2>/dev/null \
+                | grep -Eo 'https?://[^[:space:]]+' | sort -u > "$RD/urls/waymore.txt" || true
+            fi
+            sort -u "$RD/urls/waymore.txt" -o "$RD/urls/waymore.txt" 2>/dev/null || true
+          else
+            echo "⚠️ waymore not installed - skipping"
+          fi
+          echo "ℹ️ waymore URLs: $(wc -l < "$RD/urls/waymore.txt" 2>/dev/null || echo 0)"
           echo "🔍 Katana..."
           KATANA_LIST="$RD/live/expensive_targets.txt"; [ -s "$KATANA_LIST" ] || KATANA_LIST="$RD/live/scan_order.txt"; [ -s "$KATANA_LIST" ] || KATANA_LIST="$RD/live/live.txt"
-          # depth 3 + js crawl + known files; apex always appended for max surface
-          { cat "$KATANA_LIST" 2>/dev/null; echo "https://${{ env.TARGET }}"; echo "https://www.${{ env.TARGET }}"; } | awk 'NF && !seen[$0]++' > /tmp/katana_in.txt
-          [ -s /tmp/katana_in.txt ] && timeout 240 proxychains4 -q katana -list /tmp/katana_in.txt -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}" -silent -depth 3 -jc -jsl -kf all -d 4 -o "$RD/urls/katana.txt" 2>>"$RD/logs/katana.log" || true
+          {
+            cat "$KATANA_LIST" 2>/dev/null
+            cat "$RD/live/critical_seeds.txt" 2>/dev/null
+            echo "https://${{ env.TARGET }}"
+            echo "https://www.${{ env.TARGET }}"
+            echo "https://onlinedoctor.${{ env.TARGET }}"
+            echo "https://photo.${{ env.TARGET }}"
+          } | awk 'NF && !seen[$0]++' > /tmp/katana_in.txt
+          [ -s /tmp/katana_in.txt ] && timeout 360 proxychains4 -q katana -list /tmp/katana_in.txt -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}" -silent -depth 3 -jc -jsl -kf all -d 4 -o "$RD/urls/katana.txt" 2>>"$RD/logs/katana.log" || true
+          katana_n=$(wc -l < "$RD/urls/katana.txt" 2>/dev/null || echo 0)
+          if [ "${katana_n:-0}" -lt 50 ] && [ -s /tmp/katana_in.txt ]; then
+            echo "⚠️ katana via Tor weak ($katana_n URLs) — DIRECT retry on crawl seeds..."
+            timeout 300 katana -list /tmp/katana_in.txt -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}" -silent -depth 3 -jc -jsl -kf all -d 4 -o /tmp/katana_direct.txt 2>>"$RD/logs/katana.log" || true
+            cat /tmp/katana_direct.txt 2>/dev/null >> "$RD/urls/katana.txt" || true
+            sort -u "$RD/urls/katana.txt" -o "$RD/urls/katana.txt" 2>/dev/null || true
+          fi
           echo "ℹ️ katana URLs: $(wc -l < "$RD/urls/katana.txt" 2>/dev/null || echo 0)"
           echo "🔍 Hakrawler (independent crawler - different JS/link parser than katana, catches URLs katana's config misses)..."
           HAK_LIST="$RD/live/expensive_targets.txt"; [ -s "$HAK_LIST" ] || HAK_LIST="$RD/live/scan_order.txt"; [ -s "$HAK_LIST" ] || HAK_LIST="$RD/live/live.txt"
-          if command -v hakrawler >/dev/null 2>&1 && [ -s "$HAK_LIST" ]; then
-            timeout 90 proxychains4 -q bash -c "cat '$HAK_LIST' | hakrawler -subs -u -insecure -t 20 -timeout 8" > "$RD/urls/hakrawler.txt" 2>>"$RD/logs/hakrawler.log" || true
+          {
+            cat "$HAK_LIST" 2>/dev/null
+            cat "$RD/live/critical_seeds.txt" 2>/dev/null
+          } | awk 'NF && !seen[$0]++' > /tmp/hak_in.txt
+          if command -v hakrawler >/dev/null 2>&1 && [ -s /tmp/hak_in.txt ]; then
+            timeout 180 proxychains4 -q bash -c "cat '/tmp/hak_in.txt' | hakrawler -subs -u -insecure -t 12 -timeout 12" > "$RD/urls/hakrawler.txt" 2>>"$RD/logs/hakrawler.log" || true
+            hak_n=$(wc -l < "$RD/urls/hakrawler.txt" 2>/dev/null || echo 0)
+            if [ "${hak_n:-0}" -lt 30 ]; then
+              echo "⚠️ hakrawler via Tor weak ($hak_n) — DIRECT retry..."
+              timeout 150 bash -c "cat '/tmp/hak_in.txt' | hakrawler -subs -u -insecure -t 12 -timeout 12" >> "$RD/urls/hakrawler.txt" 2>>"$RD/logs/hakrawler.log" || true
+              sort -u "$RD/urls/hakrawler.txt" -o "$RD/urls/hakrawler.txt" 2>/dev/null || true
+            fi
           else
             echo "⚠️ hakrawler not installed or no live hosts - skipping"
             touch "$RD/urls/hakrawler.txt"
           fi
+          echo "ℹ️ hakrawler URLs: $(wc -l < "$RD/urls/hakrawler.txt" 2>/dev/null || echo 0)"
           echo "🔍 Gospider..."
           : > "$RD/urls/gospider.txt"
           GS_LIST="$RD/live/expensive_targets.txt"; [ -s "$GS_LIST" ] || GS_LIST="$RD/live/scan_order.txt"; [ -s "$GS_LIST" ] || GS_LIST="$RD/live/live.txt"
-          if command -v gospider >/dev/null 2>&1 && [ -s "$GS_LIST" ]; then
-            timeout 120 proxychains4 -q gospider -S "$GS_LIST" -t 10 -d 2 --js --sitemap --robots -a -w -c 10 2>>"$RD/logs/gospider.log" | grep -Eo 'https?://[^[:space:]]+' | sort -u > "$RD/urls/gospider.txt" || true
+          {
+            cat "$GS_LIST" 2>/dev/null
+            cat "$RD/live/critical_seeds.txt" 2>/dev/null
+          } | awk 'NF && !seen[$0]++' > /tmp/gs_in.txt
+          if command -v gospider >/dev/null 2>&1 && [ -s /tmp/gs_in.txt ]; then
+            timeout 240 proxychains4 -q gospider -S /tmp/gs_in.txt -t 8 -d 3 --js --sitemap --robots -a -w -c 8 2>>"$RD/logs/gospider.log" | grep -Eo 'https?://[^[:space:]]+' | sort -u > "$RD/urls/gospider.txt" || true
+            gs_n=$(wc -l < "$RD/urls/gospider.txt" 2>/dev/null || echo 0)
+            if [ "${gs_n:-0}" -lt 50 ]; then
+              echo "⚠️ gospider via Tor weak ($gs_n) — DIRECT retry..."
+              timeout 200 gospider -S /tmp/gs_in.txt -t 8 -d 3 --js --sitemap --robots -a -w -c 8 2>>"$RD/logs/gospider.log" | grep -Eo 'https?://[^[:space:]]+' | sort -u >> "$RD/urls/gospider.txt" || true
+              sort -u "$RD/urls/gospider.txt" -o "$RD/urls/gospider.txt" 2>/dev/null || true
+            fi
           else
             echo "⚠️ gospider skipped"
           fi
@@ -1830,7 +1916,7 @@ jobs:
           fi
           echo "🔄 Merging..."
           : > /tmp/urls_merged.txt
-          for src in wayback wayback_js gau katana hakrawler gospider urlscan otx html_extract robots_sitemap; do
+          for src in wayback wayback_js gau waymore katana hakrawler gospider urlscan otx html_extract robots_sitemap; do
             f="$RD/urls/${src}.txt"
             [ -s "$f" ] && cat "$f" >> /tmp/urls_merged.txt
           done
@@ -2397,7 +2483,12 @@ jobs:
           : > "$RD/targeted/subzy_takeover.txt"
           if command -v subzy >/dev/null 2>&1 && [ -s "$RD/subdomains/all_subs.txt" ]; then
             echo "🏚️ Running Subzy (second-opinion takeover check)..."
-            proxychains4 -q subzy run --targets "$RD/subdomains/all_subs.txt" --hide_fails --verify_ssl=false 2>>"$RD/logs/subzy.log" | grep -i "VULNERABLE" > "$RD/targeted/subzy_takeover.txt" || true
+            proxychains4 -q subzy run --targets "$RD/subdomains/all_subs.txt" --hide_fails --verify_ssl=false 2>>"$RD/logs/subzy.log" | grep -i "VULNERABLE" > /tmp/subzy_raw.txt || true
+            : > "$RD/targeted/subzy_takeover.txt"
+            if [ -s /tmp/subzy_raw.txt ]; then
+              grep -iE 'VULNERABLE|fingerpr|service' /tmp/subzy_raw.txt >> "$RD/targeted/subzy_takeover.txt" || true
+            fi
+            echo "subzy_raw=$(wc -l < /tmp/subzy_raw.txt 2>/dev/null || echo 0) kept=$(wc -l < "$RD/targeted/subzy_takeover.txt" 2>/dev/null || echo 0)" >> "$RD/logs/subzy.log"
           else
             echo "⚠️ subzy not installed or no subdomains - skipping"
           fi
@@ -2626,17 +2717,30 @@ jobs:
           fi
           echo "✅ Supply chain indicators: $(wc -l < "$RD/ai_infra/supply_chain.txt" 2>/dev/null || echo 0)"
 
-          echo "🌐 Phase 5: Exposed AI Admin Panels..."
+          echo "🌐 Phase 5: Exposed AI Admin Panels (candidates only — SPA routes are NOT confirmed)..."
           : > "$RD/ai_infra/admin_panels.txt"
           for admin_path in "/admin" "/dashboard" "/console" "/studio" "/playground" "/settings" "/api-keys" "/billing"; do
             while IFS= read -r host; do
               host="$(echo "$host" | tr -d '\r' | xargs)"; [ -z "$host" ] && continue
               if grep -q "$host" "$RD/ai_infra/endpoints_live.txt" 2>/dev/null; then
-                s=$(proxychains4 -q curl -sk -o /dev/null -w "%{http_code}" --max-time 6 -H "User-Agent: $SCAN_USER_AGENT" "${host}${admin_path}" 2>/dev/null || echo "000")
+                body_file=$(mktemp)
+                s=$(proxychains4 -q curl -sk -o "$body_file" -w "%{http_code}" --max-time 6 -H "User-Agent: $SCAN_USER_AGENT" "${host}${admin_path}" 2>/dev/null || echo "000")
                 s="${s: -3}"
                 if [ "$s" = "200" ] || [ "$s" = "401" ] || [ "$s" = "403" ]; then
-                  echo "[AI-ADMIN] ${host}${admin_path} [HTTP $s]" >> "$RD/ai_infra/admin_panels.txt"
+                  spa_hit=0
+                  if [ -s "$body_file" ]; then
+                    if grep -qiE '<div id="(app|root|__next)">|window\.__INITIAL_STATE__|ng-app=' "$body_file" \
+                      && ! grep -qiE 'login|password|csrf|api[_-]?key|sign.?in' "$body_file"; then
+                      spa_hit=1
+                    fi
+                  fi
+                  if [ "$spa_hit" = "1" ]; then
+                    echo "[AI-ADMIN-LEAD-SPA] ${host}${admin_path} [HTTP $s] (SPA shell — not confirmed panel)" >> "$RD/ai_infra/admin_panels.txt"
+                  else
+                    echo "[AI-ADMIN-CANDIDATE] ${host}${admin_path} [HTTP $s]" >> "$RD/ai_infra/admin_panels.txt"
+                  fi
                 fi
+                rm -f "$body_file"
               fi
             done < "$INPUT"
           done
