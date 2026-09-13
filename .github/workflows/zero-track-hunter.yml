@@ -961,7 +961,7 @@ jobs:
 
       - name: "🌐 ASN/CIDR Discovery"
         continue-on-error: true
-        timeout-minutes: 5
+        timeout-minutes: 8
         run: |
           RD="results/${{ env.TIMESTAMP }}"
           : > "$RD/subdomains/asn_ips.txt"
@@ -976,13 +976,20 @@ jobs:
             timeout 90 asnmap -d "${{ env.TARGET }}" -silent -o /tmp/asn_cidrs.txt 2>>"$RD/logs/asnmap.log" || true
             # Fallback: resolve apex/www and query by IP (often works when -d is empty)
             if [ ! -s /tmp/asn_cidrs.txt ]; then
-              echo "⚠️ asnmap -d empty — trying IP-based lookup from DNS..."
+              echo "⚠️ asnmap -d empty — trying IP-based lookup from DNS + resolved hosts..."
               : > /tmp/asn_ips_seed.txt
-              for h in "${{ env.TARGET }}" "www.${{ env.TARGET }}"; do
+              for h in "${{ env.TARGET }}" "www.${{ env.TARGET }}" "onlinedoctor.${{ env.TARGET }}" "api.${{ env.TARGET }}"; do
                 getent ahostsv4 "$h" 2>/dev/null | awk '{print $1}' | head -3 >> /tmp/asn_ips_seed.txt || true
-                dig +short A "$h" 2>/dev/null | head -3 >> /tmp/asn_ips_seed.txt || true
+                dig +short A "$h" 2>/dev/null | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | head -3 >> /tmp/asn_ips_seed.txt || true
               done
+              if [ -s "$RD/subdomains/resolved.txt" ]; then
+                while IFS= read -r h; do
+                  [ -z "$h" ] && continue
+                  dig +short A "$h" 2>/dev/null | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | head -1 >> /tmp/asn_ips_seed.txt || true
+                done < <(head -30 "$RD/subdomains/resolved.txt")
+              fi
               sort -u /tmp/asn_ips_seed.txt -o /tmp/asn_ips_seed.txt 2>/dev/null || true
+              echo "ℹ️ asnmap IP seeds: $(wc -l < /tmp/asn_ips_seed.txt 2>/dev/null || echo 0)" | tee -a "$RD/logs/asnmap.log"
               if [ -s /tmp/asn_ips_seed.txt ]; then
                 timeout 90 asnmap -i /tmp/asn_ips_seed.txt -silent -o /tmp/asn_cidrs.txt 2>>"$RD/logs/asnmap.log" || true
               fi
@@ -1010,7 +1017,16 @@ jobs:
               attempt=$((attempt + 1))
             done
             if [ -s /tmp/asn_cidrs.txt ]; then
-              timeout 120 proxychains4 -q naabu -l /tmp/asn_cidrs.txt -top-ports 100 -exclude-cdn -silent -rate 1000 -c 25 2>>"$RD/logs/naabu.log" | awk -F: '{print "https://"$1":"$2}' > "$RD/subdomains/asn_ips.txt" || true
+              sort -u /tmp/asn_cidrs.txt -o "$RD/subdomains/asn_cidrs.txt"
+              cp "$RD/subdomains/asn_cidrs.txt" /tmp/asn_cidrs.txt
+              echo "ℹ️ ASN CIDRs saved: $(wc -l < "$RD/subdomains/asn_cidrs.txt") ranges"
+              timeout 150 naabu -l /tmp/asn_cidrs.txt -top-ports 100 -exclude-cdn -silent -rate 800 -c 20 2>>"$RD/logs/naabu.log" \
+                | awk -F: '{print "https://"$1":"$2}' > "$RD/subdomains/asn_ips.txt" || true
+              if [ ! -s "$RD/subdomains/asn_ips.txt" ]; then
+                echo "⚠️ naabu DIRECT on CIDRs empty — one Tor retry (low rate)..."
+                timeout 90 proxychains4 -q naabu -l /tmp/asn_cidrs.txt -top-ports 50 -exclude-cdn -silent -rate 200 -c 5 2>>"$RD/logs/naabu.log" \
+                  | awk -F: '{print "https://"$1":"$2}' > "$RD/subdomains/asn_ips.txt" || true
+              fi
               echo "asnmap" > "$RD/meta/asn_source.txt"
             else
               reason="asnmap produced zero output across 3 attempts (including 2 fresh-circuit retries) with no error ever logged in logs/asnmap.log - this is the same flaky-Tor-circuit signature seen elsewhere (single lightweight requests succeed, this tool's request(s) don't), not a config problem, since PDCP_API_KEY is set and asnmap is installed."
@@ -1038,7 +1054,9 @@ jobs:
           print("BGPView: %d CIDR(s)" % len(prefixes) if prefixes else "BGPView: no usable data")
           PYEOF
               if [ -s /tmp/bgpview_cidrs.txt ]; then
-                timeout 120 proxychains4 -q naabu -l /tmp/bgpview_cidrs.txt -top-ports 100 -exclude-cdn -silent -rate 1000 -c 25 2>>"$RD/logs/naabu.log" | awk -F: '{print "https://"$1":"$2}' > "$RD/subdomains/asn_ips.txt" || true
+                sort -u /tmp/bgpview_cidrs.txt -o "$RD/subdomains/asn_cidrs.txt"
+                timeout 150 naabu -l "$RD/subdomains/asn_cidrs.txt" -top-ports 100 -exclude-cdn -silent -rate 800 -c 20 2>>"$RD/logs/naabu.log" \
+                  | awk -F: '{print "https://"$1":"$2}' > "$RD/subdomains/asn_ips.txt" || true
                 echo "bgpview (after asnmap empty)" > "$RD/meta/asn_source.txt"
               fi
             fi
@@ -1087,11 +1105,14 @@ jobs:
           print(f"BGPView: {len(prefixes)} CIDR range(s) found" if prefixes else "BGPView: no usable data")
           PYEOF
             if [ -s /tmp/bgpview_cidrs.txt ]; then
-              timeout 120 proxychains4 -q naabu -l /tmp/bgpview_cidrs.txt -top-ports 100 -exclude-cdn -silent -rate 1000 -c 25 2>>"$RD/logs/naabu.log" | awk -F: '{print "https://"$1":"$2}' > "$RD/subdomains/asn_ips.txt" || true
+              sort -u /tmp/bgpview_cidrs.txt -o "$RD/subdomains/asn_cidrs.txt"
+              timeout 150 naabu -l "$RD/subdomains/asn_cidrs.txt" -top-ports 100 -exclude-cdn -silent -rate 800 -c 20 2>>"$RD/logs/naabu.log" \
+                | awk -F: '{print "https://"$1":"$2}' > "$RD/subdomains/asn_ips.txt" || true
               echo "bgpview (free fallback - less complete than asnmap)" > "$RD/meta/asn_source.txt"
             fi
           fi
-          echo "✅ ASN-derived live candidates: $(wc -l < "$RD/subdomains/asn_ips.txt" 2>/dev/null || echo 0) (source: $(cat "$RD/meta/asn_source.txt" 2>/dev/null || echo none))"
+          [ -f "$RD/subdomains/asn_cidrs.txt" ] || : > "$RD/subdomains/asn_cidrs.txt"
+          echo "✅ ASN CIDRs: $(wc -l < "$RD/subdomains/asn_cidrs.txt" 2>/dev/null || echo 0) | live candidates: $(wc -l < "$RD/subdomains/asn_ips.txt" 2>/dev/null || echo 0) (source: $(cat "$RD/meta/asn_source.txt" 2>/dev/null || echo none))"
 
       - name: "🏚️ Subdomain Takeover Check"
         continue-on-error: true
