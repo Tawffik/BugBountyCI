@@ -1128,294 +1128,7 @@ jobs:
       - name: "🌍 Live Host Probing & Fingerprinting"
         continue-on-error: true
         timeout-minutes: 12
-        run: |
-          RD="results/${{ env.TIMESTAMP }}"
-          # Prefer DNS-confirmed hosts (resolved.txt) over raw candidates — probing
-          # unresolved names wastes Tor circuits and was a major source of empty live.json.
-          INPUT="$RD/subdomains/resolved.txt"
-          [ -s "$INPUT" ] || INPUT="$RD/subdomains/all_subs.txt"
-          [ -s "$INPUT" ] || { echo "${{ env.TARGET }}" > /tmp/fallback.txt; INPUT=/tmp/fallback.txt; }
-          # Normalize to scheme URLs (httpx -u bare-host is flaky under proxychains)
-          : > /tmp/probe_input_urls.txt
-          {
-            echo "${{ env.TARGET }}"
-            echo "www.${{ env.TARGET }}"
-            cat "$INPUT"
-          } | awk 'NF && !seen[$0]++' | while IFS= read -r h; do
-            h="$(echo "$h" | tr -d '\r' | xargs)"; [ -z "$h" ] && continue
-            case "$h" in
-              http://*|https://*) echo "$h" ;;
-              *) echo "https://$h"; echo "http://$h" ;;
-            esac
-          done > /tmp/probe_input_urls.txt
-          INPUT=/tmp/probe_input_urls.txt
-          AUTH_ARGS=()
-          [ -n "${{ env.AUTH_COOKIE }}" ] && AUTH_ARGS+=(-H "Cookie: ${{ env.AUTH_COOKIE }}")
-          [ -n "${{ env.AUTH_HEADER }}" ] && AUTH_ARGS+=(-H "${{ env.AUTH_HEADER }}")
-
-          # BUGFIX: confirmed on THREE separate real runs against three different
-          # targets (7, 68, and 159 real candidates respectively, so this isn't a
-          # scale/timeout issue) that httpx's bulk "-l file -json -o file" mode
-          # through proxychains4 deterministically writes ZERO bytes to its output,
-          # even when several candidates are genuinely live. The diagnostic probe
-          # further down (meta/httpx_verbose_diag.txt) proved the opposite: a lone
-          # "httpx -u <host>" call over the exact same Tor circuit gets a completely
-          # normal response every time. Rather than keep trusting "-l" mode, probe
-          # each host with its own "-u" call (the mode actually proven to work) with
-          # bounded concurrency so this stays fast, and a self-tracked time budget
-          # (bash's $SECONDS, since an external `timeout` can't wrap a shell
-          # function) so a run with many real subdomains can never blow this step's
-          # 12-minute limit - it just stops early and keeps whatever it already
-          # found instead of losing everything the way "-l" mode's all-or-nothing
-          # output file did.
-          # BUGFIX 2026-09-08: Parallel append (>>) of JSON lines from many
-          # background jobs into one file is NOT atomic. Under Tor + high
-          # concurrency the file becomes corrupted NDJSON (partial lines /
-          # interleaving), so later `jq` silently produces nothing and
-          # live.txt ends up empty even when hosts were actually live.
-          # Fix: each probe writes to its own temp file, then we safely
-          # concatenate. Also drop concurrency from 12 → 4 because Tor
-          # cannot sustain that many simultaneous new circuits on a single
-          # process without high failure rates (confirmed on real runs).
-          probe_hosts() {
-            local input_file="$1" output_file="$2" timeout_s="$3" retries_n="$4" concurrency="$5" max_duration="$6"
-            local tmp_dir
-            tmp_dir=$(mktemp -d)
-            : > "$output_file"
-            local running=0 start_sec=$SECONDS idx=0
-            while IFS= read -r host; do
-              [ -z "$host" ] && continue
-              if [ -n "$max_duration" ] && [ $((SECONDS - start_sec)) -ge "$max_duration" ]; then
-                echo "ℹ️ probe_hosts: ${max_duration}s time budget reached for $output_file - stopping early with partial results" >> "$RD/logs/httpx.log"
-                break
-              fi
-              idx=$((idx + 1))
-              (
-                proxychains4 -q httpx -u "$host" -silent -status-code -title -web-server -ip -cdn -follow-redirects                   -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}"                   -timeout "$timeout_s" -retries "$retries_n" -json                   2>>"$RD/logs/httpx.log" > "$tmp_dir/$(printf '%05d' $idx).json" || true
-              ) &
-              running=$((running + 1))
-              if [ "$running" -ge "$concurrency" ]; then
-                wait -n 2>/dev/null || wait
-                running=$((running - 1))
-              fi
-            done < "$input_file"
-            wait
-            # Safe merge: only non-empty valid-looking lines
-            cat "$tmp_dir"/*.json 2>/dev/null | grep -v '^\s*$' >> "$output_file" || true
-            rm -rf "$tmp_dir"
-          }
-
-          probe_hosts "$INPUT" "$RD/live/live.json" 15 2 4 360
-          # NDJSON-safe extraction (one JSON object per line)
-          if [ -s "$RD/live/live.json" ]; then
-            jq -r 'select(. != null) | (.url // .input // empty)' "$RD/live/live.json" 2>/dev/null \
-              | grep -v '^\s*$' | sort -u > "$RD/live/live.txt" || true
-          else
-            : > "$RD/live/live.txt"
-          fi
-          echo "ℹ️ Live hosts after primary probe: $(wc -l < "$RD/live/live.txt" 2>/dev/null || echo 0)"
-
-          # A run's assigned Tor circuit can be individually flaky even when
-          # Tor itself is confirmed up and a lightweight single curl through
-          # it succeeds - seen for real: 0 live hosts from httpx AND 0 from
-          # asnmap in the same run, both with a completely empty log (no
-          # error at all), while a plain diagnostic curl on the same circuit
-          # got a normal 404/200. That signature means the bulk multi-
-          # connection tools hit transient circuit instability the single
-          # request didn't. One retry on a forced-fresh circuit is cheap
-          # insurance against losing the entire rest of the pipeline to one
-          # unlucky circuit, since everything downstream (URLs/JS/etc) reads
-          # from live.txt.
-          if [ ! -s "$RD/live/live.txt" ] && [ -s "$INPUT" ]; then
-            echo "⚠️ 0 live hosts despite non-empty input - forcing a fresh Tor circuit and retrying httpx once..."
-            sudo pkill -HUP -x tor 2>/dev/null || true
-            sleep 8
-            probe_hosts "$INPUT" "$RD/live/live.json" 15 2 4 150
-            if [ -s "$RD/live/live.json" ]; then
-              jq -r 'select(. != null) | (.url // .input // empty)' "$RD/live/live.json" 2>/dev/null \
-                | grep -v '^\s*$' | sort -u > "$RD/live/live.txt" || true
-            else
-              : > "$RD/live/live.txt"
-            fi
-            [ -s "$RD/live/live.txt" ] && echo "✅ Retry on fresh circuit recovered $(wc -l < "$RD/live/live.txt") live host(s)" || echo "ℹ️ Retry also found nothing - will try DIRECT (no-Tor) fallback"
-          fi
-
-          # ================================================================
-          # DIRECT FALLBACK (2026-09-08) — confirmed on kyc.com real run:
-          # - Apex https://kyc.com returned 301 via curl health check
-          # - naabu saw open 80/443 on multiple hosts
-          # - Tor/proxied httpx still produced 0 live hosts (timeouts on many
-          #   candidates; parallel-write bugs fixed separately)
-          # When Tor path yields empty live.txt but we have DNS candidates,
-          # probe WITHOUT proxychains so the rest of the pipeline is not blind.
-          # Results are still in-scope hosts only (same INPUT list).
-          # ================================================================
-          if [ ! -s "$RD/live/live.txt" ] && [ -s "$INPUT" ]; then
-            echo "🔄 DIRECT fallback: probing without Tor (Tor path returned 0 live hosts)..."
-            probe_hosts_direct() {
-              local input_file="$1" output_file="$2" timeout_s="$3" retries_n="$4" concurrency="$5" max_duration="$6"
-              local tmp_dir
-              tmp_dir=$(mktemp -d)
-              : > "$output_file"
-              local running=0 start_sec=$SECONDS idx=0
-              while IFS= read -r host; do
-                [ -z "$host" ] && continue
-                # Normalize bare hostnames to https://
-                case "$host" in
-                  http://*|https://*) ;;
-                  *) host="https://$host" ;;
-                esac
-                if [ -n "$max_duration" ] && [ $((SECONDS - start_sec)) -ge "$max_duration" ]; then
-                  echo "ℹ️ probe_hosts_direct: ${max_duration}s budget reached" >> "$RD/logs/httpx.log"
-                  break
-                fi
-                idx=$((idx + 1))
-                (
-                  httpx -u "$host" -silent -status-code -title -web-server -ip -cdn -follow-redirects                     -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}"                     -timeout "$timeout_s" -retries "$retries_n" -json                     2>>"$RD/logs/httpx_direct.log" > "$tmp_dir/$(printf '%05d' $idx).json" || true
-                ) &
-                running=$((running + 1))
-                if [ "$running" -ge "$concurrency" ]; then
-                  wait -n 2>/dev/null || wait
-                  running=$((running - 1))
-                fi
-              done < "$input_file"
-              wait
-              cat "$tmp_dir"/*.json 2>/dev/null | grep -v '^\s*$' >> "$output_file" || true
-              rm -rf "$tmp_dir"
-            }
-            # Also force apex + www first in a priority list
-            {
-              echo "${{ env.TARGET }}"
-              echo "www.${{ env.TARGET }}"
-              cat "$INPUT"
-            } | awk 'NF && !seen[$0]++' > /tmp/direct_probe_input.txt
-            probe_hosts_direct /tmp/direct_probe_input.txt "$RD/live/live_direct.json" 12 2 8 180
-            if [ -s "$RD/live/live_direct.json" ]; then
-              jq -r 'select(. != null) | (.url // .input // empty)' "$RD/live/live_direct.json" 2>/dev/null                 | grep -v '^\s*$' | sort -u > "$RD/live/live.txt" || true
-              cp "$RD/live/live_direct.json" "$RD/live/live.json" 2>/dev/null || true
-              echo "✅ DIRECT fallback recovered $(wc -l < "$RD/live/live.txt") live host(s) (no Tor)" | tee -a "$RD/meta/scan_health_warning.txt"
-              echo "direct" > "$RD/meta/live_probe_path.txt"
-            else
-              echo "ℹ️ DIRECT fallback also found 0 live hosts" | tee -a "$RD/logs/httpx_direct.log"
-              # Last resort recovery: NEVER leave downstream blind when DNS already
-              # confirmed subdomains (or open ports). Real runs (superdrug, kec, kyc)
-              # proved Tor+httpx can return 0 AND GitHub-runner direct can be WAF-blocked
-              # (403) while the hosts are still real. Seed from evidence we already have.
-              : > "$RD/live/live.txt"
-              # 1) Every DNS-resolved subdomain → try both schemes as candidates
-              if [ -s "$RD/subdomains/resolved.txt" ]; then
-                while IFS= read -r h; do
-                  h="$(echo "$h" | tr -d '\r' | xargs)"; [ -z "$h" ] && continue
-                  echo "https://$h" >> "$RD/live/live.txt"
-                  echo "http://$h" >> "$RD/live/live.txt"
-                done < "$RD/subdomains/resolved.txt"
-              fi
-              # 2) Apex + www always
-              echo "https://${{ env.TARGET }}" >> "$RD/live/live.txt"
-              echo "https://www.${{ env.TARGET }}" >> "$RD/live/live.txt"
-              echo "http://${{ env.TARGET }}" >> "$RD/live/live.txt"
-              echo "http://www.${{ env.TARGET }}" >> "$RD/live/live.txt"
-              # 3) Hosts that naabu already proved have open ports (written later into
-              # ports.txt in the next step — at this point we may not have it yet, so
-              # also accept all_subs as soft candidates if resolved was empty)
-              if [ ! -s "$RD/live/live.txt" ] && [ -s "$RD/subdomains/all_subs.txt" ]; then
-                while IFS= read -r h; do
-                  h="$(echo "$h" | tr -d '\r' | xargs)"; [ -z "$h" ] && continue
-                  echo "https://$h" >> "$RD/live/live.txt"
-                done < "$RD/subdomains/all_subs.txt"
-              fi
-              sort -u -o "$RD/live/live.txt" "$RD/live/live.txt"
-              n=$(wc -l < "$RD/live/live.txt" 2>/dev/null || echo 0)
-              apex_code=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 10 -H "User-Agent: $SCAN_USER_AGENT" "https://${{ env.TARGET }}/" 2>/dev/null || echo "000")
-              apex_code="${apex_code: -3}"
-              echo "⚠️ Probe failed (Tor+direct empty). Seeded live.txt with $n DNS/port-backed candidates (apex curl=$apex_code). Downstream still runs; treat as unverified-live." | tee -a "$RD/meta/scan_health_warning.txt"
-              echo "dns-seed" > "$RD/meta/live_probe_path.txt"
-            fi
-          else
-            [ -s "$RD/live/live.txt" ] && echo "tor" > "$RD/meta/live_probe_path.txt"
-          fi
-
-          # Best-effort second pass: only the confirmed real subdomains above are
-          # allowed to consume this step's full budget. ASN/CIDR-derived IPs are
-          # a bonus, capped at a much smaller sample and hard-bounded by the same
-          # self-tracked time budget so a slow/unresponsive batch of them can never
-          # crowd out or block the real subdomain results above - worst case it's
-          # simply cut short and whatever it found so far is kept.
-          if [ -s "$RD/subdomains/asn_ips.txt" ]; then
-            ASN_PROBE_INPUT="/tmp/asn_probe_input.txt"
-            head -300 "$RD/subdomains/asn_ips.txt" > "$ASN_PROBE_INPUT" || true
-            asn_kept=$(wc -l < "$ASN_PROBE_INPUT" 2>/dev/null || echo 0)
-            echo "ℹ️ Probing up to $asn_kept ASN/CIDR-derived candidate(s) separately (best-effort, max 2 minutes, won't affect the real-subdomain results above)"
-            probe_hosts "$ASN_PROBE_INPUT" "$RD/live/live_asn.json" 10 1 4 120
-            if [ -s "$RD/live/live_asn.json" ]; then
-              jq -r '.url // .input' "$RD/live/live_asn.json" 2>/dev/null | grep -v '^\s*$' >> "$RD/live/live.txt" || true
-              sort -u -o "$RD/live/live.txt" "$RD/live/live.txt"
-              echo "✅ ASN/CIDR pass added $(jq -r '.url // .input' "$RD/live/live_asn.json" 2>/dev/null | grep -c .) more live host(s)"
-            fi
-          fi
-
-          jq -r 'select(.cdn_name != null) | "\(.url) -> \(.cdn_name)"' "$RD/live/live.json" > "$RD/live/waf.txt" 2>/dev/null || true
-          # BUGFIX: tech-detect used the same broken "-l" bulk mode as the main probe
-          # above - switched to the same proven-working per-host loop. live.txt is
-          # small at this point (confirmed hosts only), so no time budget is needed.
-          probe_hosts "$RD/live/live.txt" "$RD/live/tech.json" 15 2 4 ""
-          echo "✅ Live hosts: $(wc -l < "$RD/live/live.txt")"
-          # Classify verified vs unverified for operators + downstream caps
-          : > "$RD/live/verified.txt"
-          : > "$RD/live/unverified.txt"
-          probe_path=$(cat "$RD/meta/live_probe_path.txt" 2>/dev/null || echo "unknown")
-          case "$probe_path" in
-            dns-seed|ports-enriched|apex-seed)
-              cp "$RD/live/live.txt" "$RD/live/unverified.txt" 2>/dev/null || true
-              echo "ℹ️ live classification: $(wc -l < "$RD/live/unverified.txt" 2>/dev/null || echo 0) UNVERIFIED ($probe_path)"
-              ;;
-            *)
-              if [ -s "$RD/live/live.txt" ]; then
-                cp "$RD/live/live.txt" "$RD/live/verified.txt" 2>/dev/null || true
-                echo "ℹ️ live classification: $(wc -l < "$RD/live/verified.txt" 2>/dev/null || echo 0) VERIFIED ($probe_path)"
-              fi
-              ;;
-          esac
-          live_count=$(wc -l < "$RD/live/live.txt" 2>/dev/null || echo 0)
-          input_count=$(wc -l < "$INPUT" 2>/dev/null || echo 0)
-          if [ "$live_count" -eq 0 ] && [ "$input_count" -gt 0 ] && [ ! -s "$RD/meta/scan_health_warning.txt" ]; then
-            echo "::warning::0 live hosts found despite $input_count candidate(s) in the input ($INPUT) - this is NOT a normal clean-scan result. Confirmed causes seen in real runs: a discovery tool silently losing hosts upstream, or the target/WAF blocking this runner's IP. Check $RD/logs/httpx.log (even if empty - that itself is a clue) before trusting any downstream '0 findings' from this run."
-            echo "⚠️ 0 LIVE HOSTS FROM $input_count CANDIDATE(S) - flagging for manual review, see logs/httpx.log" >> "$RD/logs/httpx.log"
-            mkdir -p "$RD/meta"
-            probe_host="$(head -1 "$INPUT" | tr -d '\r' | xargs)"
-            [ -z "$probe_host" ] && probe_host="${{ env.TARGET }}"
-            case "$probe_host" in http*://*) probe_url="$probe_host/" ;; *) probe_url="https://$probe_host/" ;; esac
-            diag_status=$(proxychains4 -q curl -sk -o /dev/null --max-time 12 -w "%{http_code}" "$probe_url" 2>>/tmp/diag_curl.log || echo "000")
-            diag_status="${diag_status: -3}"
-            # Also check the bare apex separately - a target can have the apex domain
-            # working fine (redirect, real site) while the SPECIFIC candidate
-            # subdomains httpx actually tried behave completely differently (blocked,
-            # or simply not a normal web-facing host at all, e.g. an internal/
-            # websocket-only service picked up by permutation guessing).
-            apex_status=$(proxychains4 -q curl -sk -o /dev/null --max-time 12 -w "%{http_code}" "https://${{ env.TARGET }}/" 2>>/tmp/diag_curl.log || echo "000")
-            apex_status="${apex_status: -3}"
-            diag_note="Direct diagnostic probe to $probe_url (the actual first candidate httpx tried) returned status $diag_status. For comparison, the bare apex https://${{ env.TARGET }}/ returned $apex_status."
-            if [ "$diag_status" = "000" ]; then
-              diag_note="$diag_note This runner could not complete a TLS/TCP connection to that specific candidate at all - strong signal of network-level blocking, or the candidate simply isn't a normal HTTP-facing host (e.g. an internal/websocket-only service picked up by subdomain guessing)."
-            elif [ "$diag_status" = "403" ] || [ "$diag_status" = "429" ]; then
-              diag_note="$diag_note A $diag_status here is a classic WAF/rate-limit block signature specifically on this candidate."
-            elif [ "$diag_status" != "000" ] && [ "$apex_status" != "000" ]; then
-              diag_note="$diag_note Both probes got a real HTTP response, so this may not be a network block at all - check whether httpx's own flags/redirect-following are the actual issue here, not just assume WAF blocking."
-            fi
-            echo "0 live hosts found despite $input_count candidate(s) - the target may be blocking/rate-limiting this runner's IP rather than genuinely having no findings. Do NOT treat a clean-looking report below as confirmation of security. $diag_note" > "$RD/meta/scan_health_warning.txt"
-            # BUGFIX/DIAGNOSTIC: the curl-based check above proves the target itself
-            # is reachable through this same proxy chain, but every httpx call runs
-            # with -silent, which suppresses httpx's OWN error/debug output - so when
-            # httpx alone returns nothing (confirmed on real runs against two
-            # different targets: live.json ends up 0 bytes both times) we have no way
-            # to see WHY httpx specifically failed where curl on the identical host/
-            # proxy succeeded. Re-run httpx just once, on just this one host, WITHOUT
-            # -silent, so its own reported error (SOCKS handshake failure, DNS
-            # failure, TLS failure, a redirect it refuses to follow, etc.) is captured
-            # for the next run to actually pinpoint the real cause instead of
-            # re-confirming what curl already showed.
-            proxychains4 -q httpx -u "$probe_url" -status-code -title -follow-redirects -H "User-Agent: $SCAN_USER_AGENT" -timeout 15 -retries 2 -debug > "$RD/meta/httpx_verbose_diag.txt" 2>&1 || true
-          fi
+        run: bash scripts/live_host_probing.sh
 
       - name: "🛡️ WAF Bypass Recon & Header Rotation"
         if: ${{ env.ENABLE_WAF_BYPASS == 'true' }}
@@ -1682,7 +1395,7 @@ jobs:
 
       - name: "📜 URL Collection"
         continue-on-error: true
-        timeout-minutes: 30
+        timeout-minutes: 50
         run: bash scripts/url_collection.sh
 
       - name: "📦 JavaScript Analysis"
@@ -4704,10 +4417,21 @@ jobs:
           rows = []
           flags = []
 
-          def row(label, val, prior=None):
+          def row(label, val, prior=None, ratio_warn=None):
               status = "✅"
               if prior is not None and prior > 0 and val == 0:
                   status = "🔴"
+              elif ratio_warn is not None and prior is not None and prior > 0 and val > 0:
+                  # BUGFIX (2026-09-14): absolute-zero was the only thing this
+                  # function could ever flag - confirmed on a real 23k-live-host
+                  # run where "Collected URLs" landed at 533 (0.023 URLs per live
+                  # host, essentially a collection failure) but still printed a
+                  # plain ✅ because 533 isn't literally zero. A disproportionate
+                  # yield relative to the previous stage is just as real a signal
+                  # as a hard zero - it just needs a ratio check, not a== 0 check.
+                  min_threshold, min_prior_for_check = ratio_warn
+                  if prior >= min_prior_for_check and (val / prior) < min_threshold:
+                      status = "🟡"
               rows.append((status, label, val))
               return status
 
@@ -4716,7 +4440,7 @@ jobs:
           row("Permutation-discovered subdomains", counts["permutations"])
           row("Total confirmed subdomains", counts["all_subs"], prior=counts["raw_candidates"])
           s5 = row("Live hosts (httpx)", counts["live"], prior=counts["all_subs"])
-          s6 = row("Collected URLs", counts["urls"], prior=counts["live"])
+          s6 = row("Collected URLs", counts["urls"], prior=counts["live"], ratio_warn=(0.05, 200))
           row("JS files analyzed (round 1, crawled)", counts["js_files"])
           row("JS files found via recursive discovery (round 2)", counts["js_discovered"])
           row("Amass raw candidates (passive)", counts["amass_raw"])
@@ -4748,6 +4472,9 @@ jobs:
               flags.append("🔴 **0 live hosts despite confirmed subdomains**: almost certainly the target/WAF blocking this runner's IP, not a real 'no live hosts' result. See `meta/scan_health_warning.txt`.")
           if s6 == "🔴":
               flags.append("🔴 **0 URLs despite live hosts**: katana/gau/wayback all produced nothing even though hosts responded - check `logs/*.log` for crawler-specific errors.")
+          elif s6 == "🟡":
+              url_ratio = round(counts["urls"] / counts["live"], 3) if counts["live"] else 0
+              flags.append(f"🟡 **Low URL yield relative to live-host count** ({counts['urls']} URLs / {counts['live']} live hosts = {url_ratio}/host): this usually means wayback/gau/katana/hakrawler/gospider hit their fixed timeouts before covering the full surface on a large target, not that the target genuinely has few URLs - see `scripts/url_collection.sh`'s adaptive timeout scaling and `logs/gau.log`/`logs/wayback.log` for '*killed by timeout*' lines.")
 
           # --- Cloud origin tools: did they actually run, or crash/get skipped? ---
           # Historically: CloudFail silently "not installed" after an upstream rewrite
@@ -4830,7 +4557,7 @@ jobs:
 
           verdict = "🟢 HEALTHY"
           red_count = sum(1 for f in flags if f.startswith("🔴") or f.startswith("📉"))
-          warn_count = sum(1 for f in flags if f.startswith("⚠️"))
+          warn_count = sum(1 for f in flags if f.startswith("⚠️") or f.startswith("🟡"))
           if red_count > 0:
               verdict = "🔴 BROKEN - one or more pipeline stages produced nothing when they should have"
           elif warn_count > 0:
