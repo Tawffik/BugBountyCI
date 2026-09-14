@@ -2,6 +2,24 @@
 set -eo pipefail
 
 RD="results/$TIMESTAMP"
+
+# --- Adaptive timeout scaling for large targets (2026-09-14) ---
+# Every timeout below was tuned against small/medium targets (~10-100
+# subdomains). Confirmed on a real run against binance.com (12,810 confirmed
+# subdomains, 23,251 live hosts): wayback/gau/katana/hakrawler/gospider all
+# hit their fixed ceiling before covering a meaningful fraction of the
+# surface (gau explicitly logged "killed by timeout"), leaving only 533
+# total URLs - a collection failure, not evidence the target has few URLs.
+# Double the per-tool timeouts once the live surface crosses 1000 hosts so
+# large targets get a proportionally longer collection window. The
+# corresponding step's timeout-minutes was raised (30 -> 50) to give this
+# room without hitting the job-level step timeout instead.
+LIVE_COUNT=$(wc -l < "$RD/live/live.txt" 2>/dev/null || echo 0)
+TIMEOUT_SCALE=1
+[ "${LIVE_COUNT:-0}" -gt 1000 ] 2>/dev/null && TIMEOUT_SCALE=2
+scale_timeout() { echo $(( $1 * TIMEOUT_SCALE )); }
+echo "ℹ️ URL Collection timeout scale: x${TIMEOUT_SCALE} (live hosts=${LIVE_COUNT:-0})"
+
 INPUT="$RD/subdomains/all_subs.txt"
 [ -s "$INPUT" ] || { echo "$TARGET" > /tmp/fallback.txt; INPUT=/tmp/fallback.txt; }
 AUTH_ARGS=()
@@ -33,7 +51,7 @@ echo "🔍 Wayback..."
 # isn't enough (124 = timeout killed it) versus a genuine clean-but-
 # empty completion.
 # GHA runs bash -e: timeout exit 124 would abort the whole step.
-timeout 300 bash -c 'echo "$TARGET" | waybackurls' > "$RD/urls/wayback.txt" 2>>"$RD/logs/wayback.log" || wb_exit=$?
+timeout $(scale_timeout 300) bash -c 'echo "$TARGET" | waybackurls' > "$RD/urls/wayback.txt" 2>>"$RD/logs/wayback.log" || wb_exit=$?
 wb_exit=${wb_exit:-0}
 if [ "$wb_exit" -eq 124 ]; then
   echo "⚠️ waybackurls killed by 300s timeout (partial/empty possible)" | tee -a "$RD/logs/wayback.log"
@@ -99,20 +117,20 @@ fi
 touch "$RD/urls/wayback.txt" "$RD/urls/wayback_js.txt" "$RD/urls/gau.txt" "$RD/urls/waymore.txt" "$RD/urls/katana.txt" "$RD/urls/hakrawler.txt" "$RD/urls/gospider.txt" "$RD/urls/urlscan.txt" "$RD/urls/otx.txt" "$RD/urls/html_extract.txt" "$RD/urls/robots_sitemap.txt" "$RD/urls/juicy.txt"
 echo "🔍 Gau..."
 # bash -e: must absorb timeout 124 or step dies before katana/urlscan/merge
-timeout 240 gau "$TARGET" --subs --providers wayback,commoncrawl,otx,urlscan --o "$RD/urls/gau.txt" 2>>"$RD/logs/gau.log" || gau_exit=$?
+timeout $(scale_timeout 240) gau "$TARGET" --subs --providers wayback,commoncrawl,otx,urlscan --o "$RD/urls/gau.txt" 2>>"$RD/logs/gau.log" || gau_exit=$?
 gau_exit=${gau_exit:-0}
 if [ "$gau_exit" -eq 124 ]; then
   echo "⚠️ gau killed by timeout - continuing with other URL sources" | tee -a "$RD/logs/gau.log"
 fi
 if [ ! -s "$RD/urls/gau.txt" ]; then
   echo "ℹ️ gau --subs empty - retrying without --subs (45s)..."
-  timeout 45 gau "$TARGET" --o "$RD/urls/gau.txt" 2>>"$RD/logs/gau.log" || true
+  timeout $(scale_timeout 45) gau "$TARGET" --o "$RD/urls/gau.txt" 2>>"$RD/logs/gau.log" || true
 fi
 echo "🔍 Waymore (passive URL harvest — complements wayback/gau)..."
 touch "$RD/urls/waymore.txt"
 if command -v waymore >/dev/null 2>&1; then
   mkdir -p /tmp/waymore_out
-  timeout 240 waymore -i "$TARGET" -mode U -oU "$RD/urls/waymore.txt" -o /tmp/waymore_out -p 2 -r 2 2>>"$RD/logs/waymore.log" || true
+  timeout $(scale_timeout 240) waymore -i "$TARGET" -mode U -oU "$RD/urls/waymore.txt" -o /tmp/waymore_out -p 2 -r 2 2>>"$RD/logs/waymore.log" || true
   if [ ! -s "$RD/urls/waymore.txt" ]; then
     find /tmp/waymore_out -type f \( -name '*.txt' -o -name '*urls*' \) -exec cat {} + 2>/dev/null \
       | grep -Eo 'https?://[^[:space:]]+' | sort -u > "$RD/urls/waymore.txt" || true
@@ -132,11 +150,11 @@ KATANA_LIST="$RD/live/expensive_targets.txt"; [ -s "$KATANA_LIST" ] || KATANA_LI
   echo "https://onlinedoctor.$TARGET"
   echo "https://photo.$TARGET"
 } | awk 'NF && !seen[$0]++' > /tmp/katana_in.txt
-[ -s /tmp/katana_in.txt ] && timeout 360 proxychains4 -q katana -list /tmp/katana_in.txt -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}" -silent -depth 3 -jc -jsl -kf all -d 4 -o "$RD/urls/katana.txt" 2>>"$RD/logs/katana.log" || true
+[ -s /tmp/katana_in.txt ] && timeout $(scale_timeout 360) proxychains4 -q katana -list /tmp/katana_in.txt -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}" -silent -depth 3 -jc -jsl -kf all -d 4 -o "$RD/urls/katana.txt" 2>>"$RD/logs/katana.log" || true
 katana_n=$(wc -l < "$RD/urls/katana.txt" 2>/dev/null || echo 0)
 if [ "${katana_n:-0}" -lt 50 ] && [ -s /tmp/katana_in.txt ]; then
   echo "⚠️ katana via Tor weak ($katana_n URLs) — DIRECT retry on crawl seeds..."
-  timeout 300 katana -list /tmp/katana_in.txt -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}" -silent -depth 3 -jc -jsl -kf all -d 4 -o /tmp/katana_direct.txt 2>>"$RD/logs/katana.log" || true
+  timeout $(scale_timeout 300) katana -list /tmp/katana_in.txt -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}" -silent -depth 3 -jc -jsl -kf all -d 4 -o /tmp/katana_direct.txt 2>>"$RD/logs/katana.log" || true
   cat /tmp/katana_direct.txt 2>/dev/null >> "$RD/urls/katana.txt" || true
   sort -u "$RD/urls/katana.txt" -o "$RD/urls/katana.txt" 2>/dev/null || true
 fi
@@ -148,11 +166,11 @@ HAK_LIST="$RD/live/expensive_targets.txt"; [ -s "$HAK_LIST" ] || HAK_LIST="$RD/l
   cat "$RD/live/critical_seeds.txt" 2>/dev/null
 } | awk 'NF && !seen[$0]++' > /tmp/hak_in.txt
 if command -v hakrawler >/dev/null 2>&1 && [ -s /tmp/hak_in.txt ]; then
-  timeout 180 proxychains4 -q bash -c "cat '/tmp/hak_in.txt' | hakrawler -subs -u -insecure -t 12 -timeout 12" > "$RD/urls/hakrawler.txt" 2>>"$RD/logs/hakrawler.log" || true
+  timeout $(scale_timeout 180) proxychains4 -q bash -c "cat '/tmp/hak_in.txt' | hakrawler -subs -u -insecure -t 12 -timeout 12" > "$RD/urls/hakrawler.txt" 2>>"$RD/logs/hakrawler.log" || true
   hak_n=$(wc -l < "$RD/urls/hakrawler.txt" 2>/dev/null || echo 0)
   if [ "${hak_n:-0}" -lt 30 ]; then
     echo "⚠️ hakrawler via Tor weak ($hak_n) — DIRECT retry..."
-    timeout 150 bash -c "cat '/tmp/hak_in.txt' | hakrawler -subs -u -insecure -t 12 -timeout 12" >> "$RD/urls/hakrawler.txt" 2>>"$RD/logs/hakrawler.log" || true
+    timeout $(scale_timeout 150) bash -c "cat '/tmp/hak_in.txt' | hakrawler -subs -u -insecure -t 12 -timeout 12" >> "$RD/urls/hakrawler.txt" 2>>"$RD/logs/hakrawler.log" || true
     sort -u "$RD/urls/hakrawler.txt" -o "$RD/urls/hakrawler.txt" 2>/dev/null || true
   fi
 else
@@ -168,11 +186,11 @@ GS_LIST="$RD/live/expensive_targets.txt"; [ -s "$GS_LIST" ] || GS_LIST="$RD/live
   cat "$RD/live/critical_seeds.txt" 2>/dev/null
 } | awk 'NF && !seen[$0]++' > /tmp/gs_in.txt
 if command -v gospider >/dev/null 2>&1 && [ -s /tmp/gs_in.txt ]; then
-  timeout 240 proxychains4 -q gospider -S /tmp/gs_in.txt -t 8 -d 3 --js --sitemap --robots -a -w -c 8 2>>"$RD/logs/gospider.log" | grep -Eo 'https?://[^[:space:]]+' | sort -u > "$RD/urls/gospider.txt" || true
+  timeout $(scale_timeout 240) proxychains4 -q gospider -S /tmp/gs_in.txt -t 8 -d 3 --js --sitemap --robots -a -w -c 8 2>>"$RD/logs/gospider.log" | grep -Eo 'https?://[^[:space:]]+' | sort -u > "$RD/urls/gospider.txt" || true
   gs_n=$(wc -l < "$RD/urls/gospider.txt" 2>/dev/null || echo 0)
   if [ "${gs_n:-0}" -lt 50 ]; then
     echo "⚠️ gospider via Tor weak ($gs_n) — DIRECT retry..."
-    timeout 200 gospider -S /tmp/gs_in.txt -t 8 -d 3 --js --sitemap --robots -a -w -c 8 2>>"$RD/logs/gospider.log" | grep -Eo 'https?://[^[:space:]]+' | sort -u >> "$RD/urls/gospider.txt" || true
+    timeout $(scale_timeout 200) gospider -S /tmp/gs_in.txt -t 8 -d 3 --js --sitemap --robots -a -w -c 8 2>>"$RD/logs/gospider.log" | grep -Eo 'https?://[^[:space:]]+' | sort -u >> "$RD/urls/gospider.txt" || true
     sort -u "$RD/urls/gospider.txt" -o "$RD/urls/gospider.txt" 2>/dev/null || true
   fi
 else
