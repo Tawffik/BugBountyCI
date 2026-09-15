@@ -1215,7 +1215,7 @@ jobs:
 
       - name: "🔓 Port Scanning"
         continue-on-error: true
-        timeout-minutes: 12
+        timeout-minutes: 25
         run: |
           RD="results/${{ env.TIMESTAMP }}"
           INPUT="$RD/subdomains/all_subs.txt"
@@ -1306,6 +1306,24 @@ jobs:
           : > "$RD/live/interesting.txt"
           : > "$RD/live/interesting_ranked.txt"
           if [ -s "$RD/live/live.txt" ]; then
+            # BUGFIX (2026-09-14): this while-loop does 8+ regex matches per
+            # line in plain bash - fine for hundreds of hosts, but confirmed
+            # on binance.com (tens of thousands of live.txt entries after
+            # port-enrichment) to still be running when this step's
+            # timeout-minutes killed it mid-way, before the critical-seeds
+            # merge at the end of this step ever ran - which is how live.txt
+            # ended up completely empty in that run despite port-enrichment
+            # having already populated it. Capping the ranking pass bounds
+            # this step's worst-case runtime regardless of target size;
+            # scan_order.txt/expensive_targets.txt below still cover the
+            # full live.txt via the union merges.
+            RANK_INPUT="$RD/live/live.txt"
+            rank_total=$(wc -l < "$RD/live/live.txt" 2>/dev/null || echo 0)
+            if [ "${rank_total:-0}" -gt 5000 ]; then
+              head -5000 "$RD/live/live.txt" > /tmp/rank_input.txt
+              RANK_INPUT=/tmp/rank_input.txt
+              echo "ℹ️ live.txt has $rank_total hosts - ranking pass capped to first 5000 to bound step runtime"
+            fi
             while IFS= read -r url; do
               [ -z "$url" ] && continue
               host=$(echo "$url" | sed -E 's#https?://##' | cut -d/ -f1 | cut -d: -f1)
@@ -1327,7 +1345,7 @@ jobs:
                 score=$((score+25))
               fi
               echo "${score} ${url}"
-            done < "$RD/live/live.txt" | sort -rn | tee "$RD/live/interesting_ranked.txt" | awk '$1>=40 {print $2}' > "$RD/live/interesting.txt" || true
+            done < "$RANK_INPUT" | sort -rn | tee "$RD/live/interesting_ranked.txt" | awk '$1>=40 {print $2}' > "$RD/live/interesting.txt" || true
             # Ensure we always have something: if nothing scored high, take top 15 by score
             if [ ! -s "$RD/live/interesting.txt" ]; then
               awk '{print $2}' "$RD/live/interesting_ranked.txt" 2>/dev/null | head -15 > "$RD/live/interesting.txt" || true
@@ -1379,17 +1397,23 @@ jobs:
             cat "$RD/live/critical_seeds.txt" 2>/dev/null
             cat "$RD/live/expensive_targets.txt" 2>/dev/null
           } | awk 'NF && !seen[$0]++' > /tmp/expensive_merged.txt
-          mv /tmp/expensive_merged.txt "$RD/live/expensive_targets.txt"
+          # BUGFIX (2026-09-14): these three merges used to `mv` unconditionally.
+          # If this step is killed (timeout-minutes) mid-write, or any upstream
+          # `cat` in the { } group above fails, the merged temp file can end up
+          # empty - and an unconditional mv then replaces a previously-good,
+          # non-empty file with nothing. Only replace when the new merge
+          # actually has content; otherwise leave the existing file untouched.
+          [ -s /tmp/expensive_merged.txt ] && mv /tmp/expensive_merged.txt "$RD/live/expensive_targets.txt"
           {
             cat "$RD/live/critical_seeds.txt" 2>/dev/null
             cat "$RD/live/scan_order.txt" 2>/dev/null
           } | awk 'NF && !seen[$0]++' > /tmp/scan_order_merged.txt
-          mv /tmp/scan_order_merged.txt "$RD/live/scan_order.txt"
+          [ -s /tmp/scan_order_merged.txt ] && mv /tmp/scan_order_merged.txt "$RD/live/scan_order.txt"
           {
             cat "$RD/live/live.txt" 2>/dev/null
             cat "$RD/live/critical_seeds.txt" 2>/dev/null
           } | awk 'NF && !seen[$0]++' > /tmp/live_merged.txt
-          mv /tmp/live_merged.txt "$RD/live/live.txt"
+          [ -s /tmp/live_merged.txt ] && mv /tmp/live_merged.txt "$RD/live/live.txt"
           echo "critical_seeds=$(wc -l < "$RD/live/critical_seeds.txt" 2>/dev/null || echo 0)" > "$RD/meta/critical_seeds_note.txt"
           echo "✅ Critical seeds injected: $(wc -l < "$RD/live/critical_seeds.txt") URLs (live now $(wc -l < "$RD/live/live.txt"))"
 
