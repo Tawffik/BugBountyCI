@@ -807,7 +807,7 @@ jobs:
 
       - name: "🌐 Subdomain Enumeration"
         continue-on-error: true
-        timeout-minutes: 18
+        timeout-minutes: 35
         run: |
           RD="results/${{ env.TIMESTAMP }}"
           TARGET="${{ env.TARGET }}"
@@ -934,8 +934,28 @@ jobs:
           echo "🔄 Merging passive sources..."
           cat "$RD"/subdomains/*.txt 2>/dev/null | tr -d '\r' | sed 's/^\*\.//' | grep -iE "\.${TARGET}\$|^${TARGET}\$" | tr '[:upper:]' '[:lower:]' | sort -u > /tmp/raw_subs.txt
 
+          # --- Adaptive DNS-resolution timeout (2026-09-15) ---
+          # Confirmed on a real run against binance.com: chaos.txt alone
+          # returned 16,994 raw candidates (~18,300 total after merging all
+          # sources), and dnsx resolving them at -t 200 inside a fixed
+          # "timeout 240" got killed mid-resolution, leaving resolved.txt
+          # (and therefore all_subs.txt) with next to nothing despite the
+          # raw candidate files clearly having data - the exact same class
+          # of bug already fixed for URL Collection's crawler timeouts, just
+          # in the DNS-resolution step instead. Scale the resolve timeout
+          # with candidate volume so a large candidate list gets a
+          # proportionally longer window instead of being silently starved.
+          RAW_SUBS_COUNT=$(wc -l < /tmp/raw_subs.txt 2>/dev/null || echo 0)
+          RESOLVE_TIMEOUT=240
+          if [ "${RAW_SUBS_COUNT:-0}" -gt 10000 ]; then
+            RESOLVE_TIMEOUT=900
+          elif [ "${RAW_SUBS_COUNT:-0}" -gt 3000 ]; then
+            RESOLVE_TIMEOUT=480
+          fi
+          echo "ℹ️ DNS resolution timeout: ${RESOLVE_TIMEOUT}s (raw candidates=${RAW_SUBS_COUNT:-0})"
+
           echo "✅ Resolving merged list (drops dead/decommissioned names from crt.sh etc.)..."
-          [ -s /tmp/raw_subs.txt ] && timeout 240 bash -c 'cat /tmp/raw_subs.txt | dnsx -silent -resp -a -t 200 | awk "{print \$1}" | sort -u' > "$RD/subdomains/resolved.txt" 2>>"$RD/logs/dnsx.log" || touch "$RD/subdomains/resolved.txt"
+          [ -s /tmp/raw_subs.txt ] && timeout "$RESOLVE_TIMEOUT" bash -c 'cat /tmp/raw_subs.txt | dnsx -silent -resp -a -t 200 | awk "{print \$1}" | sort -u' > "$RD/subdomains/resolved.txt" 2>>"$RD/logs/dnsx.log" || touch "$RD/subdomains/resolved.txt"
           # BUGFIX: "-resp-only" strips the hostname entirely and prints ONLY the
           # resolved IP (confirmed against ProjectDiscovery's own documented example
           # output) - meaning every downstream step was silently testing bare IP
