@@ -1235,7 +1235,7 @@ jobs:
 
       - name: "🔓 Port Scanning"
         continue-on-error: true
-        timeout-minutes: 25
+        timeout-minutes: 35
         run: |
           RD="results/${{ env.TIMESTAMP }}"
           INPUT="$RD/subdomains/all_subs.txt"
@@ -1247,7 +1247,18 @@ jobs:
             # top-ports 100 + explicit high-value ports (admin panels, DBs, remote access,
             # containers, CI) that sometimes sit outside the generic top-100 ranking
             HIGH_VALUE_PORTS="81,3000,3001,4000,4040,4443,5000,5432,5601,5900,6379,7001,8000,8080,8081,8443,8888,9000,9090,9200,9418,10443,27017"
-            sudo proxychains4 -q "$(command -v naabu)" -l "$INPUT" -top-ports 100 -p "$HIGH_VALUE_PORTS" -exclude-cdn -silent -rate 800 -c 15 -o "$RD/live/ports.txt" 2>>"$RD/logs/naabu.log" || true
+            # BUGFIX (2026-09-16): this naabu call had no timeout wrapper at
+            # all - bounded only by the whole step's timeout-minutes.
+            # Confirmed on binance.com (4,362 subdomains, scanning ~113
+            # ports each through Tor): it silently consumed the entire step
+            # budget, leaving zero time for the ranking/critical-seeds tail
+            # below - which is exactly why expensive_targets.txt,
+            # scan_order.txt and critical_seeds_note.txt all ended up
+            # missing on that run, starving Nuclei/Arjun/Corsy of their
+            # prioritized target lists (Nuclei fell back to scanning just 8
+            # hosts out of 8,728 live ones). Capping naabu itself guarantees
+            # the rest of this step always gets a real chance to run.
+            timeout 600 sudo proxychains4 -q "$(command -v naabu)" -l "$INPUT" -top-ports 100 -p "$HIGH_VALUE_PORTS" -exclude-cdn -silent -rate 800 -c 15 -o "$RD/live/ports.txt" 2>>"$RD/logs/naabu.log" || true
             echo "✅ Open host:port pairs: $(wc -l < "$RD/live/ports.txt" 2>/dev/null || echo 0)"
             awk -F: '$2!=80 && $2!=443 {print}' "$RD/live/ports.txt" 2>/dev/null > /tmp/nonstd_ports.txt
             if [ -s /tmp/nonstd_ports.txt ]; then
