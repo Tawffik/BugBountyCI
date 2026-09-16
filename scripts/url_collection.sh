@@ -130,7 +130,14 @@ echo "🔍 Waymore (passive URL harvest — complements wayback/gau)..."
 touch "$RD/urls/waymore.txt"
 if command -v waymore >/dev/null 2>&1; then
   mkdir -p /tmp/waymore_out
-  timeout $(scale_timeout 240) waymore -i "$TARGET" -mode U -oU "$RD/urls/waymore.txt" -o /tmp/waymore_out -p 2 -r 2 2>>"$RD/logs/waymore.log" || true
+  # BUGFIX (2026-09-16): "-o /tmp/waymore_out" is not a real waymore flag in
+  # the installed version - confirmed in a real run's log: "waymore: error:
+  # ambiguous option: -o could match -oU, -oR, -ow, -oijs". argparse's
+  # prefix-matching rejected it outright, so waymore exited immediately
+  # with zero output every single time this ran, silently, since the
+  # surrounding `|| true` swallows the failure. -oU already writes the URL
+  # list directly to the target file, so the extra flag was never needed.
+  timeout $(scale_timeout 240) waymore -i "$TARGET" -mode U -oU "$RD/urls/waymore.txt" -p 2 -r 2 2>>"$RD/logs/waymore.log" || true
   if [ ! -s "$RD/urls/waymore.txt" ]; then
     find /tmp/waymore_out -type f \( -name '*.txt' -o -name '*urls*' \) -exec cat {} + 2>/dev/null \
       | grep -Eo 'https?://[^[:space:]]+' | sort -u > "$RD/urls/waymore.txt" || true
@@ -312,6 +319,16 @@ fi
 sort -u -o /tmp/urls_merged.txt /tmp/urls_merged.txt 2>/dev/null || true
 merged_n=$(wc -l < /tmp/urls_merged.txt 2>/dev/null || echo 0)
 echo "ℹ️ Merged URL candidates before uro: $merged_n"
+# BUGFIX (2026-09-16): write the raw merge to all.txt *before* the slow uro
+# pass, not just after it. Confirmed on binance.com (8,728 live hosts,
+# TIMEOUT_SCALE=2): wayback.txt alone had 311KB of real data, but this
+# step's timeout-minutes killed the whole run somewhere after the merge
+# loop - all.txt was still sitting at its initial empty `touch` because
+# nothing had written to it yet at that point, so all that wayback data
+# never made it to disk. uro (dedup/normalize) can still improve on this
+# below, but if it's slow or the step gets killed first, this early write
+# means all.txt already has real content instead of nothing.
+[ -s /tmp/urls_merged.txt ] && cp /tmp/urls_merged.txt "$RD/urls/all.txt"
 timeout 90 uro < /tmp/urls_merged.txt > /tmp/urls_uro.txt 2>/dev/null || true
 if [ -s /tmp/urls_uro.txt ]; then
   cp /tmp/urls_uro.txt "$RD/urls/all.txt"
