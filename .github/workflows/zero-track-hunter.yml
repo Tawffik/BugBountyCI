@@ -823,9 +823,19 @@ jobs:
           # see the URL Collection step) came back completely empty on two different,
           # well-established targets, which third-party archives of that size just
           # don't normally return zero for.
-          subfinder -d "$TARGET" -silent -all -o "$RD/subdomains/subfinder.txt" 2>>"$RD/logs/subfinder.log" || true
+          # BUGFIX (2026-09-16): unlike findomain right below (which already
+          # has timeout 120) and every network tool in url_collection.sh /
+          # the Port Scanning naabu call, these two had no timeout wrapper
+          # at all - the exact pattern already confirmed to silently starve
+          # a step's later, more important work when one tool call runs long
+          # (naabu ate Port Scanning's whole budget; the same could happen
+          # here to the DNS-resolution pass right after these two, which now
+          # depends on getting real time per the adaptive-timeout fix above).
+          # subfinder -all in particular is documented as much slower than
+          # its default source set.
+          timeout 180 subfinder -d "$TARGET" -silent -all -o "$RD/subdomains/subfinder.txt" 2>>"$RD/logs/subfinder.log" || true
           echo "🔍 Assetfinder..."
-          assetfinder --subs-only "$TARGET" > "$RD/subdomains/assetfinder.txt" 2>>"$RD/logs/assetfinder.log" || true
+          timeout 90 assetfinder --subs-only "$TARGET" > "$RD/subdomains/assetfinder.txt" 2>>"$RD/logs/assetfinder.log" || true
           echo "🔍 crt.sh..."
           curl -s --max-time 30 "https://crt.sh/?q=%25.${TARGET}&output=json" | jq -r '.[].name_value' 2>/dev/null | tr ',' '\n' | sed 's/^\*\.//' | sort -u > "$RD/subdomains/crtsh.txt" 2>/dev/null || true
           echo "🔍 Findomain (passive)..."
