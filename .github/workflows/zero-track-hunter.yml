@@ -1439,7 +1439,7 @@ jobs:
 
       - name: "📜 URL Collection"
         continue-on-error: true
-        timeout-minutes: 50
+        timeout-minutes: 70
         run: bash scripts/url_collection.sh
 
       - name: "📦 JavaScript Analysis"
