@@ -2566,40 +2566,60 @@ jobs:
 
       - name: "🔎 Content Discovery Fuzzing"
         continue-on-error: true
-        timeout-minutes: 14
+        timeout-minutes: 20
         run: |
           RD="results/${{ env.TIMESTAMP }}"
-          mkdir -p "$RD/fuzzing"
-          # BUGFIX: same unnecessary-Tor category - this fetches a public wordlist
-          # from GitHub, not the target itself.
-          curl -sL --max-time 15 "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/common.txt" -o /tmp/content_wordlist.txt 2>/dev/null || true
+          mkdir -p "$RD/fuzzing" "$RD/smart-fuzzing"
           : > "$RD/fuzzing/discovered.txt"
-          FUZZ_INPUT="$RD/live/expensive_targets.txt"
-          [ -s "$FUZZ_INPUT" ] || FUZZ_INPUT="$RD/live/scan_order.txt"
-          [ -s "$FUZZ_INPUT" ] || FUZZ_INPUT="$RD/live/live.txt"
-          if [ -s /tmp/content_wordlist.txt ] && [ -s "$FUZZ_INPUT" ] && command -v ffuf >/dev/null; then
-            mode="${HUNTING_MODE:-normal}"
-            budget=$({ [ "$mode" = "light" ] && echo 240; } || { [ "$mode" = "aggressive" ] && echo 900; } || echo 500)
-            total=$(wc -l < "$FUZZ_INPUT")
-            per_host=60
-            i=0
-            SECONDS=0
-            echo "⏱️ Time-budget driven (${budget}s, ~${per_host}s/host) across $total hosts (interesting first)"
-            while IFS= read -r host; do
-              host="$(echo "$host" | tr -d '\r' | xargs)"; [ -z "$host" ] && continue
-              if [ "$SECONDS" -ge "$budget" ]; then
-                echo "⏱️ Time budget reached after $i/$total host(s)"
-                break
-              fi
-              i=$((i+1))
-              timeout "$per_host" proxychains4 -q ffuf -w /tmp/content_wordlist.txt -u "${host}/FUZZ" -H "User-Agent: $SCAN_USER_AGENT" \
-                -mc 200,204,301,302,307,401,403 -fs 0 -ac -t 8 -rate 20 -timeout 8 -of json -o /tmp/ffuf_out.json -s 2>>"$RD/logs/ffuf.log" || true
-              jq -r '.results[]? | select((.length // 0) > 0) | "\(.url) [\(.status)] \(.length) bytes"' /tmp/ffuf_out.json 2>/dev/null >> "$RD/fuzzing/discovered.txt" || true
-              rm -f /tmp/ffuf_out.json
-            done < "$FUZZ_INPUT"
-            sort -u -o "$RD/fuzzing/discovered.txt" "$RD/fuzzing/discovered.txt"
+
+          # V1 Target-Aware Adaptive Hunter Engine (pipeline/smart-fuzzing/):
+          # builds a target-specific wordlist from this run's own recon
+          # (technology, JS/API vocabulary, parameters) + a curated Wolf
+          # selection, then fuzzes with it and classifies hits against a
+          # per-host baseline instead of trusting raw status codes. See
+          # pipeline/smart-fuzzing/README.md for what V1 does and doesn't do.
+          SMART_FUZZ_USE_TOR=true HUNTING_MODE="${{ env.HUNTING_MODE }}" \
+            RD="$RD" TARGET="${{ env.TARGET }}" SCAN_USER_AGENT="$SCAN_USER_AGENT" \
+            bash scripts/smart_fuzzing.sh 2>>"$RD/logs/smart_fuzzing.log" || true
+
+          if [ -s "$RD/smart-fuzzing/interesting.txt" ]; then
+            grep -E '^\S+ \[[0-9]+\]' "$RD/smart-fuzzing/interesting.txt" >> "$RD/fuzzing/discovered.txt" || true
           fi
-          echo "✅ Content discovery hits: $(wc -l < "$RD/fuzzing/discovered.txt" 2>/dev/null || echo 0) (from $i/$total host(s))"
+
+          # Fallback: if the smart wordlist step produced nothing usable
+          # (Wolf unreachable, recon too thin, etc.) keep the original
+          # common.txt behavior so this step never regresses to zero.
+          if [ ! -s "$RD/fuzzing/discovered.txt" ]; then
+            echo "ℹ️ Smart fuzzing produced no results - falling back to common.txt"
+            curl -sL --max-time 15 "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/common.txt" -o /tmp/content_wordlist.txt 2>/dev/null || true
+            FUZZ_INPUT="$RD/live/expensive_targets.txt"
+            [ -s "$FUZZ_INPUT" ] || FUZZ_INPUT="$RD/live/scan_order.txt"
+            [ -s "$FUZZ_INPUT" ] || FUZZ_INPUT="$RD/live/live.txt"
+            if [ -s /tmp/content_wordlist.txt ] && [ -s "$FUZZ_INPUT" ] && command -v ffuf >/dev/null; then
+              mode="${HUNTING_MODE:-normal}"
+              budget=$({ [ "$mode" = "light" ] && echo 240; } || { [ "$mode" = "aggressive" ] && echo 900; } || echo 500)
+              total=$(wc -l < "$FUZZ_INPUT")
+              per_host=60
+              i=0
+              SECONDS=0
+              echo "⏱️ Time-budget driven (${budget}s, ~${per_host}s/host) across $total hosts (interesting first)"
+              while IFS= read -r host; do
+                host="$(echo "$host" | tr -d '\r' | xargs)"; [ -z "$host" ] && continue
+                if [ "$SECONDS" -ge "$budget" ]; then
+                  echo "⏱️ Time budget reached after $i/$total host(s)"
+                  break
+                fi
+                i=$((i+1))
+                timeout "$per_host" proxychains4 -q ffuf -w /tmp/content_wordlist.txt -u "${host}/FUZZ" -H "User-Agent: $SCAN_USER_AGENT" \
+                  -mc 200,204,301,302,307,401,403 -fs 0 -ac -t 8 -rate 20 -timeout 8 -of json -o /tmp/ffuf_out.json -s 2>>"$RD/logs/ffuf.log" || true
+                jq -r '.results[]? | select((.length // 0) > 0) | "\(.url) [\(.status)] \(.length) bytes"' /tmp/ffuf_out.json 2>/dev/null >> "$RD/fuzzing/discovered.txt" || true
+                rm -f /tmp/ffuf_out.json
+              done < "$FUZZ_INPUT"
+            fi
+          fi
+
+          sort -u -o "$RD/fuzzing/discovered.txt" "$RD/fuzzing/discovered.txt"
+          echo "✅ Content discovery hits: $(wc -l < "$RD/fuzzing/discovered.txt" 2>/dev/null || echo 0)"
 
       - name: "🔌 API Discovery"
         continue-on-error: true
