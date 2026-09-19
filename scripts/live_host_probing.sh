@@ -88,14 +88,23 @@ probe_hosts() {
       # confirmed on a real run (superdrug.com) where tech.json came back
       # completely empty (0 bytes) and every downstream consumer (Nuclei's
       # -as tech-aware pass, WordPress detection, AI triage context, and
-      # smart-fuzzing's wolf_selector.py) silently got nothing. Note: this
-      # is necessary but may not be sufficient on its own - the same run's
-      # comments elsewhere in this pipeline already document proxychains/
-      # Tor httpx calls sometimes returning 0 bytes for an entire target
-      # (see zero-track-hunter.yml's "DIRECT first" nuclei comment); if
-      # tech.json is still empty after this fix on a given run, that's the
-      # separate, pre-existing Tor-reliability issue, not a missing flag.
-      proxychains4 -q httpx -u "$host" -silent -status-code -title -web-server -ip -cdn -td -follow-redirects "${BROWSER_HEADERS[@]}"                   -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}"                   -timeout "$timeout_s" -retries "$retries_n" -json                   2>>"$RD/logs/httpx.log" > "$tmp_dir/$(printf '%05d' $idx).json" || true
+      # smart-fuzzing's wolf_selector.py) silently got nothing.
+      out_file="$tmp_dir/$(printf '%05d' $idx).json"
+      proxychains4 -q httpx -u "$host" -silent -status-code -title -web-server -ip -cdn -td -follow-redirects "${BROWSER_HEADERS[@]}"                   -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}"                   -timeout "$timeout_s" -retries "$retries_n" -json                   2>>"$RD/logs/httpx.log" > "$out_file" || true
+      # Per-host DIRECT fallback: Tor is kept as the default path
+      # deliberately (it was added to get past IP-based blocking of
+      # well-known cloud/CI ranges that some WAFs reject outright), but
+      # proxychains/Tor is also documented elsewhere in this pipeline as
+      # occasionally returning 0 bytes for an entire target with no error
+      # (see zero-track-hunter.yml's "DIRECT first" nuclei comment).
+      # Rather than picking one path pipeline-wide, retry DIRECT only for
+      # the specific host that Tor actually failed on - this keeps Tor's
+      # IP-diversity benefit where it works and stops individual hosts
+      # from silently going empty when it doesn't.
+      if [ ! -s "$out_file" ]; then
+        echo "ℹ️ Tor probe returned nothing for $host, retrying DIRECT..." >> "$RD/logs/httpx.log"
+        httpx -u "$host" -silent -status-code -title -web-server -ip -cdn -td -follow-redirects "${BROWSER_HEADERS[@]}"               -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}"               -timeout "$timeout_s" -retries "$retries_n" -json               2>>"$RD/logs/httpx.log" > "$out_file" || true
+      fi
     ) &
     running=$((running + 1))
     if [ "$running" -ge "$concurrency" ]; then
