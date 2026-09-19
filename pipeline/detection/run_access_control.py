@@ -6,12 +6,10 @@ The CLI entrypoint that finally connects AccessControlEngine to a real
 HTTP prober and the actual pipeline. Everything before this file was
 either a skeleton (engine.py) or tested only with injected fake probers.
 
-Prober behavior mirrors pipeline/smart-fuzzing/baseline.py and
-scripts/live_host_probing.sh's established pattern in this repo: Tor
-(proxychains4) by default, with a per-request DIRECT fallback if Tor
-returns nothing — same reasoning as those two files (Tor for IP-based
-WAF-block avoidance, DIRECT fallback because Tor is documented elsewhere
-in this pipeline as occasionally returning 0 bytes).
+Prober behavior deliberately does NOT mirror pipeline/smart-fuzzing/
+baseline.py's Tor-first pattern — see make_prober()'s docstring for why
+this engine specifically needs DIRECT as the ground truth, with Tor only
+as a last-resort fallback when DIRECT gets no response at all.
 
 Output:
   <RD>/detection/engine_results.json   (full evidence, from engine.py)
@@ -24,7 +22,6 @@ Output:
 import argparse
 import json
 import os
-import re
 import subprocess
 import sys
 
@@ -35,8 +32,27 @@ from pipeline.detection.access_control_engine import AccessControlEngine
 
 
 def make_prober(user_agent: str, use_tor: bool, timeout: int):
-    def prober(url: str):
-        cmd_prefix = ["proxychains4", "-q"] if use_tor else []
+    """DIRECT is the ground truth for this engine, deliberately the
+    OPPOSITE priority from baseline.py/live_host_probing.sh's Tor-first
+    approach. Reasoning: this engine's whole job is comparing a blocked
+    baseline against a mutation response — if the baseline came from one
+    network path and the mutation check came from a different one (Tor
+    vs DIRECT), a WAF that treats Tor exit nodes differently (a common,
+    real behavior) can make an unrelated network-path difference look
+    like a signal in EITHER direction:
+      - a real bypass gets masked (Tor's own block page matches the
+        baseline's status, so nothing looks different)
+      - or an unrelated Tor-vs-DIRECT difference gets misread as a LEAD/
+        HIGH_SIGNAL that has nothing to do with access control at all
+    For initial host discovery (live_host_probing.sh) that risk doesn't
+    apply the same way - there's no per-request baseline being compared
+    against. Here, consistency between the two probes being diffed
+    matters more than IP-diversity, and this engine's own request volume
+    is small and capped (max_endpoints x mutations), so doubling nothing
+    - DIRECT is simply tried first - is cheap. Tor is kept ONLY as a
+    fallback for the rare case DIRECT itself gets no response at all.
+    """
+    def _curl(cmd_prefix, url):
         cmd = cmd_prefix + [
             "curl", "-sk", "--max-time", str(timeout), "-L", "--max-redirs", "0",
             "-H", f"User-Agent: {user_agent}",
@@ -47,34 +63,25 @@ def make_prober(user_agent: str, use_tor: bool, timeout: int):
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout + 5)
             out = result.stdout
         except Exception:
-            out = ""
-
-        parts = out.rsplit("\n", 2) if out else []
-        status = None
-        if len(parts) == 3:
-            body, status_str, content_type = parts
-            if status_str.strip().isdigit():
-                status = int(status_str.strip())
-        # Tor attempt produced nothing usable -> DIRECT fallback, same
-        # per-request pattern already used in live_host_probing.sh.
-        if status is None and use_tor:
-            direct_cmd = cmd[2:]  # strip "proxychains4 -q"
-            try:
-                result = subprocess.run(direct_cmd, capture_output=True, text=True, timeout=timeout + 5)
-                out = result.stdout
-            except Exception:
-                return None
-            parts = out.rsplit("\n", 2) if out else []
-            if len(parts) != 3:
-                return None
-            body, status_str, content_type = parts
-            if not status_str.strip().isdigit():
-                return None
-            status = int(status_str.strip())
-
-        if status is None:
             return None
-        return {"status": status, "length": len(body), "content_type": content_type.strip() or "unknown"}
+        parts = out.rsplit("\n", 2) if out else []
+        if len(parts) != 3:
+            return None
+        body, status_str, content_type = parts
+        if not status_str.strip().isdigit():
+            return None
+        return {"status": int(status_str.strip()), "length": len(body),
+                "content_type": content_type.strip() or "unknown"}
+
+    def prober(url: str):
+        result = _curl([], url)  # DIRECT first, always - the ground truth for this engine
+        if result is not None:
+            return result
+        if use_tor:
+            # DIRECT got nothing at all - Tor is better than no answer,
+            # but this is the exception path, not the normal one.
+            return _curl(["proxychains4", "-q"], url)
+        return None
 
     return prober
 
