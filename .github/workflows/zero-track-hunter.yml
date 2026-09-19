@@ -2621,6 +2621,24 @@ jobs:
           sort -u -o "$RD/fuzzing/discovered.txt" "$RD/fuzzing/discovered.txt"
           echo "✅ Content discovery hits: $(wc -l < "$RD/fuzzing/discovered.txt" 2>/dev/null || echo 0)"
 
+      - name: "🔐 Access-Control Intelligence (V1)"
+        continue-on-error: true
+        timeout-minutes: 10
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          mkdir -p "$RD/detection"
+          # First real engine on pipeline/detection/'s Detection Engine
+          # Framework. Reads the 401/403 hits Content Discovery Fuzzing
+          # just found (above) and tests a small set of safe path
+          # mutations against each, with replay verification before
+          # anything is promoted to HIGH_SIGNAL. See
+          # pipeline/detection/README.md and access_control_engine.py.
+          # Safe to run even if response_diffs.json doesn't exist yet -
+          # the engine's own prerequisites() check skips cleanly.
+          RD="$RD" TARGET="${{ env.TARGET }}" SCAN_USER_AGENT="$SCAN_USER_AGENT" \
+            ACCESS_CONTROL_USE_TOR=true \
+            bash scripts/run_access_control.sh 2>>"$RD/logs/access_control.log" || true
+
       - name: "🔌 API Discovery"
         continue-on-error: true
         timeout-minutes: 10
