@@ -90,7 +90,24 @@ probe_hosts() {
       # -as tech-aware pass, WordPress detection, AI triage context, and
       # smart-fuzzing's wolf_selector.py) silently got nothing.
       out_file="$tmp_dir/$(printf '%05d' $idx).json"
-      proxychains4 -q httpx -u "$host" -silent -status-code -title -web-server -ip -cdn -td -follow-redirects "${BROWSER_HEADERS[@]}"                   -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}"                   -timeout "$timeout_s" -retries "$retries_n" -json                   2>>"$RD/logs/httpx.log" > "$out_file" || true
+      t_start=$(date +%s)
+      tor_exit=0
+      proxychains4 -q httpx -u "$host" -silent -status-code -title -web-server -ip -cdn -td -follow-redirects "${BROWSER_HEADERS[@]}"                   -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}"                   -timeout "$timeout_s" -retries "$retries_n" -json                   2>>"$RD/logs/httpx.log" > "$out_file" || tor_exit=$?
+      t_end=$(date +%s)
+      # DIAGNOSTIC (temporary, not silently swallowed like before): the
+      # last real run had EVERY host come back with 0 bytes on BOTH the Tor
+      # and DIRECT paths, with zero stderr either - impossible to tell from
+      # that alone whether httpx errored, timed out silently, or got
+      # rate-limited/dropped by the target's WAF for this specific
+      # concurrent-probe traffic pattern (plain single curl calls elsewhere
+      # in this pipeline, e.g. baseline.py, succeed fine against the same
+      # targets - so this is NOT a general connectivity failure). This line
+      # captures the actual exit code and timing so the next real run
+      # answers that question with evidence instead of another guess.
+      # (tor_exit captured via `|| tor_exit=$?` specifically so `set -e`
+      # at the top of this script does not kill the subshell before this
+      # diagnostic line can run.)
+      echo "[diag] pass=$output_file host=$host path=tor exit=$tor_exit duration=$((t_end - t_start))s out_bytes=$(wc -c < "$out_file" 2>/dev/null || echo 0)" >> "$RD/logs/httpx.log"
       # Per-host DIRECT fallback: Tor is kept as the default path
       # deliberately (it was added to get past IP-based blocking of
       # well-known cloud/CI ranges that some WAFs reject outright), but
@@ -103,7 +120,11 @@ probe_hosts() {
       # from silently going empty when it doesn't.
       if [ ! -s "$out_file" ]; then
         echo "ℹ️ Tor probe returned nothing for $host, retrying DIRECT..." >> "$RD/logs/httpx.log"
-        httpx -u "$host" -silent -status-code -title -web-server -ip -cdn -td -follow-redirects "${BROWSER_HEADERS[@]}"               -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}"               -timeout "$timeout_s" -retries "$retries_n" -json               2>>"$RD/logs/httpx.log" > "$out_file" || true
+        t_start=$(date +%s)
+        direct_exit=0
+        httpx -u "$host" -silent -status-code -title -web-server -ip -cdn -td -follow-redirects "${BROWSER_HEADERS[@]}"               -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}"               -timeout "$timeout_s" -retries "$retries_n" -json               2>>"$RD/logs/httpx.log" > "$out_file" || direct_exit=$?
+        t_end=$(date +%s)
+        echo "[diag] pass=$output_file host=$host path=direct exit=$direct_exit duration=$((t_end - t_start))s out_bytes=$(wc -c < "$out_file" 2>/dev/null || echo 0)" >> "$RD/logs/httpx.log"
       fi
     ) &
     running=$((running + 1))
