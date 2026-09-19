@@ -2639,6 +2639,24 @@ jobs:
             ACCESS_CONTROL_USE_TOR=true \
             bash scripts/run_access_control.sh 2>>"$RD/logs/access_control.log" || true
 
+      - name: "🌐 Open Redirect Intelligence (V1)"
+        continue-on-error: true
+        timeout-minutes: 8
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          mkdir -p "$RD/detection"
+          # Second real engine on the Detection Engine Framework.
+          # Candidates only come from redirect-like parameters
+          # (redirect/url/next/return/...) smart-fuzzing's vocabulary.py
+          # already found evidence for in JS/URLs/parameters - never a
+          # blind guess. Uses a non-resolving RFC 2606 .invalid canary
+          # domain and never follows the redirect (-L not used), only
+          # reads the Location header. See
+          # pipeline/detection/open_redirect_engine.py.
+          RD="$RD" TARGET="${{ env.TARGET }}" SCAN_USER_AGENT="$SCAN_USER_AGENT" \
+            OPEN_REDIRECT_USE_TOR=true \
+            bash scripts/run_open_redirect.sh 2>>"$RD/logs/open_redirect.log" || true
+
       - name: "🔌 API Discovery"
         continue-on-error: true
         timeout-minutes: 10
