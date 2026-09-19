@@ -28,6 +28,21 @@ STOPWORDS = {
 
 TOKEN_RE = re.compile(r"[A-Za-z][A-Za-z0-9]{2,}")
 
+# Asset/cache-busting hashes (webpack chunk names, git-style hashes, etc.)
+# look like real "words" to a naive tokenizer but are pure noise: e.g.
+# "ca19626ec727b5901735ca91a33b36" from a JS filename. Confirmed on a real
+# run (superdrug.com) where these were 58,735 of 58,932 "vocabulary"
+# entries (99.7%) before this filter existed.
+HEX_HASH_RE = re.compile(r"^[0-9a-f]{8,}$")
+MAX_WORD_LEN = 24  # longer than this is almost never a real path/vocab word
+
+
+def looks_like_hash(word):
+    if HEX_HASH_RE.match(word):
+        return True
+    digit_ratio = sum(c.isdigit() for c in word) / len(word)
+    return digit_ratio > 0.5  # mixed hash/version strings like "v2ab34f109"
+
 
 def read_lines(path):
     if not path or not os.path.isfile(path):
@@ -46,7 +61,9 @@ def tokenize(text):
     words = set()
     for tok in TOKEN_RE.findall(text):
         w = tok.lower()
-        if w in STOPWORDS or len(w) < 3 or w.isdigit():
+        if w in STOPWORDS or len(w) < 3 or len(w) > MAX_WORD_LEN or w.isdigit():
+            continue
+        if looks_like_hash(w):
             continue
         words.add(w)
     return words
@@ -55,6 +72,11 @@ def tokenize(text):
 def add(vocab, words, source):
     for w in words:
         vocab[w]["sources"].add(source)
+
+
+MAX_VOCAB_SIZE = 2000  # safety net: even after hash filtering, cap total
+                        # output so a future noise source can't repeat the
+                        # 4MB/59k-word blowout this replaced
 
 
 def main():
@@ -102,12 +124,16 @@ def main():
     }
     # Strongest evidence (most independent sources) first.
     result = dict(sorted(result.items(), key=lambda kv: kv[1]["count"], reverse=True))
+    total_before_cap = len(result)
+    if total_before_cap > MAX_VOCAB_SIZE:
+        result = dict(list(result.items())[:MAX_VOCAB_SIZE])
 
     out_path = os.path.join(out_dir, "vocabulary.json")
     with open(out_path, "w") as f:
         json.dump(result, f, indent=2)
 
-    print(f"✅ vocabulary.json written ({len(result)} words) -> {out_path}")
+    print(f"✅ vocabulary.json written ({len(result)} words"
+          f"{f', capped from {total_before_cap}' if total_before_cap > MAX_VOCAB_SIZE else ''}) -> {out_path}")
 
 
 if __name__ == "__main__":

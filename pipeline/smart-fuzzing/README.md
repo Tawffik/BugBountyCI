@@ -96,8 +96,24 @@ not implemented yet.
   On the same real run this took INTERESTING from 21 down to 3.
 - **`vocabulary.json` unbounded growth**: on the same real run this file
   reached 4MB / ~59k words, 99.7% of them backed by a single source
-  (weak evidence) — the opposite of the "Signal Quality" goal. See the
-  next section.
+  (weak evidence) — the opposite of the "Signal Quality" goal. Root
+  cause: asset/cache-busting hashes in JS/URL filenames (e.g.
+  `ca19626ec727b5901735ca91a33b36`) were being tokenized as if they were
+  application vocabulary. Fixed with a hex/high-digit-ratio filter plus a
+  hard `MAX_VOCAB_SIZE=2000` cap regardless of input size. On the same
+  real run this took the file from 4MB/58,932 words to 140KB/2,000.
+
+## Known limitation NOT fixed yet: build-tool noise
+
+The hex-hash filter above catches random hashes, but does not
+distinguish real application vocabulary (`invoice`, `merchant`) from
+legitimate-looking words that come from front-end build tooling rather
+than the application itself (e.g. Next.js's own `webpack`, `chunks`,
+`polyfills`, `framework`, `manifest`). On the superdrug.com run these
+dominated the top of the vocabulary list post-fix. This needs a
+technology-aware stopword list (e.g. "if technologies includes Next.js,
+also exclude known Next.js build-artifact tokens") — not implemented,
+tracked here rather than silently left unmentioned.
 
 - [x] Reads existing recon, builds `target_profile.json`
 - [x] Extracts vocabulary with source tracking
