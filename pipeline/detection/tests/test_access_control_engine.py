@@ -140,6 +140,33 @@ def test_unstable_replay_is_not_promoted():
         shutil.rmtree(tmp)
 
 
+def test_edge_error_status_is_noise_not_signal():
+    """Real bug found on the superdrug.com run: 3 of 4 candidates this
+    engine classified HIGH_SIGNAL were actually status 525 (Cloudflare
+    'SSL Handshake Failed'), triggered by the mutation breaking the
+    request at the CDN edge - not an application response at all."""
+    diffs = [{"url": "https://example.com/account.js", "status": 403, "length": 400,
+              "content_type": "text/html", "classification": "INTERESTING"}]
+    tmp = _make_results_dir_with_diffs(diffs)
+    try:
+        def prober(url):
+            # Simulates the exact real scenario: a mutation (?x=1, //,
+            # %3f) causes Cloudflare's edge to fail the TLS handshake to
+            # origin, returning its own generic error page.
+            return {"status": 525, "length": 1532, "content_type": "text/plain"}
+
+        engine = AccessControlEngine(results_dir=tmp, prober=prober)
+        result = run_engine(engine, {}, {})
+        assert not any(e.classification in ("HIGH_SIGNAL", "LEAD", "CONFIRMED") for e in result.evidence), (
+            f"a Cloudflare edge error (525) must never be classified as a signal, "
+            f"got: {[e.classification for e in result.evidence]}"
+        )
+        assert all(e.classification == "NOISE" for e in result.evidence)
+        print("  ✅ Cloudflare/CDN edge error status (525) correctly classified NOISE, not HIGH_SIGNAL")
+    finally:
+        shutil.rmtree(tmp)
+
+
 def test_against_real_superdrug_fixture():
     """The real fixture data used to fix response_diff.py's baseline bug.
     Confirms the two modules actually chain together correctly on real
@@ -184,6 +211,7 @@ if __name__ == "__main__":
         test_detect_alone_never_exceeds_lead,
         test_stable_endpoint_specific_replay_promotes_to_high_signal,
         test_unstable_replay_is_not_promoted,
+        test_edge_error_status_is_noise_not_signal,
         test_against_real_superdrug_fixture,
     ]
     failed = 0

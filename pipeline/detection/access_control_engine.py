@@ -52,6 +52,18 @@ PATH_MUTATIONS = [
 
 BLOCKED_STATUSES = (401, 403)
 
+# Cloudflare (and similar CDN/edge) infrastructure error codes: these
+# mean the EDGE couldn't reach or negotiate with the origin server at
+# all (SSL handshake failure, origin timeout, origin unreachable, ...).
+# They are not a response from the application and must never be read
+# as a "the access-control behavior changed" signal. Confirmed on a
+# real run (superdrug.com): 3 of 4 candidates this engine classified
+# HIGH_SIGNAL were actually status 525 (Cloudflare "SSL Handshake
+# Failed") triggered by the mutation itself (a query string or
+# double-slash apparently breaking the TLS/SNI negotiation at the edge)
+# - a pure infrastructure artifact, not an access-control bypass.
+EDGE_ERROR_STATUSES = set(range(520, 528))  # Cloudflare 520-527
+
 
 def _mutate_url(url: str, mutator) -> Optional[str]:
     parts = urlsplit(url)
@@ -127,6 +139,13 @@ class AccessControlEngine(DetectionEngine):
         result = self.prober(candidate.target)
         if result is None:
             return None  # prober couldn't reach it — no signal, not a failure worth reporting
+
+        if result.get("status") in EDGE_ERROR_STATUSES:
+            return Evidence(candidate=candidate, classification="NOISE",
+                             reason=f"status {result.get('status')} is a CDN/edge infrastructure error "
+                                    f"(e.g. Cloudflare 52x), not an application response — the mutation "
+                                    f"itself likely broke the request at the edge, this is not a signal",
+                             details={"mutation_response": result})
 
         reasons = []
         changed = False
