@@ -187,18 +187,43 @@ def run_engine(engine: DetectionEngine, target_profile: dict, vocabulary: dict,
 
 def run_engines(engines: Iterable[DetectionEngine], target_profile: dict, vocabulary: dict,
                  results_dir: str) -> list[EngineRunResult]:
-    """Run every given engine and write detection/engine_results.json.
+    """Run every given engine and write/merge into detection/engine_results.json.
+
+    IMPORTANT: this is called independently by multiple CLI scripts
+    within the same workflow run (run_access_control.py, then
+    run_open_redirect.py, ...) - each invocation used to run
+    engines=[just_this_one_engine]. Since the file was opened in plain
+    "w" mode, the second call would silently OVERWRITE and discard the
+    first call's results. Found during a pre-run review (not from a
+    real run's output), before any evidence was actually lost. Fixed by
+    reading any existing file first and merging by engine name, so each
+    engine's own CLI script can keep calling this independently without
+    needing to know about the others.
+
     A single broken engine is recorded (ran=False, error=...) and does
     NOT stop the others from running — matching the pipeline-wide rule
-    that one failed module never takes down the run."""
+    that one failed module never takes down the run.
+    """
     out_dir = os.path.join(results_dir, "detection")
     os.makedirs(out_dir, exist_ok=True)
+    out_path = os.path.join(out_dir, "engine_results.json")
 
     results = []
     for engine in engines:
         results.append(run_engine(engine, target_profile, vocabulary))
 
-    with open(os.path.join(out_dir, "engine_results.json"), "w") as f:
-        json.dump([r.to_dict() for r in results], f, indent=2)
+    existing = []
+    if os.path.isfile(out_path):
+        try:
+            with open(out_path, "r", errors="ignore") as f:
+                existing = json.load(f)
+        except (OSError, json.JSONDecodeError):
+            existing = []  # corrupt/unreadable existing file — don't crash, just start fresh
+
+    new_names = {r.engine for r in results}
+    merged = [e for e in existing if e.get("engine") not in new_names] + [r.to_dict() for r in results]
+
+    with open(out_path, "w") as f:
+        json.dump(merged, f, indent=2)
 
     return results

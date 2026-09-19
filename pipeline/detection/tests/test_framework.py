@@ -123,6 +123,57 @@ def test_candidate_cap_bounds_output():
     print("  ✅ max_candidates cap enforced (50 out of 10000 generated)")
 
 
+def test_multiple_run_engines_calls_merge_not_overwrite():
+    """The real bug this test catches: run_access_control.py and
+    run_open_redirect.py each call run_engines() independently, in
+    sequence, within the same workflow run. Before the fix, the second
+    call's plain 'w' file write silently discarded the first call's
+    results. Found in a pre-run code review, not from lost real data."""
+    engine_a = ToyOpenRedirectEngine(prober=lambda u: {"status": 302, "location": "https://evil.example/"})
+    engine_a.name = "engine-a"
+    engine_b = ToyOpenRedirectEngine(prober=lambda u: {"status": 302, "location": "https://evil.example/"})
+    engine_b.name = "engine-b"
+
+    profile = {"hosts": ["https://example.com"]}
+    vocabulary = {"redirect": {"sources": ["js"]}}
+
+    with tempfile.TemporaryDirectory() as tmp:
+        run_engines([engine_a], profile, vocabulary, results_dir=tmp)
+        run_engines([engine_b], profile, vocabulary, results_dir=tmp)  # separate call, like a second CLI script
+
+        with open(os.path.join(tmp, "detection", "engine_results.json")) as f:
+            written = json.load(f)
+        names = {r["engine"] for r in written}
+        assert names == {"engine-a", "engine-b"}, (
+            f"expected both engines' results preserved across separate run_engines() calls, "
+            f"got only: {names} (the second call overwrote the first)"
+        )
+        print("  ✅ two separate run_engines() calls merge results instead of the second overwriting the first")
+
+
+def test_rerunning_same_engine_replaces_only_its_own_entry():
+    """Re-running the SAME engine (e.g. a retried step) should replace
+    just that engine's old entry, not duplicate it or wipe others."""
+    engine_a = ToyOpenRedirectEngine(prober=lambda u: {"status": 302, "location": "https://evil.example/"})
+    engine_a.name = "engine-a"
+    engine_b = ToyOpenRedirectEngine(prober=lambda u: {"status": 302, "location": "https://evil.example/"})
+    engine_b.name = "engine-b"
+    profile = {"hosts": ["https://example.com"]}
+    vocabulary = {"redirect": {"sources": ["js"]}}
+
+    with tempfile.TemporaryDirectory() as tmp:
+        run_engines([engine_a], profile, vocabulary, results_dir=tmp)
+        run_engines([engine_b], profile, vocabulary, results_dir=tmp)
+        run_engines([engine_a], profile, vocabulary, results_dir=tmp)  # re-run engine-a
+
+        with open(os.path.join(tmp, "detection", "engine_results.json")) as f:
+            written = json.load(f)
+        names = [r["engine"] for r in written]
+        assert names.count("engine-a") == 1, f"engine-a should appear exactly once, appeared {names.count('engine-a')} times"
+        assert "engine-b" in names
+        print("  ✅ re-running the same engine replaces its own entry only, doesn't duplicate or wipe others")
+
+
 if __name__ == "__main__":
     tests = [
         test_prerequisites_gate_skips_engine,
@@ -131,6 +182,8 @@ if __name__ == "__main__":
         test_invalid_classification_is_rejected,
         test_broken_engine_does_not_crash_the_batch,
         test_candidate_cap_bounds_output,
+        test_multiple_run_engines_calls_merge_not_overwrite,
+        test_rerunning_same_engine_replaces_only_its_own_entry,
     ]
     failed = 0
     for t in tests:
