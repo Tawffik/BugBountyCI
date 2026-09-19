@@ -1,0 +1,114 @@
+{
+  "http://api.superdrug.com": {
+    "status": 404,
+    "length": 9,
+    "content_type": "text/html",
+    "fingerprint": "9e076f5885f5cc16a4b5aeb8de4adff5",
+    "stable": true
+  },
+  "http://app.superdrug.com": {
+    "status": 404,
+    "length": 9,
+    "content_type": "text/html",
+    "fingerprint": "9e076f5885f5cc16a4b5aeb8de4adff5",
+    "stable": true
+  },
+  "http://onlinedoctor.superdrug.com": {
+    "status": 301,
+    "length": 160,
+    "content_type": "text/html; charset=UTF-8",
+    "fingerprint": "31a9656a708e0b8d5e1585e71cd1dba5",
+    "stable": true
+  },
+  "http://superdrug.com": {
+    "status": 403,
+    "length": 375,
+    "content_type": "text/html",
+    "fingerprint": "1358cc04cffc041dd181ca1c6fbb5a42",
+    "stable": false
+  },
+  "http://www.superdrug.com": {
+    "status": 403,
+    "length": 383,
+    "content_type": "text/html",
+    "fingerprint": "fa6040e1b6f47b69f5ceeb66e74223e5",
+    "stable": false
+  },
+  "https://api.superdrug.com": {
+    "status": 404,
+    "length": 9,
+    "content_type": "text/html",
+    "fingerprint": "9e076f5885f5cc16a4b5aeb8de4adff5",
+    "stable": true
+  },
+  "https://app.superdrug.com": {
+    "status": 404,
+    "length": 9,
+    "content_type": "text/html",
+    "fingerprint": "9e076f5885f5cc16a4b5aeb8de4adff5",
+    "stable": false
+  },
+  "https://onlinedoctor.superdrug.com": {
+    "status": 403,
+    "length": 5569,
+    "content_type": "text/html; charset=UTF-8",
+    "fingerprint": "3fb97bb4ed403c01190132e7c4ad8277",
+    "stable": false
+  },
+  "https://superdrug.com": {
+    "status": 403,
+    "length": 377,
+    "content_type": "text/html",
+    "fingerprint": "ca3a4bd8f2194f7a6fd55e893c1b91f9",
+    "stable": false
+  },
+  "https://www.superdrug.com": {
+    "status": 403,
+    "length": 385,
+    "content_type": "text/html",
+    "fingerprint": "1b0f0367f5e32d50480c195145fc68d1",
+    "stable": false
+  },
+  "https://videogp-api.superdrug.com": {
+    "status": 404,
+    "length": 0,
+    "content_type": "unknown",
+    "fingerprint": "d41d8cd98f00b204e9800998ecf8427e",
+    "stable": true
+  },
+  "http://videogp-api.superdrug.com": {
+    "status": 404,
+    "length": 0,
+    "content_type": "unknown",
+    "fingerprint": "d41d8cd98f00b204e9800998ecf8427e",
+    "stable": true
+  },
+  "https://innovation.superdrug.com": {
+    "status": 403,
+    "length": 390,
+    "content_type": "text/html",
+    "fingerprint": "b98e256ceb85aef8e61a5c8dbf743b26",
+    "stable": false
+  },
+  "http://innovation.superdrug.com": {
+    "status": 403,
+    "length": 390,
+    "content_type": "text/html",
+    "fingerprint": "97591ee33601aeb220642bbcdb543784",
+    "stable": false
+  },
+  "http://appt.healthclinics.superdrug.com": {
+    "status": 301,
+    "length": 0,
+    "content_type": "unknown",
+    "fingerprint": "d41d8cd98f00b204e9800998ecf8427e",
+    "stable": true
+  },
+  "http://autodiscover.superdrug.com": {
+    "status": 500,
+    "length": 0,
+    "content_type": "unknown",
+    "fingerprint": "d41d8cd98f00b204e9800998ecf8427e",
+    "stable": true
+  }
+}
