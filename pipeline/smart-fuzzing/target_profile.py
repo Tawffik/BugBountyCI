@@ -43,6 +43,30 @@ def read_json(path):
         return None
 
 
+def read_ndjson(path):
+    """httpx's -json output is NDJSON (one JSON object per line, one per
+    host) — the same format the pipeline's own jq calls assume elsewhere
+    (e.g. the WordPress-detection step's `jq 'select(.tech!=null)...'`).
+    A plain json.load() on this file throws on anything but a single
+    host's worth of output and gets silently swallowed by a bare
+    except, which is exactly why technologies came back empty even once
+    -td was fixed in scripts/live_host_probing.sh: this file was never
+    being parsed as the multi-line format it actually is."""
+    if not path or not os.path.isfile(path):
+        return []
+    records = []
+    with open(path, "r", errors="ignore") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                records.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+    return records
+
+
 def extract_technologies(tech_json):
     """tech.json's exact shape isn't guaranteed across httpx versions, so
     this stays defensive: walk whatever structure is there and pull out
@@ -81,7 +105,7 @@ def main():
     out_dir = os.path.join(rd, "smart-fuzzing")
     os.makedirs(out_dir, exist_ok=True)
 
-    tech_json = read_json(os.path.join(rd, "live", "tech.json"))
+    tech_json = read_ndjson(os.path.join(rd, "live", "tech.json"))
     technologies = extract_technologies(tech_json)
 
     hosts = read_lines(os.path.join(rd, "live", "live.txt"))

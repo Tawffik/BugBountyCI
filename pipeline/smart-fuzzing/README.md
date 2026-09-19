@@ -115,6 +115,39 @@ technology-aware stopword list (e.g. "if technologies includes Next.js,
 also exclude known Next.js build-artifact tokens") — not implemented,
 tracked here rather than silently left unmentioned.
 
+- **`baseline.py` silent host-count/probe-failure truncation**: the same
+  real run had 34 hosts in `live.txt` but only 16 entries in
+  `baseline.json`, with no explanation anywhere. Cause: a `--max-hosts`
+  default of 20 silently truncated the list, and hosts whose probes
+  failed were dropped with no log line either. Both fed directly into
+  `response_diff.py`'s `UNKNOWN` classifications with no way to trace
+  back why. Fixed: `--max-hosts` default raised to 200 (a safety
+  ceiling, not a routine limiter — the input file is already the
+  pipeline's own priority-filtered host list), and both truncation and
+  per-host probe failures are now logged explicitly.
+
+- **`live/tech.json` was always empty — two separate causes, both fixed**:
+  1. `scripts/live_host_probing.sh`'s `probe_hosts()` call that produces
+     `tech.json` was missing httpx's `-td` (tech-detect) flag entirely,
+     so even a successful httpx run had no `tech` field to write.
+     **This also silently disabled the existing pipeline's own Nuclei
+     tech-aware pass** (`zero-track-hunter.yml`'s `-as` scan is gated on
+     `[ -s "$RD/live/tech.json" ]`) and WordPress detection — not just
+     this module. Fixed by adding `-td` to that httpx call.
+  2. Separately, `target_profile.py` was reading `tech.json` with a
+     plain `json.load()`, but httpx's `-json` output is NDJSON (one
+     object per line, one per host) — the same format the pipeline's
+     own `jq` calls elsewhere already assume. A multi-line file throws
+     on `json.load()` and was being silently swallowed by a bare
+     `except`, so `technologies` always came back `[]` regardless of
+     what httpx found. Fixed with a proper per-line NDJSON reader.
+
+  Note: a pre-existing, separately-documented issue in this pipeline
+  (proxychains/Tor httpx calls occasionally returning 0 bytes for an
+  entire target — see `zero-track-hunter.yml`'s own "DIRECT first"
+  comment) can still leave `tech.json` empty on some runs even with both
+  of the above fixed. That's a Tor-reliability issue, not this bug.
+
 - [x] Reads existing recon, builds `target_profile.json`
 - [x] Extracts vocabulary with source tracking
 - [x] Selects a small, relevant slice of Wolf (not all of it)

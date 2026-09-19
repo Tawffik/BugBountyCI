@@ -79,20 +79,33 @@ def main():
     ap.add_argument("--hosts-file", required=True, help="one host (with scheme) per line")
     ap.add_argument("--user-agent", default="Mozilla/5.0")
     ap.add_argument("--use-tor", action="store_true")
-    ap.add_argument("--max-hosts", type=int, default=20,
-                     help="cap how many hosts get baselined, largest scans stay bounded")
+    ap.add_argument("--max-hosts", type=int, default=200,
+                     help="safety ceiling only, not a routine limiter — the hosts-file "
+                          "given to this script is already the pipeline's own "
+                          "priority-filtered list (expensive_targets/scan_order), so "
+                          "this should rarely trigger. Found via a real run: a "
+                          "previous default of 20 silently dropped 14 of 34 hosts, "
+                          "which then showed up downstream as unexplained UNKNOWN "
+                          "classifications in response_diff.py with no link back to "
+                          "this cause.")
     args = ap.parse_args()
 
     out_dir = os.path.join(args.results_dir, "smart-fuzzing")
     os.makedirs(out_dir, exist_ok=True)
     out_path = os.path.join(out_dir, "baseline.json")
 
-    hosts = []
+    all_hosts = []
     if os.path.isfile(args.hosts_file):
         with open(args.hosts_file, "r", errors="ignore") as f:
-            hosts = [l.strip() for l in f if l.strip()][: args.max_hosts]
+            all_hosts = [l.strip() for l in f if l.strip()]
+    hosts = all_hosts[: args.max_hosts]
+    if len(all_hosts) > len(hosts):
+        print(f"⚠️ --max-hosts={args.max_hosts} truncated {len(all_hosts)} host(s) down to "
+              f"{len(hosts)} — the {len(all_hosts) - len(hosts)} dropped host(s) will have "
+              f"no baseline and will classify as UNKNOWN downstream.")
 
     baselines = {}
+    failed_probe = []
     for host in hosts:
         # Two probes: if they disagree wildly, the host isn't giving a
         # stable fallback and V1 should just skip diffing it rather than
@@ -100,6 +113,7 @@ def main():
         p1 = probe(host, args.user_agent, args.use_tor)
         p2 = probe(host, args.user_agent, args.use_tor)
         if not p1 or not p2:
+            failed_probe.append(host)
             continue
         if p1["fingerprint"] != p2["fingerprint"]:
             baselines[host] = {**p1, "stable": False}
@@ -110,6 +124,10 @@ def main():
         json.dump(baselines, f, indent=2)
 
     stable = sum(1 for b in baselines.values() if b.get("stable"))
+    if failed_probe:
+        print(f"⚠️ {len(failed_probe)} host(s) had no successful baseline probe "
+              f"(both requests failed/timed out) and will classify as UNKNOWN "
+              f"downstream: {failed_probe[:5]}{' ...' if len(failed_probe) > 5 else ''}")
     print(f"✅ baseline.json written ({len(baselines)} host(s), {stable} stable) -> {out_path}")
 
 

@@ -82,7 +82,20 @@ probe_hosts() {
     # by a few hundred ms costs almost nothing at this concurrency level.
     sleep "0.$((RANDOM % 4 + 1))" 2>/dev/null || true
     (
-      proxychains4 -q httpx -u "$host" -silent -status-code -title -web-server -ip -cdn -follow-redirects "${BROWSER_HEADERS[@]}"                   -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}"                   -timeout "$timeout_s" -retries "$retries_n" -json                   2>>"$RD/logs/httpx.log" > "$tmp_dir/$(printf '%05d' $idx).json" || true
+      # BUGFIX: this call feeds live/tech.json (see the second probe_hosts
+      # invocation below) but was missing -td (tech-detect) entirely, so
+      # httpx's JSON output never had a "tech" field to begin with -
+      # confirmed on a real run (superdrug.com) where tech.json came back
+      # completely empty (0 bytes) and every downstream consumer (Nuclei's
+      # -as tech-aware pass, WordPress detection, AI triage context, and
+      # smart-fuzzing's wolf_selector.py) silently got nothing. Note: this
+      # is necessary but may not be sufficient on its own - the same run's
+      # comments elsewhere in this pipeline already document proxychains/
+      # Tor httpx calls sometimes returning 0 bytes for an entire target
+      # (see zero-track-hunter.yml's "DIRECT first" nuclei comment); if
+      # tech.json is still empty after this fix on a given run, that's the
+      # separate, pre-existing Tor-reliability issue, not a missing flag.
+      proxychains4 -q httpx -u "$host" -silent -status-code -title -web-server -ip -cdn -td -follow-redirects "${BROWSER_HEADERS[@]}"                   -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}"                   -timeout "$timeout_s" -retries "$retries_n" -json                   2>>"$RD/logs/httpx.log" > "$tmp_dir/$(printf '%05d' $idx).json" || true
     ) &
     running=$((running + 1))
     if [ "$running" -ge "$concurrency" ]; then

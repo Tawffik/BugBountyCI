@@ -60,6 +60,8 @@ def main():
         candidates.add(w)
         candidates.add(w + "s")
         for verb in verbs_present:
+            if verb == w:
+                continue  # don't pair a word with itself ("export/export")
             candidates.add(f"{w}/{verb}")
 
     cap = MODE_CAPS.get(args.mode, MODE_CAPS["normal"])
