@@ -59,6 +59,108 @@ value first, foundational/scaffolding work only when a concrete engine
 actually needs it — not "build the framework piece because the spec
 listed it."
 
+## New architectural layer: Signal-Driven Manual Playbook Intelligence
+
+A second full spec ("BugBountyCI — Signal-Driven Manual Playbook
+Intelligence & Workflow Integration") was added to this project's
+design after V1 closed. It does not replace anything above — it's a
+**governing principle for every future engine and Tip integration**,
+and it validates a design choice V1 already made independently:
+
+> "Don't automate every technique into a scanner. Detect a Signal,
+> recommend a Playbook, let the hunter validate manually."
+
+This is *exactly* what `access_control_engine.py`, `open_redirect_engine.py`,
+and the IDOR step already do — a `Candidate` is tested, `Evidence` is
+produced, classification is capped at `LEAD` until replay, and nothing
+is ever called a confirmed vulnerability without verification. The new
+spec's `Signal` ≈ this project's `Evidence`, and its state machine
+(`OBSERVED → CANDIDATE → VALIDATED → REPORTABLE / DISCARDED`) is a
+finer-grained version of the same idea as
+`NOISE/LOW_SIGNAL/LEAD/HIGH_SIGNAL/CONFIRMED`. **Any new engine built
+from this roadmap should follow this pattern from the start** — it is
+not a new requirement, it's the same discipline already applied,
+formalized and extended to cover raw Bug Bounty Tips/payload
+collections specifically (which V1's engines never touched).
+
+### The one new, real gap this spec identifies
+
+V1's engines generate their own candidates and classify their own
+evidence, but there's no existing place in this repo for **manual-only
+techniques** (WAF bypass payload lists, encoding tricks, SSTI/RCE
+payloads, product-specific exploit chains) to live. Blindly automating
+these was correctly rejected — they belong in a **Playbook layer**:
+static knowledge that gets *recommended* when a Signal matches, never
+auto-executed. This is genuinely new (nothing in V1 currently reads a
+"Tips" or "Playbook" database), and is the actual implementation gap —
+not a request to rebuild the Detection Engine Framework.
+
+### If/when this gets built — minimum viable pieces (in build order)
+
+1. **Playbook model** (a static, data-only file per playbook, not code):
+   `id`, `title`, `trigger_signals`, `prerequisites`, `manual_steps`,
+   `validation_requirements`, `false_positive_conditions`,
+   `related_playbooks`. Start with just enough playbooks to cover the
+   engines that already exist (Path Normalization / 403 Bypass for
+   Access-Control, Open Redirect isn't in the spec's list but fits the
+   same shape, IDOR/BOLA for the enumeration engine) — do NOT
+   pre-populate all ~30 playbooks from the spec before anything
+   consumes them.
+2. **Playbook Matcher**: the one new piece of actual code — given an
+   `Evidence` object from any existing engine (or `interesting.txt`,
+   or the IDOR findings), match it against `trigger_signals` and emit a
+   recommendation block (signal, why, playbooks, evidence, validation
+   checklist) in the same style as `hunter_queue.md` already renders —
+   this is a small extension of `hunter_queue_builder.py`, not a new
+   subsystem.
+3. **Tip classification pass**: go through this repo's actual existing
+   Bug Bounty Tips/notes (wherever they currently live — check for a
+   Tips database before assuming one needs to be created, per the
+   existing "check before building" rule) and classify each one:
+   `AUTOMATE / AUTOMATE_WITH_GATES / SEMI_AUTOMATE / MANUAL_PLAYBOOK /
+   REFERENCE_ONLY / REJECT`. This classification pass itself is
+   valuable even before any Playbook Matcher code exists.
+4. **Manual Investigation Queue** — this can literally BE
+   `hunter_queue.md` with a `status` field added
+   (`NEW/INVESTIGATING/VALIDATED/DISCARDED/REPORTABLE`) rather than a
+   separate new file/database — reuse, don't duplicate.
+5. **Priority system** (P0–P3) — maps directly onto the existing
+   `HIGH_SIGNAL/IDOR-CANDIDATE/LEAD/INTERESTING` tiers already used for
+   sorting `hunter_queue.md`; extending rather than replacing that
+   ordering is the smaller, safer change.
+
+### Full signal/playbook catalog from the spec (reference — not yet built)
+
+High-value playbook categories to eventually wire a Signal for, roughly
+matching this roadmap's own Priority 1–4 engine list below:
+Authorization/IDOR/BOLA, Function-Level Authorization, 401/403 Path
+Normalization, Password Reset/ATO, Parameter Parser Differential, HTTP
+Method Mutation, API Version Differential, Hidden Parameter
+Intelligence (Mass Assignment), Business Logic State Machine, Race
+Condition, GraphQL Authorization, SSRF (+ escalation), XSS
+(context-aware) + Blind XSS, Web Cache Deception, HTTP Request
+Smuggling, Origin IP Discovery, Cloud Storage exposure, Subdomain
+Takeover, Secret Intelligence, Source Map Intelligence, OpenAPI/Swagger
+extraction, File Upload, WordPress-specific, CVE Intelligence.
+
+Each maps to a specific Priority tier below (e.g. SSRF/IDOR are
+Priority 1; CVE Intelligence and WordPress-specific are closer to
+Priority 3/4) — this catalog does not create new priorities, it gives
+concrete trigger conditions for the engines already prioritized.
+
+### Explicit non-goals (per the spec, worth repeating so they aren't lost)
+
+- Never auto-run WAF bypass / XSS / SQLi / SSTI / RCE payload
+  collections without a Signal justifying the specific test.
+- Never call a status-code change alone a vulnerability (this is
+  already how `access_control_engine.py` behaves — the spec just
+  extends the same rule pipeline-wide, including to raw Tips).
+- No "payload graveyard" (`payload.txt`, `payload-final-v2.txt`, ...) —
+  every technique needs a Signal + Playbook + Validation path, not a
+  file of things to try.
+- IDOR still requires cross-account evidence to be CONFIRMED (this
+  roadmap's Priority 1 item #3 already says the same thing).
+
 ### Priority 1 — high real-world value, natural next engines
 
 1. **API Security Engine / Parameter Intelligence** (spec section 31,
