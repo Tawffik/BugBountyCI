@@ -3751,14 +3751,28 @@ jobs:
         timeout-minutes: 10
         run: |
           python3 << 'PYEOF'
-          # Route all urllib traffic through Tor SOCKS5 proxy
+          # Route all urllib traffic through Tor SOCKS5 proxy — ONLY if
+          # explicitly requested via IDOR_TOR_ONLY=true. Default is now
+          # DIRECT (no proxy patch at all), matching the DIRECT-first
+          # discipline established for Access-Control/Open Redirect
+          # Intelligence in this same pipeline: this step also compares
+          # responses across requests (a random-ID baseline vs candidate
+          # IDs), and Tor exit nodes getting a DIFFERENT edge/WAF
+          # response than DIRECT would risk exactly the same false
+          # positive/negative class fixed in access_control_engine.py.
+          # A real run also showed httpx (Go's TLS stack) getting zero
+          # bytes from this same target on both Tor and DIRECT while
+          # curl succeeded fine — global Tor-only for ALL requests in
+          # this step, with no per-request fallback, was a real risk of
+          # silently producing zero findings with no indication why.
           import os, socket
-          try:
-              import socks
-              socks.set_default_proxy(socks.SOCKS5, "127.0.0.1", 9050)
-              socket.socket = socks.socksocket
-          except ImportError:
-              pass
+          if os.environ.get("IDOR_TOR_ONLY", "false").lower() == "true":
+              try:
+                  import socks
+                  socks.set_default_proxy(socks.SOCKS5, "127.0.0.1", 9050)
+                  socket.socket = socks.socksocket
+              except ImportError:
+                  pass
           import json, os, re, urllib.request, urllib.error, concurrent.futures, hashlib
           rd="results/"+os.environ.get("TIMESTAMP",""); fnd=[]; pts=[]
           try:
@@ -3777,11 +3791,15 @@ jobs:
           if os.environ.get("AUTH_COOKIE"): REQ_HEADERS["Cookie"] = os.environ["AUTH_COOKIE"]
           if os.environ.get("AUTH_HEADER") and ":" in os.environ["AUTH_HEADER"]:
               _hn, _hv = os.environ["AUTH_HEADER"].split(":", 1); REQ_HEADERS[_hn.strip()] = _hv.strip()
+          _fetch_stats = {"attempts": 0, "failures": 0}
           def fetch(url):
+              _fetch_stats["attempts"] += 1
               try:
                   req=urllib.request.Request(url,headers=REQ_HEADERS)
                   resp=urllib.request.urlopen(req,timeout=8); return resp.status, resp.read(50000).decode(errors="ignore")
-              except: return None, None
+              except:
+                  _fetch_stats["failures"] += 1
+                  return None, None
           def save_evidence(category,url,method,base_status,base_snippet,test_status,test_snippet,reason):
               os.makedirs(os.path.join(rd,"evidence",category),exist_ok=True)
               fid=hashlib.md5(url.encode()).hexdigest()[:10]
@@ -3831,7 +3849,13 @@ jobs:
                   r=f.result()
                   if r: fnd.append(r)
           with open(os.path.join(rd,"ai_agent","idor_findings.txt"),"w") as f: f.write("\n".join(fnd) if fnd else "No IDOR findings\n")
-          print(f"✅ IDOR: {len(fnd)} findings")
+          if _fetch_stats["attempts"] > 0 and _fetch_stats["failures"] == _fetch_stats["attempts"]:
+              print(f"⚠️ IDOR: ALL {_fetch_stats['attempts']} fetch attempt(s) failed — 0 successful "
+                    f"responses at all, not just 0 findings. This means results are inconclusive, "
+                    f"not 'no IDOR issues'. Check network/Tor/target reachability before trusting "
+                    f"an empty idor_findings.txt from this run.")
+          print(f"✅ IDOR: {len(fnd)} findings ({_fetch_stats['attempts']} fetch attempts, "
+                f"{_fetch_stats['failures']} failed)")
           PYEOF
 
       - name: "🔭 OOB Check (Interactsh)"
