@@ -102,12 +102,41 @@ while IFS= read -r host; do
   safe_name=$(echo "$host" | sed -E 's#https?://##; s#[^A-Za-z0-9]+#_#g')
   RUN_CMD=(ffuf -w "$WORDLIST" -u "${host}/FUZZ" -H "User-Agent: $UA" \
     -mc 200,204,301,302,307,401,403 -fs 0 -ac -t 8 -rate 20 -timeout 8 \
-    -of json -o "$FFUF_JSON_DIR/${safe_name}.json" -s)
+    -of json -o "$FFUF_JSON_DIR/${safe_name}.json")
+    # DIAGNOSTIC (temporary): -s (silent) removed on purpose for this run
+    # only. Real data (capital.com, datacamp.com, 25 hosts total) showed
+    # ffuf's own JSON output as "results": [] on literally every single
+    # host across two very different sites - a signal strong enough to
+    # need real evidence, not a guess, before deciding whether this is:
+    #   (a) -ac (autocalibration) correctly filtering everything because
+    #       a heavily-WAF'd target returns the identical block-page
+    #       signature for every candidate (legitimate, working as
+    #       designed - the same noise reduction the project values
+    #       elsewhere), or
+    #   (b) the same class of bug already found in httpx - ffuf is also
+    #       a Go binary, and could be hitting the same TLS-fingerprint-
+    #       level rejection from these targets' edge/WAF that curl
+    #       doesn't hit (baseline.py's curl-based probing works fine
+    #       against the same hosts).
+    # Without -s, ffuf prints its own end-of-run summary line
+    # (":: Errors: N ::") to stderr, which already goes to
+    # smart_ffuf.log below. A high Errors count close to the wordlist
+    # size means (b); a low/zero Errors count with still-empty results
+    # means (a). Remove -s from the line above once this is confirmed
+    # with evidence and the real fix (if any) is identified - do not
+    # leave it removed permanently without deciding this first, per the
+    # lesson from the httpx -v mistake (a temporary diagnostic flag
+    # left in place became a second, self-inflicted bug).
+  ffuf_exit=0
+  t_start=$(date +%s)
   if [ "$USE_TOR" = "true" ] && command -v proxychains4 >/dev/null 2>&1; then
-    timeout "$PER_HOST" proxychains4 -q "${RUN_CMD[@]}" 2>>"$RD/logs/smart_ffuf.log" || true
+    timeout "$PER_HOST" proxychains4 -q "${RUN_CMD[@]}" 2>>"$RD/logs/smart_ffuf.log" || ffuf_exit=$?
   else
-    timeout "$PER_HOST" "${RUN_CMD[@]}" 2>>"$RD/logs/smart_ffuf.log" || true
+    timeout "$PER_HOST" "${RUN_CMD[@]}" 2>>"$RD/logs/smart_ffuf.log" || ffuf_exit=$?
   fi
+  t_end=$(date +%s)
+  errors_line=$(tail -20 "$RD/logs/smart_ffuf.log" | grep -o "Errors: [0-9]*" | tail -1)
+  echo "[ffuf-diag] host=$host exit=$ffuf_exit duration=$((t_end - t_start))s ${errors_line:-Errors:_not_found_in_log}" >> "$RD/logs/smart_ffuf.log"
 done < "$FUZZ_INPUT"
 
 # --- 7. Response Diff (baseline-aware classification, not raw status codes) ---
