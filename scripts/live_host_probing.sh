@@ -92,22 +92,22 @@ probe_hosts() {
       out_file="$tmp_dir/$(printf '%05d' $idx).json"
       t_start=$(date +%s)
       tor_exit=0
-      proxychains4 -q httpx -u "$host" -silent -v -status-code -title -web-server -ip -cdn -td -follow-redirects "${BROWSER_HEADERS[@]}"                   -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}"                   -timeout "$timeout_s" -retries "$retries_n" -json                   2>>"$RD/logs/httpx.log" > "$out_file" || tor_exit=$?
+      proxychains4 -q httpx -u "$host" -silent -status-code -title -web-server -ip -cdn -td -follow-redirects "${BROWSER_HEADERS[@]}"                   -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}"                   -timeout "$timeout_s" -retries "$retries_n" -json                   2>>"$RD/logs/httpx.log" > "$out_file" || tor_exit=$?
       t_end=$(date +%s)
-      # DIAGNOSTIC (temporary, not silently swallowed like before): the
-      # last real run had EVERY host come back with exit=0 AND
-      # out_bytes=0 on both Tor and DIRECT (see the [diag] lines below) -
-      # httpx completed "successfully" by its own exit code but produced
-      # literally nothing. httpx's default -silent mode does NOT print
-      # per-host connection errors to stderr, only tool-level crashes -
-      # so a 100% per-host connection failure (e.g. Cloudflare dropping
-      # Go's TLS fingerprint while curl's different TLS stack succeeds,
-      # which would explain why baseline.py's curl-based probing works
-      # fine against the same hosts) would look exactly like this: clean
-      # exit, empty output, silent. -v added specifically to surface that
-      # underlying per-host error on the next run instead of guessing
-      # further - remove -v once the real error is captured and the
-      # actual fix is identified.
+      # ROOT CAUSE FOUND AND FIXED (2026-09-20, real runs against
+      # capital.com and datacamp.com): the -v flag added in a prior
+      # diagnostic commit is INCOMPATIBLE with -silent in this httpx
+      # version - it caused a fatal "[FTL] verbose flag is incompatible
+      # with silent flag" error on 100% of calls (exit=1, zero output),
+      # both Tor and DIRECT, on every host. That -v flag was itself the
+      # bug causing the empty tech.json this diagnostic commit was
+      # trying to investigate - confirmed by the literal FTL message in
+      # logs/httpx.log across 1200+/4000+ lines in both real runs.
+      # -v has been removed. The [diag] exit-code/timing logging below
+      # is kept (it's harmless and still useful going forward), but
+      # -v specifically must never be reintroduced alongside -silent -
+      # if per-host verbosity is ever needed again, use -debug or drop
+      # -silent instead, never both -v and -silent together.
       echo "[diag] pass=$output_file host=$host path=tor exit=$tor_exit duration=$((t_end - t_start))s out_bytes=$(wc -c < "$out_file" 2>/dev/null || echo 0)" >> "$RD/logs/httpx.log"
       # Per-host DIRECT fallback: Tor is kept as the default path
       # deliberately (it was added to get past IP-based blocking of
@@ -123,7 +123,7 @@ probe_hosts() {
         echo "ℹ️ Tor probe returned nothing for $host, retrying DIRECT..." >> "$RD/logs/httpx.log"
         t_start=$(date +%s)
         direct_exit=0
-        httpx -u "$host" -silent -v -status-code -title -web-server -ip -cdn -td -follow-redirects "${BROWSER_HEADERS[@]}"               -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}"               -timeout "$timeout_s" -retries "$retries_n" -json               2>>"$RD/logs/httpx.log" > "$out_file" || direct_exit=$?
+        httpx -u "$host" -silent -status-code -title -web-server -ip -cdn -td -follow-redirects "${BROWSER_HEADERS[@]}"               -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}"               -timeout "$timeout_s" -retries "$retries_n" -json               2>>"$RD/logs/httpx.log" > "$out_file" || direct_exit=$?
         t_end=$(date +%s)
         echo "[diag] pass=$output_file host=$host path=direct exit=$direct_exit duration=$((t_end - t_start))s out_bytes=$(wc -c < "$out_file" 2>/dev/null || echo 0)" >> "$RD/logs/httpx.log"
       fi
