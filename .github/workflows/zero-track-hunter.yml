@@ -3858,6 +3858,22 @@ jobs:
                 f"{_fetch_stats['failures']} failed)")
           PYEOF
 
+      - name: "📋 Hunter Queue (Unified V1)"
+        continue-on-error: true
+        timeout-minutes: 3
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          # Merges Access-Control + Open Redirect (detection/engine_results.json),
+          # IDOR (ai_agent/idor_findings.txt), and smart-fuzzing
+          # (smart-fuzzing/interesting.txt) into ONE prioritized
+          # detection/hunter_queue.md, so the researcher opens one file
+          # instead of cross-referencing several by hand. Runs after
+          # IDOR (the last of the three sources to finish) so all
+          # inputs are guaranteed to exist by this point. See
+          # pipeline/detection/hunter_queue_builder.py.
+          python3 pipeline/detection/hunter_queue_builder.py \
+            --results-dir "$RD" --target "${{ env.TARGET }}" || true
+
       - name: "🔭 OOB Check (Interactsh)"
         continue-on-error: true
         timeout-minutes: 2
