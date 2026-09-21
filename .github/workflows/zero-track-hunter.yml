@@ -3874,6 +3874,22 @@ jobs:
           python3 pipeline/detection/hunter_queue_builder.py \
             --results-dir "$RD" --target "${{ env.TARGET }}" || true
 
+      - name: "📊 Metrics Baseline"
+        continue-on-error: true
+        timeout-minutes: 2
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          # Priority 1 roadmap item (docs/V2_ROADMAP.md §6.1). Computes
+          # per-engine and overall Signal Precision, plus automated
+          # near-duplicate cluster detection - motivated directly by a
+          # real run (okx.com) where 6 "INTERESTING" hits turned out on
+          # manual review to be 2 real signal patterns reported 3 times
+          # each (same SPA catch-all-router behavior). Runs after
+          # Hunter Queue so detection/engine_results.json and
+          # smart-fuzzing/response_diffs.json both already exist. See
+          # pipeline/detection/metrics_builder.py.
+          python3 pipeline/detection/metrics_builder.py --results-dir "$RD" || true
+
       - name: "🔭 OOB Check (Interactsh)"
         continue-on-error: true
         timeout-minutes: 2
