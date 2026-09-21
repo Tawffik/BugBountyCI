@@ -126,6 +126,32 @@ probe_hosts() {
         httpx -u "$host" -silent -status-code -title -web-server -ip -cdn -td -follow-redirects "${BROWSER_HEADERS[@]}"               -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}"               -timeout "$timeout_s" -retries "$retries_n" -json               2>>"$RD/logs/httpx.log" > "$out_file" || direct_exit=$?
         t_end=$(date +%s)
         echo "[diag] pass=$output_file host=$host path=direct exit=$direct_exit duration=$((t_end - t_start))s out_bytes=$(wc -c < "$out_file" 2>/dev/null || echo 0)" >> "$RD/logs/httpx.log"
+
+        # DECISIVE COMPARISON (added after inconclusive runs on
+        # capital.com/datacamp.com/okx.com - out_bytes=0/exit=0 on both
+        # Tor and DIRECT, but no controlled same-URL comparison against
+        # a non-Go tool existed yet). If httpx STILL has nothing after
+        # both paths, immediately curl the EXACT same URL and log the
+        # result right next to httpx's failure. This settles the
+        # Go-TLS-fingerprint-rejection hypothesis with a direct,
+        # same-request comparison instead of inferring it from separate
+        # baseline.py runs on different hosts.
+        if [ ! -s "$out_file" ]; then
+          curl_status=$(curl -sk --max-time "$timeout_s" -o /dev/null -w "%{http_code}" "$host" 2>>"$RD/logs/httpx.log")
+          curl_exit=$?
+          echo "[diag-decisive] host=$host httpx_bytes=0(both_paths) curl_exit=$curl_exit curl_status=\"$curl_status\"" >> "$RD/logs/httpx.log"
+          # REAL FALLBACK, not just diagnosis: if curl got a real status
+          # code where httpx got nothing at all, write a minimal
+          # NDJSON-compatible line so this host isn't simply invisible
+          # downstream. No "tech" field (curl can't fingerprint that -
+          # only httpx's -td can), but status_code/url/host_curl_fallback
+          # is genuine, real data instead of the host silently vanishing
+          # from live.json/tech.json entirely.
+          if [ "$curl_exit" = "0" ] && [ -n "$curl_status" ] && [ "$curl_status" != "000" ]; then
+            echo "{\"url\":\"$host\",\"status_code\":$curl_status,\"host_curl_fallback\":true}" > "$out_file"
+            echo "ℹ️ httpx got nothing for $host on both paths, but curl confirmed status=$curl_status - wrote a minimal curl-fallback record instead of leaving this host empty" >> "$RD/logs/httpx.log"
+          fi
+        fi
       fi
     ) &
     running=$((running + 1))
