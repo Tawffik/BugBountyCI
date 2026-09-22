@@ -92,7 +92,7 @@ probe_hosts() {
       out_file="$tmp_dir/$(printf '%05d' $idx).json"
       t_start=$(date +%s)
       tor_exit=0
-      proxychains4 -q httpx -u "$host" -silent -status-code -title -web-server -ip -cdn -td -follow-redirects "${BROWSER_HEADERS[@]}"                   -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}"                   -timeout "$timeout_s" -retries "$retries_n" -json                   2>>"$RD/logs/httpx.log" > "$out_file" || tor_exit=$?
+      proxychains4 -q httpx -tlsi -u "$host" -silent -status-code -title -web-server -ip -cdn -td -follow-redirects "${BROWSER_HEADERS[@]}"                   -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}"                   -timeout "$timeout_s" -retries "$retries_n" -json                   2>>"$RD/logs/httpx.log" > "$out_file" || tor_exit=$?
       t_end=$(date +%s)
       # ROOT CAUSE FOUND AND FIXED (2026-09-20, real runs against
       # capital.com and datacamp.com): the -v flag added in a prior
@@ -123,7 +123,7 @@ probe_hosts() {
         echo "ℹ️ Tor probe returned nothing for $host, retrying DIRECT..." >> "$RD/logs/httpx.log"
         t_start=$(date +%s)
         direct_exit=0
-        httpx -u "$host" -silent -status-code -title -web-server -ip -cdn -td -follow-redirects "${BROWSER_HEADERS[@]}"               -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}"               -timeout "$timeout_s" -retries "$retries_n" -json               2>>"$RD/logs/httpx.log" > "$out_file" || direct_exit=$?
+        httpx -tlsi -u "$host" -silent -status-code -title -web-server -ip -cdn -td -follow-redirects "${BROWSER_HEADERS[@]}"               -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}"               -timeout "$timeout_s" -retries "$retries_n" -json               2>>"$RD/logs/httpx.log" > "$out_file" || direct_exit=$?
         t_end=$(date +%s)
         echo "[diag] pass=$output_file host=$host path=direct exit=$direct_exit duration=$((t_end - t_start))s out_bytes=$(wc -c < "$out_file" 2>/dev/null || echo 0)" >> "$RD/logs/httpx.log"
 
@@ -233,7 +233,7 @@ if [ ! -s "$RD/live/live.txt" ] && [ -s "$INPUT" ]; then
       idx=$((idx + 1))
       sleep "0.$((RANDOM % 4 + 1))" 2>/dev/null || true
       (
-        httpx -u "$host" -silent -status-code -title -web-server -ip -cdn -follow-redirects "${BROWSER_HEADERS[@]}"                     -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}"                     -timeout "$timeout_s" -retries "$retries_n" -json                     2>>"$RD/logs/httpx_direct.log" > "$tmp_dir/$(printf '%05d' $idx).json" || true
+        httpx -tlsi -u "$host" -silent -status-code -title -web-server -ip -cdn -follow-redirects "${BROWSER_HEADERS[@]}"                     -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}"                     -timeout "$timeout_s" -retries "$retries_n" -json                     2>>"$RD/logs/httpx_direct.log" > "$tmp_dir/$(printf '%05d' $idx).json" || true
       ) &
       running=$((running + 1))
       if [ "$running" -ge "$concurrency" ]; then
@@ -321,6 +321,13 @@ jq -r 'select(.cdn_name != null) | "\(.url) -> \(.cdn_name)"' "$RD/live/live.jso
 # above - switched to the same proven-working per-host loop. live.txt is
 # small at this point (confirmed hosts only), so no time budget is needed.
 probe_hosts "$RD/live/live.txt" "$RD/live/tech.json" 15 2 4 ""
+
+# Enrich technologies when httpx failed (curl fallback only has status).
+# curl's TLS stack often passes where Go/httpx JA3 is rejected — enough
+# for Cloudflare/nginx/Next.js/WordPress signals for Wolf selector.
+if [ -f "$RD/live/tech.json" ]; then
+  python3 "$(dirname "$0")/curl_tech_detect.py" --results-dir "$RD" || true
+fi
 echo "✅ Live hosts: $(wc -l < "$RD/live/live.txt")"
 # Classify verified vs unverified for operators + downstream caps
 : > "$RD/live/verified.txt"

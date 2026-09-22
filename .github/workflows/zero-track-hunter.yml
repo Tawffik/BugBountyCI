@@ -2562,7 +2562,9 @@ jobs:
             done < /tmp/spoof_headers.txt
           done
 
-          echo "✅ IP-spoof bypass findings: $(wc -l < "$RD/waf_bypass/ip_spoof_bypass.txt" 2>/dev/null || echo 0)"
+          flips=$(wc -l < "$RD/waf_bypass/ip_spoof_bypass.txt" 2>/dev/null || echo 0)
+          echo "ℹ️ IP-spoof summary: candidates=$(wc -l < /tmp/blocked_candidates.txt 2>/dev/null || echo 0) flips=$flips (empty flips on modern Cloudflare is expected — not a step failure)"
+          echo "✅ IP-spoof bypass findings: $flips"
 
       - name: "🔎 Content Discovery Fuzzing"
         continue-on-error: true
