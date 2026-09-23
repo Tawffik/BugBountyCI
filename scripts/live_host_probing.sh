@@ -90,54 +90,33 @@ probe_hosts() {
       # -as tech-aware pass, WordPress detection, AI triage context, and
       # smart-fuzzing's wolf_selector.py) silently got nothing.
       out_file="$tmp_dir/$(printf '%05d' $idx).json"
+      # DIRECT-first (2026-09-24, sengi capital.com): Tor-first burned exits,
+      # doubled request volume, and left only ~3 live hosts. Runner IP first;
+      # Tor only if USE_TOR=true and DIRECT returned empty.
       t_start=$(date +%s)
-      tor_exit=0
-      proxychains4 -q httpx -tlsi -u "$host" -silent -status-code -title -web-server -ip -cdn -td -follow-redirects "${BROWSER_HEADERS[@]}"                   -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}"                   -timeout "$timeout_s" -retries "$retries_n" -json                   2>>"$RD/logs/httpx.log" > "$out_file" || tor_exit=$?
+      direct_exit=0
+      httpx -tlsi -u "$host" -silent -status-code -title -web-server -ip -cdn -td -follow-redirects "${BROWSER_HEADERS[@]}" \
+        -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}" \
+        -timeout "$timeout_s" -retries "$retries_n" -json \
+        2>>"$RD/logs/httpx.log" > "$out_file" || direct_exit=$?
       t_end=$(date +%s)
-      # ROOT CAUSE FOUND AND FIXED (2026-09-20, real runs against
-      # capital.com and datacamp.com): the -v flag added in a prior
-      # diagnostic commit is INCOMPATIBLE with -silent in this httpx
-      # version - it caused a fatal "[FTL] verbose flag is incompatible
-      # with silent flag" error on 100% of calls (exit=1, zero output),
-      # both Tor and DIRECT, on every host. That -v flag was itself the
-      # bug causing the empty tech.json this diagnostic commit was
-      # trying to investigate - confirmed by the literal FTL message in
-      # logs/httpx.log across 1200+/4000+ lines in both real runs.
-      # -v has been removed. The [diag] exit-code/timing logging below
-      # is kept (it's harmless and still useful going forward), but
-      # -v specifically must never be reintroduced alongside -silent -
-      # if per-host verbosity is ever needed again, use -debug or drop
-      # -silent instead, never both -v and -silent together.
-      echo "[diag] pass=$output_file host=$host path=tor exit=$tor_exit duration=$((t_end - t_start))s out_bytes=$(wc -c < "$out_file" 2>/dev/null || echo 0)" >> "$RD/logs/httpx.log"
-      # Per-host DIRECT fallback: Tor is kept as the default path
-      # deliberately (it was added to get past IP-based blocking of
-      # well-known cloud/CI ranges that some WAFs reject outright), but
-      # proxychains/Tor is also documented elsewhere in this pipeline as
-      # occasionally returning 0 bytes for an entire target with no error
-      # (see zero-track-hunter.yml's "DIRECT first" nuclei comment).
-      # Rather than picking one path pipeline-wide, retry DIRECT only for
-      # the specific host that Tor actually failed on - this keeps Tor's
-      # IP-diversity benefit where it works and stops individual hosts
-      # from silently going empty when it doesn't.
-      if [ ! -s "$out_file" ]; then
-        echo "ℹ️ Tor probe returned nothing for $host, retrying DIRECT..." >> "$RD/logs/httpx.log"
-        t_start=$(date +%s)
-        direct_exit=0
-        httpx -tlsi -u "$host" -silent -status-code -title -web-server -ip -cdn -td -follow-redirects "${BROWSER_HEADERS[@]}"               -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}"               -timeout "$timeout_s" -retries "$retries_n" -json               2>>"$RD/logs/httpx.log" > "$out_file" || direct_exit=$?
-        t_end=$(date +%s)
-        echo "[diag] pass=$output_file host=$host path=direct exit=$direct_exit duration=$((t_end - t_start))s out_bytes=$(wc -c < "$out_file" 2>/dev/null || echo 0)" >> "$RD/logs/httpx.log"
+      echo "[diag] pass=$output_file host=$host path=direct exit=$direct_exit duration=$((t_end - t_start))s out_bytes=$(wc -c < "$out_file" 2>/dev/null || echo 0)" >> "$RD/logs/httpx.log"
 
-        # DECISIVE COMPARISON (added after inconclusive runs on
-        # capital.com/datacamp.com/okx.com - out_bytes=0/exit=0 on both
-        # Tor and DIRECT, but no controlled same-URL comparison against
-        # a non-Go tool existed yet). If httpx STILL has nothing after
-        # both paths, immediately curl the EXACT same URL and log the
-        # result right next to httpx's failure. This settles the
-        # Go-TLS-fingerprint-rejection hypothesis with a direct,
-        # same-request comparison instead of inferring it from separate
-        # baseline.py runs on different hosts.
-        if [ ! -s "$out_file" ]; then
-          curl_status=$(curl -sk --max-time "$timeout_s" -o /dev/null -w "%{http_code}" "$host" 2>>"$RD/logs/httpx.log")
+      if [ ! -s "$out_file" ] && [ "${USE_TOR:-false}" = "true" ] && command -v proxychains4 >/dev/null 2>&1; then
+        echo "ℹ️ DIRECT empty for $host - retrying via Tor" >> "$RD/logs/httpx.log"
+        t_start=$(date +%s)
+        tor_exit=0
+        proxychains4 -q httpx -tlsi -u "$host" -silent -status-code -title -web-server -ip -cdn -td -follow-redirects "${BROWSER_HEADERS[@]}" \
+          -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}" \
+          -timeout "$timeout_s" -retries "$retries_n" -json \
+          2>>"$RD/logs/httpx.log" > "$out_file" || tor_exit=$?
+        t_end=$(date +%s)
+        echo "[diag] pass=$output_file host=$host path=tor exit=$tor_exit duration=$((t_end - t_start))s out_bytes=$(wc -c < "$out_file" 2>/dev/null || echo 0)" >> "$RD/logs/httpx.log"
+      fi
+
+      if [ ! -s "$out_file" ]; then
+        # DECISIVE COMPARISON: curl when both DIRECT and optional Tor empty.
+        curl_status=$(curl -sk --max-time "$timeout_s" -o /dev/null -w "%{http_code}" "$host" 2>>"$RD/logs/httpx.log")
           curl_exit=$?
           echo "[diag-decisive] host=$host httpx_bytes=0(both_paths) curl_exit=$curl_exit curl_status=\"$curl_status\"" >> "$RD/logs/httpx.log"
           # REAL FALLBACK, not just diagnosis: if curl got a real status
@@ -151,7 +130,6 @@ probe_hosts() {
             echo "{\"url\":\"$host\",\"status_code\":$curl_status,\"host_curl_fallback\":true}" > "$out_file"
             echo "ℹ️ httpx got nothing for $host on both paths, but curl confirmed status=$curl_status - wrote a minimal curl-fallback record instead of leaving this host empty" >> "$RD/logs/httpx.log"
           fi
-        fi
       fi
     ) &
     running=$((running + 1))
@@ -294,7 +272,16 @@ if [ ! -s "$RD/live/live.txt" ] && [ -s "$INPUT" ]; then
     echo "dns-seed" > "$RD/meta/live_probe_path.txt"
   fi
 else
-  [ -s "$RD/live/live.txt" ] && echo "tor" > "$RD/meta/live_probe_path.txt"
+  if [ -s "$RD/live/live.txt" ]; then
+  # Prefer recording the path that actually produced data
+  if grep -q "path=direct exit=0" "$RD/logs/httpx.log" 2>/dev/null; then
+    echo "direct" > "$RD/meta/live_probe_path.txt"
+  elif [ "${USE_TOR:-false}" = "true" ]; then
+    echo "tor" > "$RD/meta/live_probe_path.txt"
+  else
+    echo "direct" > "$RD/meta/live_probe_path.txt"
+  fi
+fi
 fi
 
 # Best-effort second pass: only the confirmed real subdomains above are
@@ -305,10 +292,16 @@ fi
 # simply cut short and whatever it found so far is kept.
 if [ -s "$RD/subdomains/asn_ips.txt" ]; then
   ASN_PROBE_INPUT="/tmp/asn_probe_input.txt"
-  head -300 "$RD/subdomains/asn_ips.txt" > "$ASN_PROBE_INPUT" || true
+  # Cap hard: capital.com produced 28k ASN IPs; probing hundreds via Tor burned
+  # circuits and added noise. DIRECT-only sample of 80 is enough as a bonus.
+  head -80 "$RD/subdomains/asn_ips.txt" > "$ASN_PROBE_INPUT" || true
   asn_kept=$(wc -l < "$ASN_PROBE_INPUT" 2>/dev/null || echo 0)
-  echo "ℹ️ Probing up to $asn_kept ASN/CIDR-derived candidate(s) separately (best-effort, max 2 minutes, won't affect the real-subdomain results above)"
-  probe_hosts "$ASN_PROBE_INPUT" "$RD/live/live_asn.json" 10 1 4 120
+  echo "ℹ️ Probing up to $asn_kept ASN/CIDR IPs DIRECT-only (max 90s; never via Tor)"
+  # Force no Tor for this pass even if USE_TOR=true (probe_hosts reads USE_TOR)
+  _SAVE_USE_TOR="${USE_TOR:-false}"
+  USE_TOR=false
+  probe_hosts "$ASN_PROBE_INPUT" "$RD/live/live_asn.json" 8 1 6 90
+  USE_TOR="$_SAVE_USE_TOR"
   if [ -s "$RD/live/live_asn.json" ]; then
     jq -r '.url // .input' "$RD/live/live_asn.json" 2>/dev/null | grep -v '^\s*$' >> "$RD/live/live.txt" || true
     sort -u -o "$RD/live/live.txt" "$RD/live/live.txt"

@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 set -eo pipefail
+# Passive URL sources (wayback/gau/CDX) must NEVER go through Tor:
+# archive.org and similar block Tor exits → empty wayback + wasted time.
+unset HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy 2>/dev/null || true
 
 RD="results/$TIMESTAMP"
 
