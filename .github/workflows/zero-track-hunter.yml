@@ -196,6 +196,12 @@ env:
   ENABLE_WAF_BYPASS:  ${{ inputs.enable_waf_bypass || 'false' }}
   ENABLE_GIT_EXPOSURE: ${{ inputs.enable_git_exposure || 'true' }}
   ENABLE_SOURCE_MAPS:  ${{ inputs.enable_source_maps || 'true' }}
+  # Network policy (sengi / self-hosted): DIRECT is primary. Tor is optional fallback
+  # only when a step sets USE_TOR and DIRECT failed — never Tor-first on this runner.
+  # Values: direct | direct_then_tor
+  NETWORK_MODE: "direct_then_tor"
+  # Allow Tor fallback in scripts that honor USE_TOR (live_host_probing already DIRECT-first).
+  USE_TOR: "true"
 defaults:
   run:
     shell: bash
@@ -353,8 +359,8 @@ jobs:
             exit 1
           fi
 
-      - name: "🧅 Setup Tor Proxy (Free WAF Bypass)"
-        continue-on-error: false
+      - name: "🧅 Setup Tor Proxy (optional fallback — DIRECT is primary on sengi)"
+        continue-on-error: true
         timeout-minutes: 12
         run: |
           set -uo pipefail
@@ -521,9 +527,15 @@ jobs:
             echo "⚠️ WARNING: '$target' does not resolve via DNS right now."
             echo "⚠️ The scan will continue, but most steps may come back empty."
           fi
-          code=$(proxychains4 -q curl -sk -o /dev/null -w "%{http_code}" --max-time 8 "https://${target}" 2>/dev/null || echo "000")
-          code="${code: -3}"  # curl -w already prints 000 on failure AND exits non-zero, so the || echo "000" fallback doubles it to 000000 - truncate to be safe either way
-          echo "ℹ️ HTTPS probe status for https://${target}: $code"
+          # DIRECT first (runner IP). Tor only if DIRECT fails and proxychains exists.
+          code=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 8 "https://${target}" 2>/dev/null || echo "000")
+          code="${code: -3}"
+          echo "ℹ️ HTTPS probe DIRECT https://${target}: $code"
+          if [ "$code" = "000" ] && command -v proxychains4 >/dev/null 2>&1; then
+            code=$(proxychains4 -q curl -sk -o /dev/null -w "%{http_code}" --max-time 8 "https://${target}" 2>/dev/null || echo "000")
+            code="${code: -3}"
+            echo "ℹ️ HTTPS probe via Tor https://${target}: $code"
+          fi
 
       - name: "🗄️ Cache Go Toolchain"
         id: tool_cache
@@ -789,13 +801,20 @@ jobs:
           # results/$TIMESTAMP/ - every waf_bypass/, info_disclosure/, and
           # source_maps/ write was silently landing outside the results tree
           # and never made it into the final artifact. Single brace group now.
-          mkdir -p "results/${{ env.TIMESTAMP }}"/{subdomains,live,urls,js,graphql,nuclei,cors,files,ai,ai_agent,logs,cloud,waf_bypass,info_disclosure,source_maps,js_deep,targeted,ai_infra}
+          RD="results/${{ env.TIMESTAMP }}"
+          mkdir -p "$RD"/{subdomains,live,urls,js,graphql,nuclei,cors,files,ai,ai_agent,logs,cloud,waf_bypass,info_disclosure,source_maps,js_deep,targeted,ai_infra,detection,fuzzing,smart-fuzzing,meta,triage,report}
           mkdir -p .previous_snapshot
-          # The comment near the tool-install step claimed this gets copied in "a few
-          # steps later" but that copy was never actually written - meaning the log
-          # was silently lost to /tmp every run, exactly the kind of gap that hid why
-          # gowitness ended up unavailable with zero way to diagnose it after the fact.
-          cp /tmp/tool_install.log "results/${{ env.TIMESTAMP }}/logs/tool_install.log" 2>/dev/null || true
+          # Skeleton files: later steps must never `wc -l < missing` under set -e.
+          touch "$RD/live/ports.txt" "$RD/live/live.txt" "$RD/live/live.json" "$RD/live/tech.json" \
+                "$RD/live/verified.txt" "$RD/live/waf.txt" \
+                "$RD/subdomains/all_subs.txt" "$RD/subdomains/resolved.txt" "$RD/subdomains/asn_ips.txt" \
+                "$RD/urls/all.txt" "$RD/urls/wayback.txt" "$RD/urls/gau.txt" \
+                "$RD/waf_bypass/bypass_results.txt" "$RD/waf_bypass/path_bypass.txt" \
+                "$RD/waf_bypass/ip_spoof_bypass.txt" "$RD/waf_bypass/origin_bypass.txt" \
+                "$RD/waf_bypass/waf_fingerprint.txt" \
+                "$RD/nuclei/findings.jsonl" "$RD/logs/httpx.log" "$RD/logs/naabu.log"
+          echo "ℹ️ NETWORK_MODE=${{ env.NETWORK_MODE }} USE_TOR=${{ env.USE_TOR }} (DIRECT primary on this runner)"
+          cp /tmp/tool_install.log "$RD/logs/tool_install.log" 2>/dev/null || true
 
       - name: "🗄️ Restore Previous Scan Snapshot (Diff Mode)"
         id: snapshot_restore
@@ -1158,7 +1177,7 @@ jobs:
       - name: "🌍 Live Host Probing & Fingerprinting"
         continue-on-error: true
         timeout-minutes: 12
-        run: bash scripts/live_host_probing.sh
+        run: USE_TOR="${{ env.USE_TOR }}" NETWORK_MODE="${{ env.NETWORK_MODE }}" bash scripts/live_host_probing.sh
 
       - name: "🛡️ WAF Bypass Recon & Header Rotation"
         if: ${{ env.ENABLE_WAF_BYPASS == 'true' }}
@@ -2590,7 +2609,7 @@ jobs:
           # selection, then fuzzes with it and classifies hits against a
           # per-host baseline instead of trusting raw status codes. See
           # pipeline/smart-fuzzing/README.md for what V1 does and doesn't do.
-          SMART_FUZZ_USE_TOR=true HUNTING_MODE="${{ env.HUNTING_MODE }}" \
+          SMART_FUZZ_USE_TOR=false HUNTING_MODE="${{ env.HUNTING_MODE }}" \
             RD="$RD" TARGET="${{ env.TARGET }}" SCAN_USER_AGENT="$SCAN_USER_AGENT" \
             bash scripts/smart_fuzzing.sh 2>>"$RD/logs/smart_fuzzing.log" || true
 
@@ -2648,7 +2667,7 @@ jobs:
           # Safe to run even if response_diffs.json doesn't exist yet -
           # the engine's own prerequisites() check skips cleanly.
           RD="$RD" TARGET="${{ env.TARGET }}" SCAN_USER_AGENT="$SCAN_USER_AGENT" \
-            ACCESS_CONTROL_USE_TOR=true \
+            ACCESS_CONTROL_USE_TOR=false \
             bash scripts/run_access_control.sh 2>>"$RD/logs/access_control.log" || true
 
       - name: "🌐 Open Redirect Intelligence (V1)"
@@ -2666,7 +2685,7 @@ jobs:
           # reads the Location header. See
           # pipeline/detection/open_redirect_engine.py.
           RD="$RD" TARGET="${{ env.TARGET }}" SCAN_USER_AGENT="$SCAN_USER_AGENT" \
-            OPEN_REDIRECT_USE_TOR=true \
+            OPEN_REDIRECT_USE_TOR=false \
             bash scripts/run_open_redirect.sh 2>>"$RD/logs/open_redirect.log" || true
 
       - name: "🔌 API Discovery"
