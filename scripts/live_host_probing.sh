@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 set -eo pipefail
+# shellcheck source=pipeline_lib.sh
+_LIB="$(cd "$(dirname "$0")" && pwd)/pipeline_lib.sh"
+[ -f "$_LIB" ] && . "$_LIB"
 
 # --- Realistic browser header set (2026-09-14) ---
 # WAFs at enterprise targets (Cloudflare/Akamai/Imperva-class) fingerprint far
@@ -320,6 +323,16 @@ probe_hosts "$RD/live/live.txt" "$RD/live/tech.json" 15 2 4 ""
 # for Cloudflare/nginx/Next.js/WordPress signals for Wolf selector.
 if [ -f "$RD/live/tech.json" ]; then
   python3 "$(dirname "$0")/curl_tech_detect.py" --results-dir "$RD" || true
+fi
+
+# Phase status for quality gates / health
+_live_n=$(safe_count "$RD/live/live.txt" 2>/dev/null || echo 0)
+if [ "${_live_n:-0}" -eq 0 ] 2>/dev/null; then
+  write_phase_status "$RD" "live_probe" "empty" "zero live hosts after DIRECT-first probe"
+elif [ "${_live_n:-0}" -lt 5 ] 2>/dev/null; then
+  write_phase_status "$RD" "live_probe" "ok" "low live count=${_live_n} (possible WAF/IP block — Tor fallback may have been used per-host)"
+else
+  write_phase_status "$RD" "live_probe" "ok" "live_hosts=${_live_n}"
 fi
 echo "✅ Live hosts: $(wc -l < "$RD/live/live.txt")"
 # Classify verified vs unverified for operators + downstream caps

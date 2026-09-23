@@ -1179,6 +1179,29 @@ jobs:
         timeout-minutes: 12
         run: USE_TOR="${{ env.USE_TOR }}" NETWORK_MODE="${{ env.NETWORK_MODE }}" bash scripts/live_host_probing.sh
 
+
+      - name: "🚦 Quality Gate — Live surface"
+        continue-on-error: true
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          mkdir -p "$RD/meta/phases"
+          LIVE_N=0
+          [ -f "$RD/live/live.txt" ] && LIVE_N=$(wc -l < "$RD/live/live.txt" | tr -d ' ')
+          LIVE_N=${LIVE_N:-0}
+          echo "LIVE_HOST_COUNT=$LIVE_N" >> "$GITHUB_ENV"
+          echo "ℹ️ Quality gate live hosts=$LIVE_N NETWORK_MODE=${{ env.NETWORK_MODE }}"
+          # Starvation threshold: below this, heavy scanners waste budget and lie about "clean target"
+          THRESH=3
+          if [ "$LIVE_N" -lt "$THRESH" ] 2>/dev/null; then
+            echo "SKIP_HEAVY_SCAN=true" >> "$GITHUB_ENV"
+            echo "⚠️ LIVE STARVED ($LIVE_N < $THRESH) — heavy scan steps will soft-skip; not a clean-target verdict"
+            echo '{"phase":"gate_live","status":"skipped_starved","detail":"live<'"$THRESH"'","ts":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'"}' > "$RD/meta/phases/gate_live.json"
+          else
+            echo "SKIP_HEAVY_SCAN=false" >> "$GITHUB_ENV"
+            echo '{"phase":"gate_live","status":"ok","detail":"live='"$LIVE_N"'","ts":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'"}' > "$RD/meta/phases/gate_live.json"
+          fi
+
+
       - name: "🛡️ WAF Bypass Recon & Header Rotation"
         if: ${{ env.ENABLE_WAF_BYPASS == 'true' }}
         continue-on-error: true
@@ -1491,6 +1514,23 @@ jobs:
         continue-on-error: true
         timeout-minutes: 70
         run: bash scripts/url_collection.sh
+
+      - name: "🚦 Quality Gate — URL surface"
+        continue-on-error: true
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          mkdir -p "$RD/meta/phases"
+          U=0
+          [ -f "$RD/urls/all.txt" ] && U=$(wc -l < "$RD/urls/all.txt" | tr -d ' ')
+          U=${U:-0}
+          echo "URL_COUNT=$U" >> "$GITHUB_ENV"
+          echo "ℹ️ Quality gate URLs=$U"
+          if [ "$U" -eq 0 ] 2>/dev/null && [ "${LIVE_HOST_COUNT:-0}" -gt 0 ] 2>/dev/null; then
+            echo '{"phase":"gate_urls","status":"empty","detail":"0 urls with live>0","ts":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'"}' > "$RD/meta/phases/gate_urls.json"
+            echo "⚠️ URL surface empty while live hosts exist — passive/CDN block or timeout; not proof target is clean"
+          else
+            echo '{"phase":"gate_urls","status":"ok","detail":"urls='"$U"'","ts":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'"}' > "$RD/meta/phases/gate_urls.json"
+          fi
 
       - name: "📦 JavaScript Analysis"
         continue-on-error: true
@@ -2893,6 +2933,14 @@ jobs:
         continue-on-error: true
         timeout-minutes: 40
         run: |
+          if [ "${SKIP_HEAVY_SCAN:-false}" = "true" ]; then
+            echo "⏭️ Skipping Nuclei — live surface starved (not a clean-target claim)"
+            RD="results/${{ env.TIMESTAMP }}"
+            mkdir -p "$RD/meta/phases" "$RD/nuclei"
+            touch "$RD/nuclei/findings.jsonl"
+            echo '{"phase":"nuclei","status":"skipped_starved"}' > "$RD/meta/phases/nuclei.json"
+            exit 0
+          fi
           # Nuclei opens one file handle per template while loading its (6000+)
           # template set, and we run 3 passes in this same step - the runner's
           # default ulimit (often 1024) gets exhausted, causing thousands of
@@ -3057,6 +3105,10 @@ jobs:
         continue-on-error: true
         timeout-minutes: 10
         run: |
+          if [ "${SKIP_HEAVY_SCAN:-false}" = "true" ]; then
+            echo "⏭️ Skipping Nikto — live surface starved"
+            exit 0
+          fi
           RD="results/${{ env.TIMESTAMP }}"
           : > "$RD/nuclei/nikto_findings.txt"
           NIKTO_LIST="$RD/live/expensive_targets.txt"; [ -s "$NIKTO_LIST" ] || NIKTO_LIST="$RD/live/scan_order.txt"; [ -s "$NIKTO_LIST" ] || NIKTO_LIST="$RD/live/live.txt"
@@ -4547,6 +4599,17 @@ jobs:
         continue-on-error: true
         timeout-minutes: 3
         run: |
+          # Phase status summary (quality gates / starvation — not tool blame)
+          RD="results/${{ env.TIMESTAMP }}"
+          if [ -d "$RD/meta/phases" ]; then
+            echo "### Phase status"
+            cat "$RD/meta/phases"/*.json 2>/dev/null || true
+            echo ""
+          fi
+          if [ "${SKIP_HEAVY_SCAN:-false}" = "true" ]; then
+            echo "⚠️ SKIP_HEAVY_SCAN=true — do not interpret empty nuclei/fuzz as a clean target"
+          fi
+
           RD="results/${{ env.TIMESTAMP }}"
           python3 << 'PYEOF'
           import json, os, re

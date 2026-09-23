@@ -37,3 +37,15 @@
 
 Do not build a custom "mini-Tor" inside the workflow; it will not beat JA3 and
 adds maintenance cost without evidence of gain.
+
+## Job network policy (2026-09-24)
+
+| Variable | Meaning |
+|----------|---------|
+| `NETWORK_MODE=direct_then_tor` | DIRECT (runner IP) first; Tor only as per-host fallback when `USE_TOR=true` |
+| `USE_TOR=true` | Allow Tor fallback on live probe if DIRECT empty for that host |
+| GitHub-hosted IPs | Often blocked by targets → fallback Tor still available on live |
+| sengi / self-hosted | Prefer DIRECT; Tor is optional and must not be primary |
+
+Quality gates write `meta/phases/*.json`. If `SKIP_HEAVY_SCAN=true` (live < 3),
+Nuclei/Nikto soft-skip — empty findings are **not** a clean-target verdict.

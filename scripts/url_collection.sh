@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -eo pipefail
+_LIB="$(cd "$(dirname "$0")" && pwd)/pipeline_lib.sh"
+[ -f "$_LIB" ] && . "$_LIB"
 # Passive URL sources (wayback/gau/CDX) must NEVER go through Tor:
 # archive.org and similar block Tor exits → empty wayback + wasted time.
 unset HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy 2>/dev/null || true
@@ -382,3 +384,12 @@ if [ -s "$RD/urls/all.txt" ]; then
 fi
 echo "📊 URL source breakdown: wayback=$(wc -l < "$RD/urls/wayback.txt" 2>/dev/null || echo 0) js_cdx=$(wc -l < "$RD/urls/wayback_js.txt" 2>/dev/null || echo 0) otx=$(wc -l < "$RD/urls/otx.txt" 2>/dev/null || echo 0) urlscan=$(wc -l < "$RD/urls/urlscan.txt" 2>/dev/null || echo 0) katana=$(wc -l < "$RD/urls/katana.txt" 2>/dev/null || echo 0) html=$(wc -l < "$RD/urls/html_extract.txt" 2>/dev/null || echo 0) all=$(wc -l < "$RD/urls/all.txt" 2>/dev/null || echo 0)"
 
+# Phase status
+if type write_phase_status >/dev/null 2>&1; then
+  _u=$(safe_count "$RD/urls/all.txt" 2>/dev/null || echo 0)
+  if [ "${_u:-0}" -eq 0 ] 2>/dev/null; then
+    write_phase_status "$RD" "url_collection" "empty" "zero URLs in all.txt"
+  else
+    write_phase_status "$RD" "url_collection" "ok" "urls=${_u}"
+  fi
+fi
