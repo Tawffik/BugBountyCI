@@ -203,8 +203,8 @@ defaults:
 jobs:
   full_scan:
     name: "🛡️ Full Autonomous Scan - ${{ inputs.target }}"
-    runs-on: ubuntu-latest
-    timeout-minutes: 358  # GitHub-hosted: install tools from scratch
+    runs-on: sengi-standard-2-ubuntu-2404
+    timeout-minutes: 358  # sengi-standard-2-ubuntu-2404 runner
     # YAML_TR_CR_FIX + BUDGET_REDIST_2026_09: screenshots/nikto/fuzz trimmed; direct-origin/cloud/info bumped
     outputs:
       run_url:       "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
