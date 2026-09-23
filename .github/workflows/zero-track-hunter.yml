@@ -1253,6 +1253,10 @@ jobs:
           # Everything so far only ever checked 80/443. Admin panels, dev/staging
           # services, and internal tools are very commonly left open on non-standard
           # ports that nothing above would ever touch - naabu finds those.
+          # Ensure ports.txt always exists — bash `wc -l < missing` under
+          # set -e/pipefail exits 2 (seen on sengi capital.com run 35925487689)
+          # even with `2>/dev/null || echo 0` inside $(...).
+          : > "$RD/live/ports.txt"
           if command -v naabu >/dev/null; then
             # top-ports 100 + explicit high-value ports (admin panels, DBs, remote access,
             # containers, CI) that sometimes sit outside the generic top-100 ranking
@@ -1268,9 +1272,15 @@ jobs:
             # prioritized target lists (Nuclei fell back to scanning just 8
             # hosts out of 8,728 live ones). Capping naabu itself guarantees
             # the rest of this step always gets a real chance to run.
-            timeout 600 sudo proxychains4 -q "$(command -v naabu)" -l "$INPUT" -top-ports 100 -p "$HIGH_VALUE_PORTS" -exclude-cdn -silent -rate 800 -c 15 -o "$RD/live/ports.txt" 2>>"$RD/logs/naabu.log" || true
-            echo "✅ Open host:port pairs: $(wc -l < "$RD/live/ports.txt" 2>/dev/null || echo 0)"
-            awk -F: '$2!=80 && $2!=443 {print}' "$RD/live/ports.txt" 2>/dev/null > /tmp/nonstd_ports.txt
+            # Prefer non-sudo on runners where passwordless sudo is flaky; fall back to sudo.
+            NAABU_BIN="$(command -v naabu)"
+            timeout 600 proxychains4 -q "$NAABU_BIN" -l "$INPUT" -top-ports 100 -p "$HIGH_VALUE_PORTS" -exclude-cdn -silent -rate 800 -c 15 -o "$RD/live/ports.txt" 2>>"$RD/logs/naabu.log" \
+              || timeout 600 sudo -n proxychains4 -q "$NAABU_BIN" -l "$INPUT" -top-ports 100 -p "$HIGH_VALUE_PORTS" -exclude-cdn -silent -rate 800 -c 15 -o "$RD/live/ports.txt" 2>>"$RD/logs/naabu.log" \
+              || true
+            [ -f "$RD/live/ports.txt" ] || : > "$RD/live/ports.txt"
+            port_n=$(wc -l < "$RD/live/ports.txt" 2>/dev/null || echo 0)
+            echo "✅ Open host:port pairs: ${port_n:-0}"
+            awk -F: '$2!=80 && $2!=443 {print}' "$RD/live/ports.txt" 2>/dev/null > /tmp/nonstd_ports.txt || true
             if [ -s /tmp/nonstd_ports.txt ]; then
               # BUGFIX: same broken "-l" bulk-mode pattern proven unreliable for the
               # main Live Host Probing step (confirmed on 3 real targets: httpx -l
