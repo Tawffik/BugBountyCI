@@ -3891,6 +3891,8 @@ jobs:
           # smart-fuzzing/response_diffs.json both already exist. See
           # pipeline/detection/metrics_builder.py.
           python3 pipeline/detection/metrics_builder.py --results-dir "$RD" || true
+          # Priority 1 foundation: endpoint→parameter map for future IDOR/SSRF engines
+          python3 pipeline/detection/parameter_intelligence.py --results-dir "$RD" || true
 
       - name: "🔭 OOB Check (Interactsh)"
         continue-on-error: true
