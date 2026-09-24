@@ -984,28 +984,92 @@ jobs:
           echo "ℹ️ DNS resolution timeout: ${RESOLVE_TIMEOUT}s (raw candidates=${RAW_SUBS_COUNT:-0})"
 
           echo "✅ Resolving merged list (drops dead/decommissioned names from crt.sh etc.)..."
-          [ -s /tmp/raw_subs.txt ] && timeout "$RESOLVE_TIMEOUT" bash -c 'cat /tmp/raw_subs.txt | dnsx -silent -resp -a -t 200 | awk "{print \$1}" | sort -u' > "$RD/subdomains/resolved.txt" 2>>"$RD/logs/dnsx.log" || touch "$RD/subdomains/resolved.txt"
-          # BUGFIX: "-resp-only" strips the hostname entirely and prints ONLY the
-          # resolved IP (confirmed against ProjectDiscovery's own documented example
-          # output) - meaning every downstream step was silently testing bare IP
-          # addresses instead of real hostnames. "-resp" keeps "host [ip]" so col 1
-          # (extracted below via awk) is the actual hostname we need.
-          cut -d' ' -f1 "$RD/subdomains/resolved.txt" | sort -u -o "$RD/subdomains/resolved.txt"
+          : > "$RD/subdomains/resolved.txt"
+          mkdir -p "$RD/meta/phases" "$RD/logs"
+          # Pass 1: dnsx via stdin (avoid -l hang history). Lower threads on flaky resolvers.
+          if [ -s /tmp/raw_subs.txt ] && command -v dnsx >/dev/null; then
+            timeout "$RESOLVE_TIMEOUT" bash -c 'cat /tmp/raw_subs.txt | dnsx -silent -resp -a -t 50 -retry 2 | awk "{print \$1}" | sort -u' \
+              > "$RD/subdomains/resolved.txt" 2>>"$RD/logs/dnsx.log" || true
+          fi
+          # Normalize: first token only (hostname), drop empties
+          if [ -s "$RD/subdomains/resolved.txt" ]; then
+            awk '{print $1}' "$RD/subdomains/resolved.txt" | tr -d '\r' | grep -v '^\s*$' | sort -u -o "$RD/subdomains/resolved.txt"
+          else
+            : > "$RD/subdomains/resolved.txt"
+          fi
+          RESOLVED_N=$(wc -l < "$RD/subdomains/resolved.txt" 2>/dev/null | tr -d ' ')
+          RESOLVED_N=${RESOLVED_N:-0}
+          echo "ℹ️ dnsx resolved count: $RESOLVED_N (raw=${RAW_SUBS_COUNT:-0})"
+
+          # Pass 2: dig/getent fallback when dnsx returns nothing but candidates exist
+          # (capital.com run 93: 221 raw → 0 resolved; dnsx.log empty — tooling/resolver, not empty target)
+          if [ "${RESOLVED_N:-0}" -eq 0 ] && [ -s /tmp/raw_subs.txt ]; then
+            echo "⚠️ dnsx returned 0 — fallback dig/getent on up to 400 candidates..." | tee -a "$RD/logs/dnsx.log"
+            : > /tmp/dig_resolved.txt
+            resolve_one() {
+              h="$1"
+              [ -z "$h" ] && return
+              if getent ahosts "$h" 2>/dev/null | head -1 | grep -q .; then
+                echo "$h" >> /tmp/dig_resolved.txt
+                return
+              fi
+              if command -v dig >/dev/null 2>&1; then
+                if dig +short +time=3 +tries=1 "$h" A 2>/dev/null | grep -E '^[0-9.]+' | head -1 | grep -q .; then
+                  echo "$h" >> /tmp/dig_resolved.txt
+                  return
+                fi
+                if dig +short +time=3 +tries=1 "$h" CNAME 2>/dev/null | grep -q .; then
+                  echo "$h" >> /tmp/dig_resolved.txt
+                fi
+              fi
+            }
+            export -f resolve_one
+            # Cap work so we never burn the whole step on dig
+            head -400 /tmp/raw_subs.txt | xargs -P 15 -I{} bash -c 'resolve_one "$@"' _ {} 2>>"$RD/logs/dnsx.log" || true
+            if [ -s /tmp/dig_resolved.txt ]; then
+              sort -u /tmp/dig_resolved.txt > "$RD/subdomains/resolved.txt"
+              RESOLVED_N=$(wc -l < "$RD/subdomains/resolved.txt" | tr -d ' ')
+              echo "✅ dig/getent fallback recovered $RESOLVED_N host(s)" | tee -a "$RD/logs/dnsx.log"
+              echo "dig_fallback" > "$RD/meta/dns_resolve_path.txt"
+            else
+              echo "❌ dig/getent also recovered 0 hosts" | tee -a "$RD/logs/dnsx.log"
+              echo "dns_failed" > "$RD/meta/dns_resolve_path.txt"
+            fi
+          else
+            echo "dnsx" > "$RD/meta/dns_resolve_path.txt"
+          fi
 
           echo "🧬 Generating smart permutations (alterx) from confirmed hosts..."
           if [ -s "$RD/subdomains/resolved.txt" ] && command -v alterx >/dev/null; then
-            timeout 180 bash -c "alterx -l \"$RD/subdomains/resolved.txt\" -silent | dnsx -silent -resp -a -t 200 | awk '{print \$1}' | sort -u" > "$RD/subdomains/permutations_resolved.txt" 2>>"$RD/logs/alterx.log" || touch "$RD/subdomains/permutations_resolved.txt"
-            echo "   +$(wc -l < "$RD/subdomains/permutations_resolved.txt" 2>/dev/null || echo 0) new hosts found via permutation"
+            timeout 180 bash -c "alterx -l \"$RD/subdomains/resolved.txt\" -silent | dnsx -silent -resp -a -t 50 | awk '{print \$1}' | sort -u" > "$RD/subdomains/permutations_resolved.txt" 2>>"$RD/logs/alterx.log" || touch "$RD/subdomains/permutations_resolved.txt"
+            echo "   +$(wc -l < "$RD/subdomains/permutations_resolved.txt" 2>/dev/null || echo 0) new hosts from permutation"
           else
             touch "$RD/subdomains/permutations_resolved.txt"
           fi
+
           cat "$RD/subdomains/resolved.txt" "$RD/subdomains/permutations_resolved.txt" 2>/dev/null | grep -v '^\s*$' | sort -u > "$RD/subdomains/all_subs.txt" || true
-          echo "✅ Total subdomains: $(wc -l < "$RD/subdomains/all_subs.txt" 2>/dev/null || echo 0) (confirmed live via DNS resolution)"
-          if [ ! -s "$RD/subdomains/all_subs.txt" ]; then
-            raw_count=$(wc -l < /tmp/raw_subs.txt 2>/dev/null || echo 0)
-            echo "::warning::0 confirmed subdomains even though $raw_count raw candidate(s) were merged - DNS resolution itself returned nothing usable. This is the earliest and most fundamental point of failure; every later '0 findings' in this run traces back to here, not to the target actually being clean."
-            mkdir -p "$RD/meta"
-            echo "0 subdomains were DNS-confirmed even though $raw_count raw candidate name(s) existed before resolution. This is almost certainly a resolver/tooling failure, not evidence the target has no subdomains - do NOT treat a clean-looking report below as confirmation of security." > "$RD/meta/scan_health_warning.txt"
+          # Always seed apex + common names so a DNS tooling failure cannot zero the whole pipeline
+          {
+            echo "${{ env.TARGET }}"
+            echo "www.${{ env.TARGET }}"
+            echo "api.${{ env.TARGET }}"
+            echo "app.${{ env.TARGET }}"
+          } >> "$RD/subdomains/all_subs.txt"
+          sort -u -o "$RD/subdomains/all_subs.txt" "$RD/subdomains/all_subs.txt"
+          TOTAL_SUBS=$(wc -l < "$RD/subdomains/all_subs.txt" 2>/dev/null | tr -d ' ')
+          echo "✅ Total subdomains: ${TOTAL_SUBS:-0} (DNS-confirmed + seeds)"
+
+          RESOLVED_N=$(wc -l < "$RD/subdomains/resolved.txt" 2>/dev/null | tr -d ' ')
+          RESOLVED_N=${RESOLVED_N:-0}
+          mkdir -p "$RD/meta/phases"
+          if [ "${RESOLVED_N:-0}" -eq 0 ] && [ "${RAW_SUBS_COUNT:-0}" -gt 0 ]; then
+            echo "::warning::DNS_FAILED: 0 resolved from ${RAW_SUBS_COUNT} raw candidates — pipeline will continue on seeds only; do NOT treat as clean target"
+            echo "DNS_FAILED: 0 resolved / ${RAW_SUBS_COUNT} raw. Fallback dig also empty or partial. Downstream zeros are not a security verdict." > "$RD/meta/scan_health_warning.txt"
+            echo '{"phase":"dns_resolve","status":"error","detail":"0 resolved from raw>0"}' > "$RD/meta/phases/dns_resolve.json"
+            echo "DNS_FAILED=true" >> "$GITHUB_ENV"
+          else
+            echo '{"phase":"dns_resolve","status":"ok","detail":"resolved='"$RESOLVED_N"'"}' > "$RD/meta/phases/dns_resolve.json"
+            echo "DNS_FAILED=false" >> "$GITHUB_ENV"
           fi
 
       - name: "🌐 ASN/CIDR Discovery"
