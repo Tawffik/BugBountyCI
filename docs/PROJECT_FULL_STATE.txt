@@ -1,0 +1,350 @@
+================================================================================
+BugBountyCI (Zero Track) — FULL PROJECT STATE DOCUMENT
+================================================================================
+Generated for continuation / handoff. Language: Arabic + technical English terms.
+Repo: https://github.com/Tawffik/BugBountyCI
+Primary workflow: .github/workflows/zero-track-hunter.yml
+Canonical roadmap: docs/V2_ROADMAP.md
+This file: single dump of goals, method, history, current blockers, future plan.
+================================================================================
+
+--------------------------------------------------------------------------------
+1) ما هو المشروع / الهدف (GOAL)
+--------------------------------------------------------------------------------
+
+الاسم: BugBountyCI / Zero Track — AI Autonomous Hunter
+
+الهدف الاستراتيجي (North Star):
+  تحويل المشروع من «مجموعة أدوات ريكو تقليدية» إلى:
+  «Target-Aware Adaptive Security Intelligence & Detection Engine»
+
+المبدأ التشغيلي:
+  Understand the target
+  → select relevant tests
+  → execute
+  → compare
+  → verify
+  → correlate
+  → prioritize
+  → human validation
+  → learn from feedback
+
+ما نريد أكثر:
+  - MORE RELEVANT TESTS
+  - LESS NOISE
+  - BETTER EVIDENCE
+  - FEWER DUPLICATES
+  - LOWER COST
+  - LESS MANUAL WASTE
+  - BETTER HUMAN DECISIONS
+
+ما لا نريد:
+  - تكديس أدوات بدون دليل
+  - تقارير «نظيف» كاذبة بسبب فشل pipeline
+  - تطوير feature جديد قبل قفل طبقة الاكتشاف الأساسية
+  - سؤال «إيه الأداة الجاية؟» بدل «إيه الدليل الناقص؟»
+
+الهدف التشغيلي للصياد:
+  طابور (Hunter Queue) فيه إشارات مصنّفة:
+  NOISE / LOW_SIGNAL / LEAD / HIGH_SIGNAL / CONFIRMED
+  يتحقق منها بشريًا قبل أي تقرير باونتي.
+
+--------------------------------------------------------------------------------
+2) الطريقة / المعمارية (METHOD)
+--------------------------------------------------------------------------------
+
+2.1 طبقات الـ pipeline (تقريبيًا حسب ترتيب الـ workflow)
+  A) Bootstrap
+     - Checkout, Go/Python, scope check, optional Tor, tool install, cache
+  B) Discovery
+     - Subdomain enum (passive + brute) → DNS resolve → all_subs
+     - ASN/CIDR discovery
+     - Live host probe + tech fingerprint
+     - Port scan (naabu)
+  C) Collection
+     - URL collection (wayback/gau/CDX/katana/…)
+     - JS analysis, secrets, deep JS
+  D) Surface probes
+     - WAF bypass / origin / IP-spoof headers
+     - Content discovery / smart fuzzing
+     - Access-control engine, open-redirect engine
+     - API discovery, nuclei, nikto, AI agent phases
+  E) Synthesis
+     - Parameter intelligence, metrics, hunter queue, triage, health, artifacts
+
+2.2 Detection framework
+  - pipeline/detection/engine.py: Candidate → Evidence → classification labels
+  - Engines must not invent labels outside the 5-label system
+  - continue-on-error orchestrator between engines
+
+2.3 Smart Fuzzing V1 (pipeline/smart-fuzzing/)
+  - target_profile, vocabulary, wolf_selector, wordlist_builder
+  - baseline + response_diff
+  - ffuf with diagnostics [ffuf-diag]
+
+2.4 Network policy (بعد إصلاحات sengi)
+  - NETWORK_MODE=direct_then_tor
+  - DIRECT (runner IP) first — especially on sengi self-hosted Ubuntu
+  - Tor only as per-host fallback when USE_TOR=true and DIRECT empty
+  - Reason: GitHub Actions IPs often blocked by targets; Tor-first burned
+    exits and reduced live hosts on clean runners
+  - Passive URL sources must NOT inherit HTTP_PROXY through Tor
+    (archive.org blocks many Tor exits)
+
+2.5 Quality / honesty
+  - Skeleton result files so `wc -l < missing` does not exit 2 under set -e
+  - phase status under meta/phases/*.json
+  - SKIP_HEAVY_SCAN when live surface starved (avoid false "clean target")
+  - DNS_FAILED when raw candidates > 0 but resolved == 0
+
+--------------------------------------------------------------------------------
+3) ما هو مبني فعليًا (IMPLEMENTED — not aspirational)
+--------------------------------------------------------------------------------
+
+Infrastructure / CI
+  - GitHub Actions workflow zero-track-hunter.yml (large monolith ~67 steps)
+  - runs-on: sengi-standard-2-ubuntu-2404 (self-hosted Ubuntu)
+  - Toolchain cache for Go binaries
+  - Artifact upload of results-* zip
+
+Recon chain
+  - Subfinder, assetfinder, crt.sh, chaos, findomain, optional amass, dns brute
+  - dnsx resolve (+ dig/getent fallback as of commit b6c34c4)
+  - httpx live probe with -tlsi, DIRECT-first, Tor fallback, curl fallback
+  - curl_tech_detect.py when httpx tech empty
+  - naabu ports (with ports.txt skeleton / non-fatal missing file)
+  - URL collection with adaptive timeouts + CDX/OTX fallback
+  - JS / secrets / cariddi / mantra / etc.
+
+Detection / intelligence
+  - Access-control engine V1
+  - Open-redirect engine V1
+  - Smart fuzzing V1
+  - Parameter intelligence map (Priority 1 foundation)
+  - Hunter queue builder + metrics builder
+  - ~58 pytest tests (detection + smart-fuzzing)
+
+Docs
+  - docs/V2_ROADMAP.md (single source of truth for roadmap)
+  - docs/NETWORK_PATH_NOTES.md
+  - Multiple historical FIX_*.md and pipeline root-cause notes
+
+Recent commits (network/DNS era)
+  - cb8863e  ci: sengi runner
+  - 01698b7  Parameter Intelligence
+  - 49cba94  ports.txt / naabu without forced sudo
+  - 554f3ad  DIRECT-first live; ASN sample DIRECT-only; URL unset proxy
+  - 4fd55ad  NETWORK_MODE policy; health DIRECT; fuzz engines DIRECT
+  - cba282d  quality gates, phase status, SKIP_HEAVY_SCAN
+  - b6c34c4  DNS dig/getent fallback + DNS_FAILED + apex seeds
+
+--------------------------------------------------------------------------------
+4) المشاكل القديمة (OLD PROBLEMS) — جذور وأعراض
+--------------------------------------------------------------------------------
+
+4.1 هوية الشبكة
+  - GitHub-hosted IP ranges heavily fingerprinted / blocked
+  - Response: Tor everywhere → slow, blocked exits, double requests
+  - Tor-first live probe → very low live counts (e.g. ~3 hosts)
+  - Fix direction: sengi runner + DIRECT-first + Tor as fallback only
+
+4.2 httpx / TLS fingerprint
+  - httpx (Go) often out_bytes=0 on protected targets even when curl gets 301/200
+  - Temporary diagnostic -v with -silent caused 100% FTL failures (fixed)
+  - curl fallback + curl_tech_detect for minimal live/tech records
+
+4.3 tech.json فارغ
+  - Missing -td historically; httpx empty; fixed path + curl_tech_detect
+  - Verified on some runs (e.g. Akamai, Next.js via curl_tech)
+
+4.4 DNS resolution collapse
+  - capital.com run 93: 221 raw candidates → resolved.txt = 0
+  - dnsx.log empty; warning correctly said tooling/resolver not "no subs"
+  - Downstream: only ~6 seeded hosts, live~14, engines starved
+  - Fix: dig/getent fallback, lower dnsx threads, DNS_FAILED flag (b6c34c4)
+  - STATUS: code shipped; needs confirming run
+
+4.5 Fragile file contracts
+  - Steps assumed files exist; `wc -l < ports.txt` → exit 2 under set -e
+  - continue-on-error hid failures; health report lied after cancel
+  - Fix: skeleton touch files; safer counts; phase status
+
+4.6 ASN noise
+  - capital-class targets: tens of thousands of ASN IPs
+  - Probing many via Tor burned time/circuits
+  - Fix: cap sample (~80), DIRECT-only ASN probe pass
+
+4.7 False "clean target" narrative
+  - Empty nuclei/fuzz/hunter after starved live or cancelled URL step
+  - Health said broken sometimes, but humans still read "0 findings" as secure
+  - Fix direction: SKIP_HEAVY_SCAN, DNS_FAILED, phase JSON, honest health text
+
+4.8 Monolith workflow
+  - ~346KB single YAML, ~67 steps, mostly continue-on-error
+  - Hard to re-run one phase; high cost of late failure
+  - Future: split jobs recon → artifact → scan (deferred until stable)
+
+4.9 Smart fuzz empty results
+  - Many ffuf_raw JSON with results: []
+  - Hypotheses: -ac filtering identical WAF pages vs TLS issues
+  - Diag lines added; still often no HIGH_SIGNAL on hard targets
+
+4.10 Access-control / Open-redirect quiet results
+  - capital 93: access-control candidates_generated=0, evidence=[]
+  - open-redirect candidates=42, evidence=0
+  - Root: insufficient surface / no differential responses — not necessarily
+    engine crash (logs empty, ran=true)
+
+4.11 IP spoof / origin bypass
+  - Often empty or "redirect-only not confirmed bypass" on CDN origins
+  - Expected on Cloudflare/Akamai-fronted apps; logging improved
+
+4.12 Circular development risk
+  - Fix symptom → new bottleneck appears → months of loop
+  - Rule adopted: do not advance roadmap features until discovery layers
+    (DNS → live) meet measurable gates
+
+--------------------------------------------------------------------------------
+5) المشاكل الحالية (CURRENT — as of last analyzed run)
+--------------------------------------------------------------------------------
+
+Last full artifact analyzed: results-35929101008-93-capital.com.zip
+
+  - probe_path: direct (good)
+  - DNS resolved: 0 / 221 raw (BAD — primary bottleneck that run)
+  - live hosts: 14 (mostly seeds + a few)
+  - URLs: 1474 (pipeline completed — good vs cancelled run)
+  - tech: Next.js via curl_tech_detect (partial win)
+  - parameter_intelligence: present
+  - access-control: 0 candidates; open-redirect: 42 candidates, 0 evidence
+  - hunter queue: empty
+  - nuclei findings: empty
+  - meta/phases: not in that zip (run likely before cba282d or not archived)
+
+Immediate priority:
+  1) Run on commit >= b6c34c4 and verify resolved.txt > 0
+  2) Only then judge engines fairly on a non-starved surface
+
+--------------------------------------------------------------------------------
+6) مشاكل مستقبلية متوقعة (FUTURE FAILURE MODES)
+--------------------------------------------------------------------------------
+
+  F1) dig/getent fallback also returns 0 on restricted DNS environments
+  F2) Runner IP (sengi) eventually blocked by same targets → need measured
+      Tor upgrade by success-rate, not Tor-first
+  F3) New workflow step uses unsafe `wc -l < file` without skeleton
+  F4) Quality gates thresholds wrong (SKIP_HEAVY too aggressive/loose)
+  F5) Engines still 0 evidence after healthy DNS → engine logic gaps
+  F6) Parameter intelligence cap hides important endpoints
+  F7) AI phases consume budget with empty plans when providers fail
+  F8) Monolith timeouts on huge targets (binance-class) despite adaptive
+      timeouts
+  F9) Secret/token leakage in logs/artifacts if misconfigured
+  F10) Treating pipeline BROKEN as program "secure"
+
+--------------------------------------------------------------------------------
+7) الخطط المستقبلية (FUTURE PLAN) — مرتبة
+--------------------------------------------------------------------------------
+
+PHASE GATE 0 — Discovery truth (NOW)
+  [ ] Confirm DNS fix on real run (resolved > 0 when raw > 0)
+  [ ] Confirm live counts stable vs previous snapshots when DNS works
+  [ ] Confirm phase JSON + DNS_FAILED/SKIP_HEAVY appear in artifacts
+  [ ] Do NOT add new vuln engines until this gate passes twice
+
+PHASE GATE 1 — Live quality
+  [ ] When httpx empty and curl OK: treat curl records as first-class
+  [ ] Expand tech enrichment reliability
+  [ ] Rank interesting hosts; feed only Top-N to heavy scanners
+
+PHASE GATE 2 — Engine signal quality
+  [ ] Re-evaluate access-control candidate generation on rich surface
+  [ ] Re-evaluate open-redirect verification thresholds
+  [ ] Smart fuzz: decide -ac vs TLS with evidence from [ffuf-diag]
+  [ ] Hunter queue should show LEAD+ items on at least one soft target
+
+PHASE GATE 3 — API / Parameter intelligence (from V2 roadmap)
+  [ ] Deeper param/endpoint graph from JS + arjun + history
+  [ ] Wire IDOR/BOLA / authz tests to that graph (not separate blind engines)
+  [ ] SSRF candidates only where evidence suggests sinks
+
+PHASE GATE 4 — Architecture hygiene
+  [ ] NETWORK_MODE applied consistently to remaining proxychains call sites
+  [ ] phase_status for every major step
+  [ ] Consider splitting workflow: recon job → scan job via artifacts
+  [ ] Health report distinguishes: cancelled | dns_failed | starved |
+      network_blocked | empty_target | real_findings
+
+PHASE GATE 5 — Human loop
+  [ ] Manual validation workflow for HIGH_SIGNAL only
+  [ ] Feedback file that can later bias selectors (learn from FP/TP)
+
+Deferred deliberately (from V2 spirit)
+  - More scanners for the sake of count
+  - Full multi-session authenticated IDOR without session matrix
+  - Free open proxy pools (unsafe / unstable)
+  - Expanding AI agent phases before evidence-rich queue exists
+
+--------------------------------------------------------------------------------
+8) أين نحن من الخطة الآن (STATUS vs PLAN)
+--------------------------------------------------------------------------------
+
+  Network migration (GitHub IP → sengi + DIRECT): PARTIAL SUCCESS
+  Tor-first removal on live: DONE in code
+  tech.json path: IMPROVED
+  Parameter intelligence scaffold: DONE
+  Access-control / Open-redirect code: DONE; hunting output: WEAK on hard targets
+  Smart fuzz code: DONE; useful diffs: WEAK when surface/WAF hard
+  DNS reliability: FIX SHIPPED; AWAITING CONFIRMATION RUN
+  Full V2 "adaptive intelligence engine": NOT YET — still stabilizing discovery
+
+  Bottom line:
+    We are still on the DISCOVERY GATE, not on "finish all roadmap features."
+    Continuing feature roadmap before DNS/live proof = same multi-month loop.
+
+--------------------------------------------------------------------------------
+9) قواعد الاستمرار لأي Agent / مطور (CONTINUATION RULES)
+--------------------------------------------------------------------------------
+
+  1. Read docs/V2_ROADMAP.md and this file before coding.
+  2. Never ask "what tool next?" — ask what evidence is missing.
+  3. Do not start new engines until Gate 0 (DNS/live) confirmed on real runs.
+  4. Prefer smallest architectural fix that removes a bottleneck.
+  5. Every stage that can produce empty output must leave a phase status
+     and must not imply "target is secure."
+  6. GitHub-hosted IPs get blocked — design for DIRECT primary on self-hosted,
+     Tor fallback only with evidence of need.
+  7. Tests: keep pytest green for pipeline/detection and smart-fuzzing.
+  8. Scope: only authorized targets; scope.txt when available.
+
+--------------------------------------------------------------------------------
+10) ملفات مفاتيح في الريبو
+--------------------------------------------------------------------------------
+
+  .github/workflows/zero-track-hunter.yml   — main CI pipeline
+  scripts/live_host_probing.sh             — live + tech + DIRECT/Tor
+  scripts/url_collection.sh                — URLs; no proxy for passive
+  scripts/smart_fuzzing.sh                 — ffuf smart path
+  scripts/curl_tech_detect.py              — tech from curl
+  scripts/pipeline_lib.sh                  — safe_count, phase status
+  scripts/run_access_control.sh
+  scripts/run_open_redirect.sh
+  pipeline/detection/                      — engines, metrics, hunter queue
+  pipeline/smart-fuzzing/                  — profile, vocab, diff
+  docs/V2_ROADMAP.md
+  docs/NETWORK_PATH_NOTES.md
+  docs/PROJECT_FULL_STATE.txt              — this file
+
+--------------------------------------------------------------------------------
+11) ملخص جملة واحدة
+--------------------------------------------------------------------------------
+
+  BugBountyCI يهدف لمحرك اكتشاف أدلة مرتب للبشري، لا لمخزن أدوات.
+  انتقلنا من حظر IP جيتهاب إلى sengi+DIRECT، وأصلحنا أعراضاً كثيرة،
+  لكن عنق الزجاجة الأخير المؤكد كان DNS=0 على capital؛ إصلاحه في الكود
+  ويجب إثباته برن قبل أي توسع في الخطة.
+  النجاح = إشارات موثوقة في hunter queue مع تقرير لا يكذب عند فشل الطبقات.
+
+================================================================================
+END OF DOCUMENT
+================================================================================
