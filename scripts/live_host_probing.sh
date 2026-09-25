@@ -15,7 +15,7 @@ _LIB="$(cd "$(dirname "$0")" && pwd)/pipeline_lib.sh"
 BROWSER_HEADERS=(
   -H "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
   -H "Accept-Language: en-US,en;q=0.9"
-  -H "Accept-Encoding: gzip, deflate, br"
+  -H "Accept-Encoding: gzip, deflate"
 )
 
 RD="results/$TIMESTAMP"
@@ -156,6 +156,82 @@ else
   : > "$RD/live/live.txt"
 fi
 echo "ℹ️ Live hosts after primary probe: $(wc -l < "$RD/live/live.txt" 2>/dev/null || echo 0)"
+
+# ---------------------------------------------------------------------------
+# CURL SWEEP (2026-09-25): httpx often returns 0 bytes on WAF targets while
+# curl still gets 403/301/200. Old superdrug runs had high live counts; after
+# DIRECT/httpx changes we only kept hosts httpx saw — if that is 2/75 we
+# starve the whole pipeline. When live is sparse vs INPUT, probe remaining
+# URLs with curl and append minimal NDJSON (same as per-host curl fallback).
+# ---------------------------------------------------------------------------
+_LIVE_N=$(wc -l < "$RD/live/live.txt" 2>/dev/null | tr -d ' ')
+_LIVE_N=${_LIVE_N:-0}
+_IN_N=$(wc -l < "$INPUT" 2>/dev/null | tr -d ' ')
+_IN_N=${_IN_N:-0}
+# Run sweep if fewer than 15 live OR less than ~20% of inputs responded
+_NEED_SWEEP=0
+if [ "${_IN_N:-0}" -gt 5 ]; then
+  if [ "${_LIVE_N:-0}" -lt 15 ]; then _NEED_SWEEP=1; fi
+  if [ "${_LIVE_N:-0}" -lt $(( _IN_N / 5 )) ]; then _NEED_SWEEP=1; fi
+fi
+if [ "$_NEED_SWEEP" = "1" ] && [ -s "$INPUT" ]; then
+  echo "⚠️ Live sparse (${_LIVE_N}/${_IN_N}) — curl-sweep remaining hosts (httpx-miss recovery)..."
+  mkdir -p "$RD/logs"
+  : > /tmp/curl_sweep.jsonl
+  : > /tmp/curl_sweep_urls.txt
+  # hosts already in live.txt
+  sort -u "$RD/live/live.txt" -o /tmp/already_live.txt 2>/dev/null || : > /tmp/already_live.txt
+  while IFS= read -r u; do
+    [ -z "$u" ] && continue
+    grep -qxF "$u" /tmp/already_live.txt 2>/dev/null && continue
+    echo "$u"
+  done < "$INPUT" > /tmp/curl_sweep_targets.txt
+  sweep_one() {
+    u="$1"
+    code=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 8 \
+      -H "User-Agent: ${SCAN_USER_AGENT:-Mozilla/5.0}" \
+      -H "Accept: text/html,application/xhtml+xml;q=0.9,*/*;q=0.8" \
+      "$u" 2>/dev/null || echo "000")
+    code="${code: -3}"
+    if [ -n "$code" ] && [ "$code" != "000" ]; then
+      echo "$u" >> /tmp/curl_sweep_urls.txt
+      echo "{\"url\":\"$u\",\"status_code\":$code,\"host_curl_fallback\":true,\"sweep\":true}" >> /tmp/curl_sweep.jsonl
+    fi
+  }
+  export -f sweep_one
+  export SCAN_USER_AGENT
+  # Cap concurrency; budget ~120s wall via head limit on targets if huge
+  head -400 /tmp/curl_sweep_targets.txt | xargs -P 12 -I{} bash -c 'sweep_one "$@"' _ {} 2>>"$RD/logs/curl_sweep.log" || true
+  if [ -s /tmp/curl_sweep_urls.txt ]; then
+    cat /tmp/curl_sweep.jsonl >> "$RD/live/live.json" 2>/dev/null || true
+    cat /tmp/curl_sweep_urls.txt >> "$RD/live/live.txt"
+    sort -u -o "$RD/live/live.txt" "$RD/live/live.txt"
+    echo "✅ curl-sweep recovered $(wc -l < /tmp/curl_sweep_urls.txt | tr -d ' ') host(s) → live total $(wc -l < "$RD/live/live.txt" | tr -d ' ')"
+  else
+    echo "ℹ️ curl-sweep: no additional hosts (WAF may block this runner IP entirely)"
+  fi
+fi
+
+
+# Soft-seed: if still very sparse after curl-sweep, add DNS-resolved hosts as
+# unverified candidates so URL/JS stages are not limited to 2–3 apex URLs
+# (matches older pipeline behavior that kept large live.txt on superdrug).
+_LIVE_N=$(wc -l < "$RD/live/live.txt" 2>/dev/null | tr -d ' ')
+_LIVE_N=${_LIVE_N:-0}
+if [ "${_LIVE_N:-0}" -lt 20 ] && [ -s "$RD/subdomains/resolved.txt" ]; then
+  before=$_LIVE_N
+  while IFS= read -r h; do
+    h="$(echo "$h" | tr -d '' | xargs)"; [ -z "$h" ] && continue
+    echo "https://$h" >> "$RD/live/live.txt"
+    echo "http://$h" >> "$RD/live/live.txt"
+  done < "$RD/subdomains/resolved.txt"
+  sort -u -o "$RD/live/live.txt" "$RD/live/live.txt"
+  after=$(wc -l < "$RD/live/live.txt" | tr -d ' ')
+  if [ "${after:-0}" -gt "${before:-0}" ]; then
+    echo "ℹ️ soft-seed DNS hosts into live.txt: ${before} → ${after} (unverified-live; crawlers need surface)"
+    echo "dns-soft-seed" > "$RD/meta/live_probe_path.txt"
+  fi
+fi
 
 # A run's assigned Tor circuit can be individually flaky even when
 # Tor itself is confirmed up and a lightweight single curl through
