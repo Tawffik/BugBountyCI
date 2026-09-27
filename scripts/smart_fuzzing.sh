@@ -25,6 +25,9 @@ PY_DIR="$SCRIPT_DIR/../pipeline/smart-fuzzing"
 WOLF_DIR="${WOLF_DIR:-/tmp/wolf}"
 OUT_DIR="$RD/smart-fuzzing"
 
+# shellcheck source=pipeline_lib.sh
+source "$SCRIPT_DIR/pipeline_lib.sh" 2>/dev/null || true
+
 mkdir -p "$OUT_DIR"
 FAIL=0
 
@@ -54,6 +57,14 @@ python3 "$PY_DIR/wolf_selector.py" \
   --target-profile "$OUT_DIR/target_profile.json" \
   --mode "$MODE" \
   --results-dir "$RD" || FAIL=1
+
+# --- 3.5. Structural Pattern Prediction (this target's OWN grammar,
+# not a static wordlist source — see pipeline/detection/pattern_predictor.py.
+# Failure here is non-fatal: wordlist_builder.py degrades gracefully
+# when detection/predicted_paths.json is missing.) ---
+python3 "$SCRIPT_DIR/../pipeline/detection/pattern_predictor.py" \
+  --results-dir "$RD" \
+  --target "$TARGET" || true
 
 # --- 4. Target Wordlist Builder ---
 python3 "$PY_DIR/wordlist_builder.py" --results-dir "$RD" --mode "$MODE" || FAIL=1
@@ -122,4 +133,23 @@ done < "$FUZZ_INPUT"
 python3 "$PY_DIR/response_diff.py" --results-dir "$RD" --ffuf-json-dir "$FFUF_JSON_DIR" || true
 
 echo "✅ Smart Fuzzing V1 complete — see $OUT_DIR/interesting.txt"
+
+# Gap C (docs/PROJECT_FULL_STATE / master architecture doc §51): this
+# script always exited 0 for continue-on-error friendliness, but that
+# meant the caller could never tell "ran fine, genuinely found nothing"
+# apart from "one of the Python stages actually crashed". Report the
+# real status using the same meta/phases/*.json contract
+# live_host_probing.sh/url_collection.sh already use — do not invent a
+# second status mechanism.
+if type write_phase_status >/dev/null 2>&1; then
+  interesting_n=$(safe_count "$OUT_DIR/interesting.txt" 2>/dev/null || echo 0)
+  if [ "$FAIL" = "1" ]; then
+    write_phase_status "$RD" "smart_fuzzing" "error" "one or more stages (target_profile/vocabulary/wolf_selector/wordlist_builder) failed — see logs/smart_ffuf.log"
+  elif [ "${interesting_n:-0}" -eq 0 ]; then
+    write_phase_status "$RD" "smart_fuzzing" "empty" "ran to completion, 0 interesting responses — this is EMPTY_VALID, not a failure; do not let this alone trigger the common.txt fallback (Gap D)"
+  else
+    write_phase_status "$RD" "smart_fuzzing" "ok" "interesting_lines=${interesting_n}"
+  fi
+fi
+
 exit 0

@@ -143,6 +143,51 @@ class EngineRunResult:
         return d
 
 
+def write_phase_status(results_dir: str, phase: str, status: str, detail: str = "") -> None:
+    """Same meta/phases/<phase>.json contract scripts/pipeline_lib.sh's
+    write_phase_status() already uses for dns_resolve/live_probe/
+    url_collection — Gap J (master architecture doc §51): the Detection
+    Engine Framework isolates exceptions per-engine (EngineRunResult
+    already has ran/error/candidates_generated), but nothing previously
+    surfaced that as a status a human/health-report could read without
+    opening engine_results.json and interpreting it by hand. This is
+    that missing bridge — not a second status mechanism, the same one.
+
+    status: "ok" | "empty" | "error" | "skipped_starved" | "skipped"
+    (matches the bash version's vocabulary exactly, so a health report
+    reading meta/phases/*.json never has to special-case which language
+    wrote a given phase's file).
+    """
+    import datetime
+    phase_dir = os.path.join(results_dir, "meta", "phases")
+    try:
+        os.makedirs(phase_dir, exist_ok=True)
+        with open(os.path.join(phase_dir, f"{phase}.json"), "w") as f:
+            json.dump({
+                "phase": phase, "status": status, "detail": detail,
+                "ts": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "network_mode": os.environ.get("NETWORK_MODE", "unknown"),
+            }, f)
+    except OSError:
+        pass  # status reporting must never break the actual run
+
+
+def result_to_phase_status(result: "EngineRunResult") -> tuple:
+    """Map an EngineRunResult onto the shared ok/empty/error/skipped_starved
+    vocabulary — the one place this translation happens, so every
+    run_*.py script classifies the same way."""
+    if not result.ran:
+        return ("skipped_starved", result.error or "prerequisites not met")
+    if result.error:
+        return ("error", result.error)
+    if result.candidates_generated == 0:
+        return ("empty", "ran to completion, 0 candidates generated (prerequisite data present but yielded nothing to test)")
+    signal_count = sum(1 for e in result.evidence if e.classification != "NOISE")
+    if signal_count == 0:
+        return ("ok", f"candidates={result.candidates_generated}, evidence={len(result.evidence)}, all NOISE — EMPTY_VALID, not a failure")
+    return ("ok", f"candidates={result.candidates_generated}, evidence={len(result.evidence)}, non-NOISE={signal_count}")
+
+
 def run_engine(engine: DetectionEngine, target_profile: dict, vocabulary: dict,
                max_candidates: int = 200) -> EngineRunResult:
     """Run one engine against one target, end to end, with every step

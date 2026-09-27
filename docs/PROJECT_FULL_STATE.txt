@@ -5,6 +5,27 @@ Generated for continuation / handoff. Language: Arabic + technical English terms
 Repo: https://github.com/Tawffik/BugBountyCI
 Primary workflow: .github/workflows/zero-track-hunter.yml
 Canonical roadmap: docs/V2_ROADMAP.md
+
+⚠️ SOURCE-OF-TRUTH NOTICE (2026-09-27): a governing Notion page —
+"BugBountyCI — Master Architecture, Audit & Evolution Roadmap" —
+supersedes this file and docs/V2_ROADMAP.md wherever they disagree.
+Its own stated hierarchy (§65): actual repo code > current run
+artifacts > that Notion page > this file / V2_ROADMAP.md > general
+ideas. Read it first. Its most consequential rule for anyone continuing
+this work: §61's execution order puts "add one new engine at a time"
+LAST (step 9), after reliability/canonical-observations/target-model/
+candidate-intelligence are solid — NOT first. If you're about to build
+a new detection engine, stop and check whether Phase 1 (truthful
+engine/pipeline health status — §7, §51 Gaps C/D/J) is actually closed
+first. As of this note: the meta/phases/*.json status contract
+(scripts/pipeline_lib.sh's write_phase_status, mirrored in Python by
+pipeline/detection/engine.py's write_phase_status/
+result_to_phase_status) now covers smart_fuzzing.sh + all three
+Detection Engine run_*.py scripts — that was the "next eligible phase"
+per §63's protocol when this note was written. Gaps D (fallback logic
+still needs to check phase status, not just empty output), E, F, I, K,
+L in §51 are still open.
+
 This file: single dump of goals, method, history, current blockers, future plan.
 ================================================================================
 

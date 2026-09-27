@@ -19,7 +19,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from pipeline.detection.engine import run_engines
+from pipeline.detection.engine import run_engines, write_phase_status, result_to_phase_status
 from pipeline.detection.open_redirect_engine import OpenRedirectEngine
 
 
@@ -92,6 +92,9 @@ def main():
 
     results = run_engines([engine], target_profile, vocabulary, results_dir=rd)
     r = results[0]
+
+    status, detail = result_to_phase_status(r)
+    write_phase_status(rd, "open_redirect", status, detail)
 
     out_dir = os.path.join(rd, "detection")
     os.makedirs(out_dir, exist_ok=True)

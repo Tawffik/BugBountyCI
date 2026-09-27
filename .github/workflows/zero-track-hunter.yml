@@ -4005,6 +4005,37 @@ jobs:
                 f"{_fetch_stats['failures']} failed)")
           PYEOF
 
+      - name: "🎯 SSRF Intelligence (V1)"
+        continue-on-error: true
+        timeout-minutes: 10
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          mkdir -p "$RD/detection" "$RD/ai_agent"
+          # Priority 1 foundation: endpoint→parameter map (needed by this
+          # step and reused later by Metrics Baseline / future IDOR
+          # work) - run it here, BEFORE Hunter Queue/Metrics, not after,
+          # so this engine's own findings actually make it into this
+          # run's unified hunter_queue.md and metrics.json instead of
+          # only existing in engine_results.json for next time.
+          python3 pipeline/detection/parameter_intelligence.py --results-dir "$RD" || true
+          # Third real engine on the Detection Engine Framework
+          # (docs/V2_ROADMAP.md Priority 1 item #3). Candidates come
+          # from detection/parameter_intelligence.json (real
+          # endpoint+parameter pairs this target actually exposes,
+          # never a blind guess), narrowed to a curated real-world
+          # SSRF-prone parameter-name list cross-pollinated with this
+          # target's own vocabulary.json. Runs after OOB Setup (so
+          # $OOB_DOMAIN is available) and before Hunter Queue/Metrics/
+          # OOB Check below, so LEAD findings can register an
+          # Interactsh label and fire their OOB payload in time to be
+          # picked up by that shared step, AND so this run's own
+          # hunter_queue.md/metrics.json reflect what this engine found.
+          # See pipeline/detection/ssrf_engine.py and
+          # pipeline/detection/adapters/interactsh.py.
+          RD="$RD" TARGET="${{ env.TARGET }}" SCAN_USER_AGENT="$SCAN_USER_AGENT" \
+            SSRF_USE_TOR=false OOB_DOMAIN="${OOB_DOMAIN:-}" \
+            bash scripts/run_ssrf.sh 2>>"$RD/logs/ssrf.log" || true
+
       - name: "📋 Hunter Queue (Unified V1)"
         continue-on-error: true
         timeout-minutes: 3
@@ -4035,9 +4066,11 @@ jobs:
           # Hunter Queue so detection/engine_results.json and
           # smart-fuzzing/response_diffs.json both already exist. See
           # pipeline/detection/metrics_builder.py.
+          # parameter_intelligence.json is now generated earlier, in the
+          # "SSRF Intelligence" step, specifically so its own findings
+          # (and this metrics run) both reflect the same run's data —
+          # see that step's comment for why it moved.
           python3 pipeline/detection/metrics_builder.py --results-dir "$RD" || true
-          # Priority 1 foundation: endpoint→parameter map for future IDOR/SSRF engines
-          python3 pipeline/detection/parameter_intelligence.py --results-dir "$RD" || true
 
       - name: "🔭 OOB Check (Interactsh)"
         continue-on-error: true

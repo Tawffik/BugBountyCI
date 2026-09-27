@@ -1,0 +1,274 @@
+{
+  "image": {
+    "sources": [
+      "js",
+      "url"
+    ],
+    "count": 2
+  },
+  "urlencoded": {
+    "sources": [
+      "js",
+      "url"
+    ],
+    "count": 2
+  },
+  "fetch": {
+    "sources": [
+      "js",
+      "url"
+    ],
+    "count": 2
+  },
+  "avatar": {
+    "sources": [
+      "js",
+      "url"
+    ],
+    "count": 2
+  },
+  "prefetch": {
+    "sources": [
+      "js",
+      "url"
+    ],
+    "count": 2
+  },
+  "security": {
+    "sources": [
+      "url"
+    ],
+    "count": 1
+  },
+  "feedback": {
+    "sources": [
+      "url"
+    ],
+    "count": 1
+  },
+  "feed": {
+    "sources": [
+      "url"
+    ],
+    "count": 1
+  },
+  "source": {
+    "sources": [
+      "url"
+    ],
+    "count": 1
+  },
+  "datasource": {
+    "sources": [
+      "url"
+    ],
+    "count": 1
+  },
+  "fimages": {
+    "sources": [
+      "url"
+    ],
+    "count": 1
+  },
+  "gclsrc": {
+    "sources": [
+      "url"
+    ],
+    "count": 1
+  },
+  "contouring": {
+    "sources": [
+      "url"
+    ],
+    "count": 1
+  },
+  "feeding": {
+    "sources": [
+      "url"
+    ],
+    "count": 1
+  },
+  "curl": {
+    "sources": [
+      "url"
+    ],
+    "count": 1
+  },
+  "curling": {
+    "sources": [
+      "url"
+    ],
+    "count": 1
+  },
+  "moisturisers": {
+    "sources": [
+      "url"
+    ],
+    "count": 1
+  },
+  "moisturiser": {
+    "sources": [
+      "url"
+    ],
+    "count": 1
+  },
+  "dximage": {
+    "sources": [
+      "url"
+    ],
+    "count": 1
+  },
+  "moisturising": {
+    "sources": [
+      "url"
+    ],
+    "count": 1
+  },
+  "curls": {
+    "sources": [
+      "url"
+    ],
+    "count": 1
+  },
+  "ghost": {
+    "sources": [
+      "url"
+    ],
+    "count": 1
+  },
+  "remoisturising": {
+    "sources": [
+      "url"
+    ],
+    "count": 1
+  },
+  "nourish": {
+    "sources": [
+      "url"
+    ],
+    "count": 1
+  },
+  "purifiers": {
+    "sources": [
+      "url"
+    ],
+    "count": 1
+  },
+  "url": {
+    "sources": [
+      "url"
+    ],
+    "count": 1
+  },
+  "bodymoisturisers": {
+    "sources": [
+      "url"
+    ],
+    "count": 1
+  },
+  "base": {
+    "sources": [
+      "js",
+      "url"
+    ],
+    "count": 2
+  },
+  "error": {
+    "sources": [
+      "js",
+      "url"
+    ],
+    "count": 2
+  },
+  "production": {
+    "sources": [
+      "js",
+      "url"
+    ],
+    "count": 2
+  },
+  "next": {
+    "sources": [
+      "js",
+      "url"
+    ],
+    "count": 2
+  },
+  "webp": {
+    "sources": [
+      "js",
+      "url"
+    ],
+    "count": 2
+  },
+  "xdey5fu9tt0y": {
+    "sources": [
+      "js",
+      "url"
+    ],
+    "count": 2
+  },
+  "chunks": {
+    "sources": [
+      "js",
+      "url"
+    ],
+    "count": 2
+  },
+  "duu27e1ofcvw": {
+    "sources": [
+      "js",
+      "url"
+    ],
+    "count": 2
+  },
+  "nhs": {
+    "sources": [
+      "js",
+      "url"
+    ],
+    "count": 2
+  },
+  "svg": {
+    "sources": [
+      "js",
+      "url"
+    ],
+    "count": 2
+  },
+  "common": {
+    "sources": [
+      "js",
+      "url"
+    ],
+    "count": 2
+  },
+  "pharmacy": {
+    "sources": [
+      "js",
+      "url"
+    ],
+    "count": 2
+  },
+  "details": {
+    "sources": [
+      "js",
+      "url"
+    ],
+    "count": 2
+  },
+  "profile": {
+    "sources": [
+      "js",
+      "url"
+    ],
+    "count": 2
+  },
+  "question": {
+    "sources": [
+      "js",
+      "url"
+    ],
+    "count": 2
+  }
+}

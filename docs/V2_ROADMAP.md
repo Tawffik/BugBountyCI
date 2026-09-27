@@ -38,7 +38,45 @@ recorded-but-deliberately-deferred.
 - **Unified Hunter Queue** (`hunter_queue_builder.py`): merges
   Access-Control + Open Redirect + IDOR + smart-fuzzing's own findings
   into one prioritized `detection/hunter_queue.md`.
-- **41+ tests** across `pipeline/smart-fuzzing/tests/` and
+- **Structural Pattern Predictor** (`pattern_predictor.py`) - the
+  "custom, per-target fuzzing" idea (Arow/Intigriti-style: learn *this*
+  target's own URL grammar instead of fuzzing with someone else's
+  wordlist). Reads this target's own discovered URLs, learns which
+  resource/action words THIS site actually uses and where IDs sit, and
+  cross-pollinates them into new candidates (e.g. this target has
+  `invoices/{id}` with no action and `delivery`/`basket` as actions on
+  *other* resources -> predicts `invoices/{id}/delivery`, substituting
+  a real ID from this target's own recon). Every prediction carries
+  which two real URLs justified it - never a bare guess. Wired into
+  `wordlist_builder.py` as a ranked-first candidate source. Two real
+  bugs caught on real superdrug.com data before shipping: cross-domain
+  contamination (urls/all.txt mixes in nhs.uk/royalmail.com/etc. -
+  third-party pages the target merely links to, not its own app) and
+  an analytics-beacon path segment ("OHUXAQ") that slipped past the
+  word filter. This is currently scoped to *fuzzing candidates only* -
+  see §2 item 4 for applying the same grammar to access-control/
+  open-redirect, which was the original ask and hasn't been done yet.
+- **SSRF Engine** (`ssrf_engine.py`) - third real engine on the
+  Detection Engine Framework, closing Priority 1 item #3. Candidates
+  come from `parameter_intelligence.json`'s real endpoint->parameter
+  map (never a blind URL guess), narrowed to a curated real-world
+  SSRF-prone parameter-name list (Haddix/HUNT, via Detectify's SSRF
+  research) cross-pollinated with this target's own vocabulary.
+  Verified for real on superdrug.com's actual parameter_intelligence.json:
+  surfaces `.../wp-json/oembed/1.0/embed?url=` - WordPress's built-in
+  oEmbed proxy, a well-documented real-world SSRF vector - from data
+  the pipeline already had, zero new recon needed. Detection uses
+  reflected-body and differential-response/timing signals (no OOB
+  needed to reach LEAD). **Escalation reuses this pipeline's existing
+  Interactsh integration** (`.github/workflows/zero-track-hunter.yml`'s
+  "OOB Setup"/"OOB Check" steps, built independently, already shells
+  out to the real `interactsh-client` binary rather than hand-rolling
+  its crypto) - same label format, same `oob_correlation.jsonl` file,
+  zero changes needed to the existing "OOB Check" step. See
+  `pipeline/detection/adapters/interactsh.py` for the full contract and
+  §7 for the general lesson (grep the workflow for what already exists
+  before building new verification infrastructure).
+- **63+ tests** across `pipeline/smart-fuzzing/tests/` and
   `pipeline/detection/tests/`, several run against real fixture data
   from actual scans (superdrug.com, and later capital.com/datacamp.com
   diagnostics), not synthetic-only.
@@ -159,27 +197,23 @@ because a spec listed it." This is the order to actually work in.
 
 ### Priority 1 - high real-world value, natural next steps
 
-1. **Metrics Baseline** (new, from doc #3 - see §4). Cheap, mechanical:
-   each engine's `EngineRunResult` already has the counts needed.
-   Write `detection/metrics.json` per run: candidates/requests/evidence
-   counts, classification breakdown, **Signal Precision** =
-   (LEAD+HIGH_SIGNAL+CONFIRMED)/candidates tested. This single number
-   would have caught the Cloudflare-525 false-positive bug and the
-   ffuf-zero-results anomaly as an automatic regression instead of
-   requiring a manual data dive each time. Do this **after** Priority 0
-   closes, so the first baseline isn't measuring a known-broken run.
-2. **API Security Engine / Parameter Intelligence** (doc #1, doc #4).
-   Build an `endpoint -> relevant parameters` map from
-   Swagger/OpenAPI/GraphQL/observed URLs (`js/swagger.txt`,
-   `js/graphql.txt`, `targeted/arjun_params.txt` already exist in
-   recon). Genuinely foundational - IDOR and any future SSRF/injection
-   engine get far more precise candidates once this exists, instead of
-   each engine parsing `urls/all.txt` independently the way
-   `open_redirect_engine.py` currently does.
-3. **SSRF Engine** (doc #1, doc #4). High severity; `vocabulary.json`
-   already surfaces the right words (`url`, `webhook`, `callback`,
-   `proxy`, `import`). Verification needs an OOB adapter (Interactsh)
-   - see Priority 3.
+1. ✅ **DONE - Metrics Baseline** (`metrics_builder.py`). Signal
+   Precision per engine + overall, plus near-duplicate clustering.
+   Caught the Cloudflare-525 false-positive on real okx.com/superdrug.com
+   data.
+2. ✅ **DONE - API Security Engine / Parameter Intelligence**
+   (`parameter_intelligence.py`). Real `endpoint -> parameters` map,
+   968-2000 endpoints on real superdrug.com runs. Now consumed by
+   SSRF Engine (#3) instead of each engine re-deriving its own weaker
+   view of `urls/all.txt` - the exact gap this item's original note
+   flagged.
+3. ✅ **DONE - SSRF Engine** (`ssrf_engine.py` + `run_ssrf.py`).
+   Candidates from parameter_intelligence.json narrowed to a curated
+   SSRF-prone parameter-name list, cross-pollinated with this target's
+   vocabulary. OOB verification reuses the pipeline's *existing*
+   Interactsh integration (see §1) rather than the Priority 3 adapter
+   originally planned - that infrastructure turned out to already
+   exist, built independently; see §7 for the general lesson.
 4. **True multi-session IDOR/BOLA** - upgrading the current
    enumeration-only check into a real cross-user authorization test
    requires a second authenticated session/account. **This needs a
@@ -202,10 +236,13 @@ because a spec listed it." This is the order to actually work in.
 
 ### Priority 3 - infrastructure needed by Priority 1/2, build only when actually blocking
 
-8. **Adapters** (`pipeline/detection/adapters/` - scaffolded, empty).
-   Needed once SSRF (Interactsh) or a real SQLi engine (SQLMap
-   escalation) actually gets built. Don't build adapter scaffolding
-   speculatively before an engine needs it.
+8. **Adapters** (`pipeline/detection/adapters/` - no longer empty, see
+   §1). SSRF's Interactsh escalation is done - it reuses the existing
+   workflow integration, documented in `adapters/interactsh.py`, rather
+   than a new hand-rolled client. Still open: a real SQLi engine's
+   SQLMap escalation would go here the same way, when that engine
+   actually gets built. Don't build adapter scaffolding speculatively
+   before an engine needs it - the rule that held here.
 9. **Signal Ranker** (doc #1). A shared scoring function across
    engines' evidence so `hunter_queue.md` can rank *within* a priority
    tier, not just between tiers. Worth building once enough real
@@ -260,7 +297,26 @@ because a spec listed it." This is the order to actually work in.
   A full IDOR engine was built once before discovering a better one
   already existed elsewhere in the workflow (`AI Agent Phase 5`) -
   search `.github/workflows/zero-track-hunter.yml` and every subfolder
-  under `results/<any-run>/` before writing a new engine.
+  under `results/<any-run>/` before writing a new engine. Repeated with
+  SSRF's OOB verification: `ssrf_engine.py`'s first draft documented a
+  deliberate decision NOT to hand-roll an Interactsh client (real risk:
+  untested crypto), then a workflow grep turned up a complete, already-
+  working Interactsh integration built independently. The right move
+  both times was the same - grep first, reuse what's there, don't
+  re-derive it - and both times the check happened *after* a full first
+  draft was already written. Do the grep before writing the module
+  docstring, not after.
+- **New engine steps must land BEFORE the steps that consume their
+  output, not just before the workflow ends.** SSRF Intelligence was
+  first inserted right before "OOB Check" (technically valid - OOB_DOMAIN
+  existed, parameter_intelligence.json existed) but that was *after*
+  "Hunter Queue (Unified V1)" and "Metrics Baseline" already ran for
+  that same run - so the engine would execute and write real evidence
+  to `engine_results.json`, but that run's own `hunter_queue.md` and
+  `metrics.json` would silently not reflect it until the *next* run.
+  Passing tests do not catch this class of bug - it only shows up by
+  reading the actual step order end-to-end (`grep -n "name:" the
+  workflow`, not just "does this step's own script work").
 - **A temporary diagnostic flag left in permanently becomes a second
   bug.** `-v` added to `httpx` to diagnose the empty-`tech.json` issue
   turned out to itself be the cause (incompatible with `-silent`).

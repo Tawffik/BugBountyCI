@@ -1,0 +1,8182 @@
+{
+  "version": 1,
+  "endpoint_count": 51,
+  "parameter_count": 1132,
+  "global_parameter_hints": [],
+  "endpoints": [
+    {
+      "endpoint": "http://www.superdrug.com/bin/venda",
+      "parameters": [
+        {
+          "name": "bklist",
+          "sources": [
+            "urls/params"
+          ]
+        },
+        {
+          "name": "bsref",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "buy",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "collate",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "curpage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "datasource",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ex",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldbrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldinvt",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldivtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldpcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldprice",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "glxt",
+          "sources": [
+            "urls/params"
+          ]
+        },
+        {
+          "name": "htxt",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "invt",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ivref",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "log",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "mode",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "next",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "page",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pageno",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "perpage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pricerange",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "qty",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "refine_sort_alph",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "setpagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "setsortorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "settypekeywordsearch",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "spellcorrect",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "template",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextbrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextinvt",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextivtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextkeywordsearch",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextpcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "threshold",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typebrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typecatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typeinvt",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typeivtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typekeywordsearch",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typepcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typeprice",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typertype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "x",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "y",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "http://www.superdrug.com:80/bin/venda",
+      "parameters": [
+        {
+          "name": "bklist",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "bsref",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "buy",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "collate",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "curpage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "datasource",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ex",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldbrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldpcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "icat",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "itemlist",
+          "sources": [
+            "urls/params"
+          ]
+        },
+        {
+          "name": "log",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "mode",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "page",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pageno",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "param1",
+          "sources": [
+            "urls/params"
+          ]
+        },
+        {
+          "name": "perpage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "qtylist",
+          "sources": [
+            "urls/params"
+          ]
+        },
+        {
+          "name": "refine_sort_alph",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "setpagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "setsortorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "spellcorrect",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "template",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextbrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextkeywordsearch",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextpcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "threshold",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typebrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typecatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typekeywordsearch",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typepcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typertype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "http://www.superdrug.com:80/browse/mu-eyes",
+      "parameters": [
+        {
+          "name": "bklist",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "collate",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "datasource",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ex",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldbrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldivtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldpcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "perpage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "refine_sort_alph",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "setpagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortname",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortprice",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortrelease",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortstock",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "spellcorrect",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "template",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextbrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextivtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "threshold",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typebrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typecatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typeivtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typepcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typertype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "http://www.superdrug.com/browse/makeup",
+      "parameters": [
+        {
+          "name": "collate",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "datasource",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ex",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldbrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldivtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldpcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldpdxtpromotext",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "perpage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "refine_sort_alph",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "setpagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "spellcorrect",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "template",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextbrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextivtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextpdxtpromotext",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "threshold",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typebrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typecatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typeivtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typepcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typepdxtpromotext",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typertype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "http://www.superdrug.com:80/browse/sk-face",
+      "parameters": [
+        {
+          "name": "collate",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "datasource",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ex",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldivtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldpcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "perpage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "refine_sort_alph",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "setpagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortname",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortprice",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortrelease",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortstock",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "spellcorrect",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "template",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextivtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "threshold",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typecatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typeivtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typepcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typertype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "http://superdrug.com:80/bin/venda",
+      "parameters": [
+        {
+          "name": "collate",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "datasource",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ex",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldbrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldpcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldprice",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pageno",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "perpage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pricerange",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "setpagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "spellcorrect",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "template",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextbrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextkeywordsearch",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextpcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "threshold",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typebrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typekeywordsearch",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typepcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typeprice",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typertype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "http://www.superdrug.com:80/browse/f_women_brands",
+      "parameters": [
+        {
+          "name": "bklist",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "collate",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "datasource",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ex",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldbrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldpcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "perpage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "refine_sort_alph",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "setpagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "setsortorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "setsortprice",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "spellcorrect",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "template",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextbrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "threshold",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typebrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typecatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typepcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typertype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "http://www.superdrug.com:80/browse/2011e10_xmas",
+      "parameters": [
+        {
+          "name": "collate",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "datasource",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ex",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldpcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "perpage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "refine_sort_alph",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "setpagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortname",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortprice",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortrelease",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortstock",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "spellcorrect",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "template",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "threshold",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typecatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typepcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typertype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "http://www.superdrug.com:80/browse/hr-colourants",
+      "parameters": [
+        {
+          "name": "collate",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "datasource",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ex",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldpcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "perpage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "refine_sort_alph",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "setpagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortname",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortprice",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortrelease",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortstock",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "spellcorrect",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "template",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "threshold",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typecatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typepcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typertype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "http://www.superdrug.com:80/browse/mu-nails",
+      "parameters": [
+        {
+          "name": "collate",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "datasource",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ex",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldpcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "perpage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "refine_sort_alph",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "setpagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortname",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortprice",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortrelease",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortstock",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "spellcorrect",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "template",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "threshold",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typecatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typepcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typertype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "http://www.superdrug.com/browse/he-healthcare",
+      "parameters": [
+        {
+          "name": "bklist",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "collate",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "datasource",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ex",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldivtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldpcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "perpage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "refine_sort_alph",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "setpagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "spellcorrect",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "template",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextivtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "threshold",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typecatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typeivtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typepcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typertype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "http://www.superdrug.com/browse/accessorize",
+      "parameters": [
+        {
+          "name": "collate",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "datasource",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ex",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldivtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldpcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "perpage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "refine_sort_alph",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "setpagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "spellcorrect",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "template",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextivtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "threshold",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typecatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typeivtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typepcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typertype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "http://www.superdrug.com/browse/electricals",
+      "parameters": [
+        {
+          "name": "collate",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "datasource",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ex",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldbrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldpcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "perpage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "refine_sort_alph",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "setpagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "spellcorrect",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "template",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextbrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "threshold",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typebrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typecatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typepcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typertype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "http://www.superdrug.com/browse/fragrance",
+      "parameters": [
+        {
+          "name": "collate",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "datasource",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ex",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldbrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldpcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "perpage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "refine_sort_alph",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "setpagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "spellcorrect",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "template",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextbrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "threshold",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typebrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typecatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typepcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typertype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "http://www.superdrug.com/browse/hair",
+      "parameters": [
+        {
+          "name": "collate",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "datasource",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ex",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldbrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldpcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "perpage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "refine_sort_alph",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "setpagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "spellcorrect",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "template",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextbrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "threshold",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typebrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typecatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typepcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typertype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "http://www.superdrug.com/browse/health",
+      "parameters": [
+        {
+          "name": "collate",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "datasource",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ex",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldbrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldpcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "perpage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "refine_sort_alph",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "setpagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "spellcorrect",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "template",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextbrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "threshold",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typebrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typecatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typepcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typertype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "http://www.superdrug.com/browse/mens",
+      "parameters": [
+        {
+          "name": "collate",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "datasource",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ex",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldbrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldpcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "perpage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "refine_sort_alph",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "setpagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "spellcorrect",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "template",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextbrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "threshold",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typebrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typecatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typepcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typertype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "http://www.superdrug.com/browse/offers",
+      "parameters": [
+        {
+          "name": "collate",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "datasource",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ex",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldbrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldpcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "perpage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "refine_sort_alph",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "setpagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "spellcorrect",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "template",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextbrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "threshold",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typebrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typecatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typepcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typertype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "http://www.superdrug.com/browse/toiletries",
+      "parameters": [
+        {
+          "name": "collate",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "datasource",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ex",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldbrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldpcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "perpage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "refine_sort_alph",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "setpagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "spellcorrect",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "template",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextbrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "threshold",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typebrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typecatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typepcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typertype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "http://www.superdrug.com:80/browse/christmas",
+      "parameters": [
+        {
+          "name": "collate",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "datasource",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ex",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldbrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldpcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "perpage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "refine_sort_alph",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "setpagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "spellcorrect",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "template",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextbrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "threshold",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typebrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typecatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typepcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typertype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "http://www.superdrug.com:80/browse/electricals",
+      "parameters": [
+        {
+          "name": "collate",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "datasource",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ex",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldbrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldpcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "perpage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "refine_sort_alph",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "setpagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "spellcorrect",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "template",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextbrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "threshold",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typebrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typecatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typepcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typertype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "http://www.superdrug.com:80/browse/fragrance",
+      "parameters": [
+        {
+          "name": "collate",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "datasource",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ex",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldbrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldpcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "perpage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "refine_sort_alph",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "setpagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "spellcorrect",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "template",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextbrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "threshold",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typebrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typecatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typepcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typertype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "http://www.superdrug.com:80/browse/hair",
+      "parameters": [
+        {
+          "name": "collate",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "datasource",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ex",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldbrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldpcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "perpage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "refine_sort_alph",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "setpagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "spellcorrect",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "template",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextbrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "threshold",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typebrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typecatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typepcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typertype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "http://www.superdrug.com:80/browse/he-healthcare",
+      "parameters": [
+        {
+          "name": "collate",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "datasource",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ex",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldivtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldpcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "perpage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "refine_sort_alph",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "setpagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "spellcorrect",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "template",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextivtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "threshold",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typecatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typeivtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typepcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typertype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "http://www.superdrug.com:80/browse/health",
+      "parameters": [
+        {
+          "name": "collate",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "datasource",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ex",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldbrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldpcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "perpage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "refine_sort_alph",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "setpagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "spellcorrect",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "template",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextbrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "threshold",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typebrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typecatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typepcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typertype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "http://www.superdrug.com:80/browse/makeup",
+      "parameters": [
+        {
+          "name": "collate",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "datasource",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ex",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldbrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldpcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "perpage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "refine_sort_alph",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "setpagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "spellcorrect",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "template",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextbrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "threshold",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typebrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typecatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typepcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typertype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "http://www.superdrug.com:80/browse/mens",
+      "parameters": [
+        {
+          "name": "collate",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "datasource",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ex",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldbrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldpcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "perpage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "refine_sort_alph",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "setpagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "spellcorrect",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "template",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextbrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "threshold",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typebrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typecatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typepcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typertype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "http://www.superdrug.com:80/browse/offers",
+      "parameters": [
+        {
+          "name": "collate",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "datasource",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ex",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldbrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldpcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "perpage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "refine_sort_alph",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "setpagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "spellcorrect",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "template",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextbrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "threshold",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typebrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typecatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typepcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typertype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "http://www.superdrug.com:80/browse/skincare",
+      "parameters": [
+        {
+          "name": "collate",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "datasource",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ex",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldbrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldpcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "perpage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "refine_sort_alph",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "setpagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "spellcorrect",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "template",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextbrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "threshold",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typebrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typecatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typepcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typertype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "http://www.superdrug.com:80/browse/toiletries",
+      "parameters": [
+        {
+          "name": "collate",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "datasource",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ex",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldbrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldpcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "perpage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "refine_sort_alph",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "setpagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "spellcorrect",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "template",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextbrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "threshold",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typebrand",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typecatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typepcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typertype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "http://www.superdrug.com:80/browse/loreal",
+      "parameters": [
+        {
+          "name": "collate",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "datasource",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ex",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldivtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldpcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "perpage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "setpagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "spellcorrect",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "template",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextivtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "threshold",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typecatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typeivtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typepcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typertype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "http://www.superdrug.com:80/browse/mememe",
+      "parameters": [
+        {
+          "name": "collate",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "datasource",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ex",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldivtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldpcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "perpage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "setpagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "spellcorrect",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "template",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextivtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "threshold",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typecatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typeivtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typepcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typertype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "http://www.superdrug.com:80/browse/mua",
+      "parameters": [
+        {
+          "name": "collate",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "datasource",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ex",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldivtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldpcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "perpage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "setpagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "spellcorrect",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "template",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextivtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "threshold",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typecatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typeivtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typepcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typertype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "http://www.superdrug.com:80/browse/mu_eyes_mascara",
+      "parameters": [
+        {
+          "name": "collate",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "datasource",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ex",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldpcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "perpage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "setpagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "setsortorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "setsortprice",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "spellcorrect",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "template",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "threshold",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typecatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typepcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typertype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "http://www.superdrug.com:80/browse/f_giftsher",
+      "parameters": [
+        {
+          "name": "collate",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "datasource",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ex",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldpcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "perpage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "refine_sort_alph",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "setpagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "spellcorrect",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "template",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "threshold",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typecatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typepcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typertype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "http://www.superdrug.com:80/browse/f_men_brands",
+      "parameters": [
+        {
+          "name": "collate",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "datasource",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ex",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldpcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "perpage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "refine_sort_alph",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "setpagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "spellcorrect",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "template",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "threshold",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typecatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typepcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typertype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "http://www.superdrug.com:80/browse/f_new",
+      "parameters": [
+        {
+          "name": "collate",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "datasource",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ex",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldpcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "perpage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "refine_sort_alph",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "setpagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "spellcorrect",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "template",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "threshold",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typecatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typepcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typertype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "http://www.superdrug.com:80/browse/hr-accessories",
+      "parameters": [
+        {
+          "name": "collate",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "datasource",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ex",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldpcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "perpage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "refine_sort_alph",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "setpagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "spellcorrect",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "template",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "threshold",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typecatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typepcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typertype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "http://www.superdrug.com:80/browse/mu-accessories",
+      "parameters": [
+        {
+          "name": "collate",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "datasource",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ex",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldpcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "perpage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "refine_sort_alph",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "setpagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "spellcorrect",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "template",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "threshold",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typecatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typepcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typertype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "http://www.superdrug.com:80/browse/nwoffersskincare",
+      "parameters": [
+        {
+          "name": "collate",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "datasource",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ex",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldpcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "perpage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "refine_sort_alph",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "setpagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "spellcorrect",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "template",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "threshold",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typecatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typepcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typertype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "http://www.superdrug.com:80/browse/mu-face",
+      "parameters": [
+        {
+          "name": "collate",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ex",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldivtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldpcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "perpage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "refine_sort_alph",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortname",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortprice",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortrelease",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortstock",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "template",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextivtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "threshold",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typecatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typeivtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typepcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typertype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "http://www.superdrug.com/",
+      "parameters": [
+        {
+          "name": "awc",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "cm_mmc",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "gclid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "gclsrc",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ranEAID",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ranLoyalty",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ranMID",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ranSiteID",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ref",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sv_affiliate_id",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sv_campaign_id",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sv_tax1",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sv_tax2",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sv_tax3",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sv_tax4",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "utm_campaign",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "utm_content",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "utm_keyword",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "utm_medium",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "utm_source",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "utm_term",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "http://www.superdrug.com:80/browse/hr-styling",
+      "parameters": [
+        {
+          "name": "collate",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ex",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldpcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "perpage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "refine_sort_alph",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortname",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortprice",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortrelease",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortstock",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "template",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "threshold",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typecatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typepcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typertype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "http://www.superdrug.com:80/browse/me-shaving",
+      "parameters": [
+        {
+          "name": "collate",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ex",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldpcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "perpage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "refine_sort_alph",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortname",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortprice",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortrelease",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortstock",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "template",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "threshold",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typecatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typepcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typertype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "http://www.superdrug.com:80/browse/nwoffersmakeup",
+      "parameters": [
+        {
+          "name": "collate",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ex",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldpcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "perpage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "refine_sort_alph",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortname",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortprice",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortrelease",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortstock",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "template",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "threshold",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typecatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typepcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typertype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "http://www.superdrug.com:80/browse/hpskincare_2011e11",
+      "parameters": [
+        {
+          "name": "collate",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "ex",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldpcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "fieldrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "pagenum",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "perpage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "refine_sort_alph",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortname",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortprice",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortrelease",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "sortstock",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "template",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termorder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextcatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "termtextrtype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typecatrestrict",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typepcatid",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "typertype",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "http://www.superdrug.com:80/b/Rimmel",
+      "parameters": [
+        {
+          "name": "categorypt_make_up_blusher",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "categorypt_make_up_bronzer",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "categorypt_make_up_concealer",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "categorypt_make_up_eye_pencils",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "categorypt_make_up_eye_shadow",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "categorypt_make_up_eyeliner",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "categorypt_make_up_foundation",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "categorypt_make_up_lipstick",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "categorypt_make_up_mascara",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "categorypt_make_up_powder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "categorypt_make_up_primer",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "maxSel",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "maxSlider",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "minSel",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "minSlider",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "q",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "resultsForPage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "text",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "http://www.superdrug.com:80/b/Nivea",
+      "parameters": [
+        {
+          "name": "categorycleanser",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "categoryfacemoisturisers",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "categoryfacewipes",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "categorypt_mens_aftershave",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "categorypt_more_shaving_travel_size",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "categorypt_skin_facial_moisturising_day_creams",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "categorypt_skin_facial_moisturising_night_creams",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "categorypt_skin_lip_balms",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "categorypt_skin_moisturising_body_creams",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "categorypt_skin_moisturising_body_lotions",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "maxSel",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "maxSlider",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "minSel",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "minSlider",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "q",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "resultsForPage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "text",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "http://www.superdrug.com:80/b/Makeup%20Revolution",
+      "parameters": [
+        {
+          "name": "categorypt_make_up_eyeliner",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "categorypt_make_up_lipstick",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "categorypt_make_up_powder",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "categorypt_make_up_primer",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "categorypt_more_gifts_for_her",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "maxSel",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "maxSlider",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "minSel",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "minSlider",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "q",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "resultsForPage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "text",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "utm_campaign",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "utm_medium",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "utm_source",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "http://www.superdrug.com/b/Nivea",
+      "parameters": [
+        {
+          "name": "categorypt_more_gifts_for_him",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "categorypt_more_mens_deodorants_travel_size",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "categorypt_more_wipes_travel_size",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "categorypt_skin_facial_serums",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "categorypt_skin_kids_sun_protection_sprays",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "categorypt_skin_sun_protection_sprays",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "categorypt_toiletries_roll_ons",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "maxSel",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "maxSlider",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "minSel",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "minSlider",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "q",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "resultsForPage",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "text",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "https://onlinepharmacy.superdrug.com/wp-json/oembed/1.0/embed",
+      "parameters": [
+        {
+          "name": "format",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        },
+        {
+          "name": "url",
+          "sources": [
+            "gf_categorized",
+            "urls/params"
+          ]
+        }
+      ]
+    }
+  ]
+}
