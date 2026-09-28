@@ -71,10 +71,33 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 from typing import Callable, Optional
 from urllib.parse import quote
 
 from pipeline.detection.engine import Candidate, DetectionEngine, Evidence
+
+# Real AWS/GCP/Azure instance-metadata KEY NAMES — the literal,
+# distinctive plaintext IMDSv1 returns for an unauthenticated
+# GET /latest/meta-data/ (newline-separated directory listing:
+# ami-id, ami-launch-index, iam/, instance-id, instance-type,
+# placement/, security-groups, ...). Confirmed-false-positive bug this
+# replaces (found on a real superdrug.com run: two candidates hit
+# LEAD->HIGH_SIGNAL purely because their response body contained the
+# word "metadata" somewhere — completely ordinary, unrelated to SSRF —
+# and ai_agent/oob_findings.txt came back EMPTY for both, meaning the
+# server never actually attempted the fetch at all): a single generic
+# substring like "meta-data" or "169.254.169.254" (which an app can
+# echo back in a plain "invalid URL: <what you sent>" error message,
+# with zero server-side fetch happening) is not real evidence. Require
+# at least TWO of these specific, unlikely-to-appear-elsewhere marker
+# tokens together, AND that the match isn't just the payload string
+# being echoed back verbatim in an error message.
+METADATA_MARKERS = [
+    "ami-id", "ami-launch-index", "instance-id", "instance-type",
+    "iam/security-credentials", "placement/availability-zone",
+    "local-ipv4", "public-keys/", "block-device-mapping",
+]
 
 # Jason Haddix's HUNT param-name list (Bugcrowd-derived), as republished
 # by Detectify's SSRF research (see module docstring for the citation).
@@ -173,24 +196,45 @@ class SSRFEngine(DetectionEngine):
         url = target_template.replace("{PAYLOAD}", quote(payload, safe=""))
         return self.prober(url)
 
+    @staticmethod
+    def _reflects_real_metadata(body: str, payload: str) -> Optional[str]:
+        """Returns a comma-joined string of matched marker tokens if the
+        body contains >=2 distinct real cloud-metadata markers, else
+        None. Strips the injected payload string out first, so an app
+        that just echoes "invalid URL: <what you sent>" back in an
+        error message never counts — that reflects the REQUEST, not
+        actual fetched metadata content."""
+        if not body:
+            return None
+        stripped = body.replace(payload, "")
+        lowered = stripped.lower()
+        matched = [m for m in METADATA_MARKERS if m in lowered]
+        if len(matched) >= 2:
+            return ", ".join(matched)
+        return None
+
     def detect(self, candidate: Candidate) -> Optional[Evidence]:
         baseline = self._fetch(candidate.target, BASELINE_CANARY)
         if baseline is None:
             return None  # no network available — nothing to evaluate
 
         # Signal 1: reflected URL/host in the response body — the
-        # strongest single-request signal (non-blind SSRF).
+        # strongest single-request signal (non-blind SSRF). Requires
+        # at least 2 distinctive real-metadata markers, not a bare
+        # "metadata"/"169.254..." substring — see METADATA_MARKERS'
+        # comment for the real false positive this closes.
         for internal_payload in INTERNAL_PAYLOADS:
             result = self._fetch(candidate.target, internal_payload)
             if result is None:
                 continue
             body = (result.get("body") or "")
-            if "169.254.169.254" in body or "meta-data" in body.lower():
+            if self._reflects_real_metadata(body, internal_payload):
                 return Evidence(
                     candidate=candidate, classification="LEAD",
                     reason=(
-                        f"response body reflects cloud metadata content after "
-                        f"injecting {internal_payload!r} into parameter "
+                        f"response body contains multiple real cloud-metadata "
+                        f"markers ({self._reflects_real_metadata(body, internal_payload)}) "
+                        f"after injecting {internal_payload!r} into parameter "
                         f"'{candidate.metadata.get('parameter')}' — possible "
                         f"non-blind SSRF"
                     ),
@@ -280,8 +324,7 @@ class SSRFEngine(DetectionEngine):
 
         signal = evidence.details.get("signal")
         if signal == "reflected_body":
-            stable = all("169.254.169.254" in (r.get("body") or "")
-                         or "meta-data" in (r.get("body") or "").lower() for r in replay)
+            stable = all(self._reflects_real_metadata(r.get("body") or "", payload) for r in replay)
         else:
             baseline_replay = self._fetch(candidate.target, BASELINE_CANARY)
             stable = baseline_replay is not None and all(

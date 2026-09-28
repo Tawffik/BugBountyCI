@@ -117,6 +117,47 @@ class TestDetection(unittest.TestCase):
         self.assertEqual(ev.classification, "LEAD")
         self.assertEqual(ev.details["signal"], "reflected_body")
 
+    def test_real_false_positive_regression_generic_metadata_word_not_lead(self):
+        # Real bug caught on a live superdrug.com run: two candidates
+        # were classified HIGH_SIGNAL purely because their response
+        # body contained the ordinary word "metadata" somewhere (an
+        # SEO <meta> tag, a JS bundle name, etc.) — completely
+        # unrelated to SSRF. ai_agent/oob_findings.txt came back EMPTY
+        # for both (zero real out-of-band callback), proving neither
+        # server ever actually attempted the fetch. A single generic
+        # substring match is not evidence; this must classify NOISE.
+        def prober(url):
+            return {
+                "status": 200,
+                "body": (
+                    "<html><head><meta name='description' content='shop metadata'>"
+                    "</head><body>page didn't load, invalid metadata in request</body></html>"
+                ),
+                "elapsed_ms": 60,
+            }
+        eng = SSRFEngine(prober=prober, parameter_map={
+            "endpoints": [{"endpoint": "https://x.com/fetch", "parameters": [{"name": "url", "sources": ["js"]}]}]
+        })
+        cand = eng.generate_candidates({}, {})[0]
+        ev = eng.detect(cand)
+        self.assertEqual(ev.classification, "NOISE")
+
+    def test_payload_echoed_in_error_message_is_not_evidence(self):
+        # Another real-shaped false positive: an app that just echoes
+        # "invalid URL: <what you sent>" back verbatim in an error
+        # message reflects the REQUEST, not fetched content — even if
+        # the echoed payload string itself contains "169.254.169.254".
+        def prober(url):
+            payload = url.split("url=")[-1] if "url=" in url else ""
+            from urllib.parse import unquote
+            return {"status": 400, "body": f"Error: invalid URL supplied: {unquote(payload)}", "elapsed_ms": 40}
+        eng = SSRFEngine(prober=prober, parameter_map={
+            "endpoints": [{"endpoint": "https://x.com/fetch", "parameters": [{"name": "url", "sources": ["js"]}]}]
+        })
+        cand = eng.generate_candidates({}, {})[0]
+        ev = eng.detect(cand)
+        self.assertNotEqual(ev.classification, "LEAD")
+
     def test_differential_status_is_lead_not_noise(self):
         def prober(url):
             if "127.0.0.1" in url:
