@@ -98,22 +98,41 @@ def _looks_like_id(segment: str) -> bool:
     return False
 
 
+def _case_transitions(segment: str) -> int:
+    """Count upper<->lower transitions in the ORIGINAL (pre-lowercase)
+    segment. Real English path words, even camelCase ones like
+    "userId"/"accountId", have at most 1-2 transitions. A random
+    Base62-ish analytics-beacon token like "IgIbxOc" has many more
+    relative to its length (I-g-I-b-x-O-c: 4 transitions in 7 chars)."""
+    transitions = 0
+    for a, b in zip(segment, segment[1:]):
+        if a.isalpha() and b.isalpha() and a.isupper() != b.isupper():
+            transitions += 1
+    return transitions
+
+
 def _looks_like_word(segment: str) -> bool:
     """True if this segment is a plausible structural word worth
     learning from — rejects junk that survives _looks_like_id (long
     random tokens, cache-busting strings, single letters).
 
-    Real-data bug caught on superdrug.com: analytics/tracking-pixel
-    beacon URLs (e.g. ".../1GCOOA8_/Xr1uqbJ/.../OHUXAQ/...") have
-    segments that are random Base62-ish tokens, but a small fraction of
-    them (like "OHUXAQ" -> "ohuxaq") happen to be pure a-z letters and
-    slipped past the word regex, polluting the learned action
-    vocabulary with a meaningless "ohuxaq" alongside real actions like
-    "delivery"/"basket"/"questionnaire". Real application path segments
-    in this project's data are essentially always lower/kebab/snake
-    case as-authored; an ALL-CAPS original segment is a strong signal
-    of a random token, not a word — reject those specifically."""
+    Real-data bug caught on superdrug.com, twice: analytics/tracking-
+    pixel beacon URLs (e.g. ".../1GCOOA8_/Xr1uqbJ/.../OHUXAQ/...",
+    later ".../zdNmBusA/9bQ8Fo7/IgIbxOc/...") have segments that are
+    random Base62-ish tokens. The first fix only rejected pure
+    ALL-CAPS segments ("OHUXAQ") — that missed mixed-case random
+    tokens like "IgIbxOc", which is NOT all-uppercase and slipped
+    straight through, polluting the learned action vocabulary badly
+    enough to get paired with nearly every resource on the site
+    ("/{resource}/{id}/igibxoc" for ~300 different resources in one
+    real run). Real application path segments in this project's data
+    are essentially always lower/kebab/snake case, or at most simple
+    camelCase (1-2 transitions) — reject anything with 3+ case
+    transitions as a random token, not a word, regardless of whether
+    it happens to be all-caps, all-lowercase, or mixed."""
     if segment.isupper() and len(segment) >= 4:
+        return False  # e.g. "OHUXAQ" — 0 case transitions, but still random
+    if _case_transitions(segment) >= 3:
         return False
     s = segment.lower().strip()
     if not WORD_RE.match(s):

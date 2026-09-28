@@ -57,6 +57,22 @@ class TestSegmentClassification(unittest.TestCase):
         self.assertFalse(_looks_like_word("OHUXAQ"))
         self.assertFalse(_looks_like_word("NRXHW"))
 
+    def test_mixed_case_random_token_rejected(self):
+        # Real bug caught on a LATER superdrug.com run, after the
+        # all-caps-only fix above shipped: a mixed-case analytics-beacon
+        # segment ("IgIbxOc") is NOT all-uppercase, so it slipped
+        # straight through the first fix and got paired with ~300
+        # different resources in the real predicted_paths.json output
+        # ("/{resource}/{id}/igibxoc" for nearly every resource on the
+        # site) - a much worse pollution than the single-word OHUXAQ
+        # case. Real camelCase words (orderId, accountId) must still
+        # pass.
+        self.assertFalse(_looks_like_word("IgIbxOc"))
+        self.assertFalse(_looks_like_word("TjMHBgEB"))
+        self.assertTrue(_looks_like_word("orderId"))
+        self.assertTrue(_looks_like_word("accountId"))
+        self.assertTrue(_looks_like_word("myAccount"))
+
 
 class TestShapeExtraction(unittest.TestCase):
     def test_resource_id_action_shape(self):

@@ -2005,6 +2005,17 @@ jobs:
           mkdir -p "$RD/targeted"
           AUTH_ARGS=()
           [ -n "${{ env.AUTH_COOKIE }}" ] && AUTH_ARGS+=(--headers "Cookie: ${{ env.AUTH_COOKIE }}")
+          # Real bug caught on a live run: dalfox_xss.txt/dalfox.log
+          # showed "Error: unknown flag: --headers" on EVERY run that
+          # had AUTH_COOKIE set - Dalfox's own CLI only accepts -H
+          # (singular), not --headers (that's Arjun's flag name, and
+          # AUTH_ARGS was being reused for both tools as if they shared
+          # one syntax). This is why Dalfox XSS findings had been 0 on
+          # every run regardless of target - not "no XSS found", the
+          # scanner never started at all. Separate array, Dalfox's real
+          # flag name.
+          DALFOX_AUTH_ARGS=()
+          [ -n "${{ env.AUTH_COOKIE }}" ] && DALFOX_AUTH_ARGS+=(-H "Cookie: ${{ env.AUTH_COOKIE }}")
 
           # --- Arjun: hidden/undocumented parameter discovery (brute-forced
           # against a wordlist, not just parameters we already happened to
@@ -2046,7 +2057,7 @@ jobs:
             head -n 100 /tmp/dalfox_targets_sorted.txt > /tmp/dalfox_targets.txt || true
             if [ -s /tmp/dalfox_targets.txt ]; then
               echo "🦊 Running Dalfox against $(wc -l < /tmp/dalfox_targets.txt) candidate URL(s)..."
-              proxychains4 -q dalfox file /tmp/dalfox_targets.txt --silence --no-color --skip-bav "${AUTH_ARGS[@]}" -o "$RD/targeted/dalfox_xss.txt" 2>>"$RD/logs/dalfox.log" || true
+              proxychains4 -q dalfox file /tmp/dalfox_targets.txt --silence --no-color --skip-bav "${DALFOX_AUTH_ARGS[@]}" -o "$RD/targeted/dalfox_xss.txt" 2>>"$RD/logs/dalfox.log" || true
             fi
           else
             echo "⚠️ dalfox not installed or no XSS-candidate URLs - skipping"
