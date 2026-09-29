@@ -38,10 +38,25 @@ import os
 
 MODE_CAPS = {"light": 100, "normal": 300, "aggressive": 800}
 VERB_HINTS = ["export", "download", "status", "delete", "update", "create", "list"]
-# Reserve part of the cap for structural predictions specifically, so a
-# target with a rich grammar doesn't get crowded out entirely by plain
-# vocabulary words — but never let predictions alone blow past the cap.
+# Real bug found reviewing a live run's actual target_wordlist.txt: Wolf
+# contributed 220/300 (73%) of the final wordlist while vocabulary.json
+# (this target's OWN evidence — words the application itself exposes)
+# contributed only 5/2000 available words (0.25%) — the file's own
+# "Signal Quality: evidence from the target beats a generic list"
+# philosophy, inverted in practice. Root cause: wolf_selector.py's
+# output (wolf_selected.txt) had ~4000 entries with no cap applied
+# before being added to the candidate set, AND rank() put "not in
+# wolf_lines" ahead of vocabulary words in sort priority — Wolf
+# (generic) was outranking vocabulary.json (target-specific evidence),
+# backwards from every other engine in this project. Every source now
+# gets an explicit reserved share of the total cap, and the priority
+# order is structural (this target's own grammar) > vocabulary (this
+# target's own evidence) > Wolf (generic, supplementary only) - so no
+# single source can crowd out the other two regardless of how many
+# candidates it happens to produce.
 STRUCTURAL_SHARE = {"light": 30, "normal": 80, "aggressive": 200}
+VOCAB_SHARE = {"light": 40, "normal": 120, "aggressive": 350}
+WOLF_SHARE = {"light": 30, "normal": 100, "aggressive": 250}
 
 
 def _load_predicted_fuzz_paths(out_dir):
@@ -91,29 +106,35 @@ def main():
     words = list(vocab.keys())
     verbs_present = {v for v in VERB_HINTS if v in vocab}
 
-    candidates = set(wolf_lines)
-
-    # Base word candidates, ranked by evidence strength (more sources first).
+    # Base word candidates, ranked by evidence strength (more sources first),
+    # capped to this run's vocabulary share BEFORE mixing with the other
+    # sources — this is the set that was getting crowded out entirely.
+    vocab_cap = VOCAB_SHARE.get(args.mode, VOCAB_SHARE["normal"])
     ranked_words = sorted(words, key=lambda w: vocab[w]["count"], reverse=True)
+    vocab_candidates = []
     for w in ranked_words:
-        candidates.add(w)
-        candidates.add(w + "s")
-        for verb in verbs_present:
-            if verb == w:
-                continue  # don't pair a word with itself ("export/export")
-            candidates.add(f"{w}/{verb}")
+        for cand in (w, w + "s", *(f"{w}/{verb}" for verb in verbs_present if verb != w)):
+            vocab_candidates.append(cand)
+            if len(vocab_candidates) >= vocab_cap:
+                break
+        if len(vocab_candidates) >= vocab_cap:
+            break
+    vocab_candidates = vocab_candidates[:vocab_cap]
 
     structural_cap = STRUCTURAL_SHARE.get(args.mode, STRUCTURAL_SHARE["normal"])
     structural_paths = _load_predicted_fuzz_paths(out_dir)[:structural_cap]
-    candidates.update(structural_paths)
+
+    wolf_cap = WOLF_SHARE.get(args.mode, WOLF_SHARE["normal"])
+    wolf_candidates = wolf_lines[:wolf_cap]
+
+    candidates = set(wolf_candidates) | set(vocab_candidates) | set(structural_paths)
 
     cap = MODE_CAPS.get(args.mode, MODE_CAPS["normal"])
-    # Keep it a *small relevant* wordlist: cap total candidates, but rank
-    # structural predictions first (this target's own grammar — the
-    # strongest evidence), then the (small) Wolf generic slice, then
-    # plain vocabulary words/verb-pairs last.
+    # structural (this target's own grammar) > vocabulary (this
+    # target's own evidence) > Wolf (generic, supplementary) — see the
+    # module-level comment for the real bug this ordering fixes.
     def rank(c):
-        return (c not in structural_paths, c not in wolf_lines, c)
+        return (c not in structural_paths, c not in vocab_candidates, c not in wolf_candidates, c)
 
     final = list(dict.fromkeys(sorted(candidates, key=rank)))
     final = final[:cap]
@@ -123,8 +144,10 @@ def main():
             f.write(line + "\n")
 
     print(f"✅ target_wordlist.txt written ({len(final)} candidates, capped at {cap}, "
-          f"mode={args.mode}, {len(structural_paths)} from this target's own "
-          f"structural grammar) -> {out_path}")
+          f"mode={args.mode}) — sources: structural={len(structural_paths)}, "
+          f"vocabulary={len(vocab_candidates)}, wolf={len(wolf_candidates)} "
+          f"(wolf_selected.txt had {len(wolf_lines)} available, capped to {wolf_cap}) "
+          f"-> {out_path}")
 
 
 if __name__ == "__main__":
