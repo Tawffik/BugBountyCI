@@ -1,5 +1,11 @@
 # BugBountyCI — Roadmap & Architecture Decision Record
 
+> **⚠️ Start at `docs/ENGINEERING_LEDGER.md` instead, if you haven't
+> read it yet.** That file is now the single entry point — the goal,
+> the architecture map, the full evidence-based bug history, and the
+> real next priority. This file is the detailed backlog it links to,
+> not a replacement for it.
+
 **Read this first if you're picking this project back up.** This file
 exists so nothing from any design document ever gets lost or silently
 re-decided — but "kept" does not mean "queued to build." Four master

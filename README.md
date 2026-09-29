@@ -1,5 +1,11 @@
 # Zero Track — AI-Assisted Bug Bounty CI
 
+> **Continuing development on this repo? Read [`docs/ENGINEERING_LEDGER.md`](./docs/ENGINEERING_LEDGER.md) first.**
+> It's the project's memory: the actual goal, the architecture map, a
+> full evidence-based bug history (what broke, how it was proven, how
+> it was fixed), open gaps, and the real next priority. Chat sessions
+> don't persist — that file is what does.
+
 [![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-Automated-2088FF?logo=githubactions&logoColor=white)](https://github.com/Tawffik/BugBountyCI/actions)
 [![Workflow](https://img.shields.io/badge/Pipeline-60%2B%20steps-success)](./.github/workflows/zero-track-hunter.yml)
 [![Scope](https://img.shields.io/badge/Scope-Authorized%20targets%20only-orange)](#legal--ethics)

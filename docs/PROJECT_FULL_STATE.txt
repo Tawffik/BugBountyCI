@@ -1,6 +1,11 @@
 ================================================================================
 BugBountyCI (Zero Track) — FULL PROJECT STATE DOCUMENT
 ================================================================================
+⚠️ START AT docs/ENGINEERING_LEDGER.md INSTEAD. That file is now the
+single entry point (goal, architecture map, bug ledger with evidence,
+real next priority) and is kept current. This file is an older,
+point-in-time dump kept for historical detail.
+================================================================================
 Generated for continuation / handoff. Language: Arabic + technical English terms.
 Repo: https://github.com/Tawffik/BugBountyCI
 Primary workflow: .github/workflows/zero-track-hunter.yml
