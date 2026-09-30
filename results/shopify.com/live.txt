@@ -1,0 +1,102 @@
+http://1290sqm.shopify.com	301	301 Moved Permanently
+http://2-gedgets.shopify.com	301	301 Moved Permanently
+http://23-227-36-40.shopify.com	301	301 Moved Permanently
+http://23-227-36-99.shopify.com	301	301 Moved Permanently
+http://23-227-38-24.shopify.com	301	301 Moved Permanently
+http://23-227-38-26.shopify.com	301	301 Moved Permanently
+http://23-227-38-35.shopify.com	301	301 Moved Permanently
+http://23-227-38-37.shopify.com	301	301 Moved Permanently
+http://23-227-38-61.shopify.com	301	301 Moved Permanently
+http://23-227-38-62.shopify.com	301	301 Moved Permanently
+http://99an9el.shopify.com	301	301 Moved Permanently
+http://a2b775-2.shopify.com	301	301 Moved Permanently
+http://bohoblu.shopify.com	301	301 Moved Permanently
+http://coa.shopify.com	301	301 Moved Permanently
+http://conday.shopify.com	301	301 Moved Permanently
+http://domestic-platypus.shopify.com	301	301 Moved Permanently
+http://elite-healthcare.shopify.com	301	301 Moved Permanently
+http://eu-cushoncovers.shopify.com	301	301 Moved Permanently
+http://experts.shopify.com	301	301 Moved Permanently
+http://fe2.shopify.com	301	301 Moved Permanently
+http://forums.shopify.com	301	
+http://games.cushoncovers.shopify.com	409	
+http://gd.shopify.com	301	301 Moved Permanently
+http://ghost.shopify.com	301	301 Moved Permanently
+http://harper.shopify.com	301	301 Moved Permanently
+http://haven.shopify.com	301	301 Moved Permanently
+http://herbal-gadgets.shopify.com	301	301 Moved Permanently
+http://holding.shopify.com	301	301 Moved Permanently
+http://ite.shopify.com	301	301 Moved Permanently
+http://keynotery.shopify.com	301	301 Moved Permanently
+http://marketplace.shopify.com	301	
+http://mrbo.shopify.com	301	301 Moved Permanently
+http://nginx.cushoncovers.shopify.com	409	
+http://nsa.shopify.com	301	301 Moved Permanently
+http://papaya.shopify.com	301	301 Moved Permanently
+http://shops.ash.shopify.com	409	
+http://thehomedream.shopify.com	301	301 Moved Permanently
+http://tridonis.shopify.com	301	301 Moved Permanently
+http://tts.shopify.com	301	301 Moved Permanently
+http://vision.shopify.com	301	301 Moved Permanently
+http://win.shopify.com	301	
+http://www.bigkenny.shopify.com	409	
+http://www.factory43.shopify.com	409	
+http://www.keynotery.shopify.com	409	
+http://www.lionelhandbags.shopify.com	409	
+http://www.shopify.com	301	301 Moved Permanently
+https://12cushoncovers.shopify.com	404	Store unavailable
+https://1c1856-2.shopify.com	404	Store unavailable
+https://23-227-33-157.shopify.com	404	Store unavailable
+https://23-227-34-174.shopify.com	404	Store unavailable
+https://23-227-34-77.shopify.com	404	Store unavailable
+https://23-227-38-22.shopify.com	404	Store unavailable
+https://23-227-38-25.shopify.com	404	Store unavailable
+https://23-227-38-29.shopify.com	404	Store unavailable
+https://23-227-38-36.shopify.com	404	Store unavailable
+https://23-227-38-40.shopify.com	404	Store unavailable
+https://2fapi.shopify.com	404	Store unavailable
+https://2fwww.shopify.com	404	Store unavailable
+https://365momme-designs.shopify.com	404	Store unavailable
+https://3acdn.shopify.com	404	Store unavailable
+https://43andcompany.shopify.com	404	Store unavailable
+https://9cushoncovers.shopify.com	404	Store unavailable
+https://askingfortrouble.shopify.com	404	Store unavailable
+https://atikshop.shopify.com	404	Store unavailable
+https://babb-academy.shopify.com	301	
+https://blog.shopify.com	301	301 Moved Permanently
+https://careers.shopify.com	301	
+https://cdn.shopify.com	200	Shopify CDN
+https://celebrityencore.shopify.com	404	Store unavailable
+https://checkout.shopify.com	404	Store unavailable
+https://coconut.shopify.com	404	Store unavailable
+https://convergence.shopify.com	404	Store unavailable
+https://copy.shopify.com	404	Store unavailable
+https://docs.shopify.com	301	
+https://dracosdoor.shopify.com	404	Store unavailable
+https://evernote.shopify.com	404	Store unavailable
+https://gapps.shopify.com	404	Store unavailable
+https://goliath.shopify.com	404	Store unavailable
+https://harmonynaturaltoys.shopify.com	404	Store unavailable
+https://havoc.shopify.com	404	Store unavailable
+https://hc.shopify.com	404	Store unavailable
+https://hits.shopify.com	404	Store unavailable
+https://ironport.shopify.com	404	Store unavailable
+https://madeforyoubyarms.shopify.com	404	Store unavailable
+https://nikita.shopify.com	404	Store unavailable
+https://noc.shopify.com	404	Store unavailable
+https://paynow.shopify.com	404	Store unavailable
+https://pxhydro.shopify.com	404	Store unavailable
+https://rauchmelderzone.shopify.com	404	Store unavailable
+https://redirectify.shopify.com	301	301 Moved Permanently
+https://salme-sewing-patterns.shopify.com	404	Store unavailable
+https://search.shopify.com	301	301 Moved Permanently
+https://shopify.com	301	301 Moved Permanently
+https://smtp5.shopify.com	404	Store unavailable
+https://spirulicious.shopify.com	404	Store unavailable
+https://staging.shopify.com	404	Store unavailable
+https://static2.shopify.com	301	
+https://store.shopify.com	301	301 Moved Permanently
+https://support.shopify.com	301	301 Moved Permanently
+https://tuan.shopify.com	404	Store unavailable
+https://unitestore.shopify.com	429	
+https://visitors.shopify.com	404	Store unavailable
