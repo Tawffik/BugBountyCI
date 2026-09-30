@@ -175,7 +175,7 @@ jobs:
             set +e
             subfinder -d "$DOMAIN" -all -silent -o "$TDIR/subs_raw.txt" 2>"$TDIR/subfinder.err"
             SF_RC=$?
-            set -e
+            set +e
 
             if [[ $SF_RC -ne 0 ]]; then
               STATUS="INCOMPLETE"
@@ -211,19 +211,26 @@ jobs:
 
             set +e
             if [[ -s "$TDIR/subs.txt" ]]; then
-              dnsx -l "$TDIR/subs.txt" -silent -a -o "$TDIR/resolved.txt" 2>"$TDIR/dnsx.err"
+              dnsx -l "$TDIR/subs.txt" -silent -a -resp -o "$TDIR/resolved_raw.txt" 2>"$TDIR/dnsx.err"
               DNS_RC=$?
+              # dnsx -resp may print "host [ip]"; keep hostname only
+              if [[ -f "$TDIR/resolved_raw.txt" ]]; then
+                awk '{print $1}' "$TDIR/resolved_raw.txt" | sed 's/\.$//' | sort -u > "$TDIR/resolved.txt"
+              else
+                : > "$TDIR/resolved.txt"
+              fi
             else
               : > "$TDIR/resolved.txt"
               DNS_RC=0
             fi
-            set -e
+            set +e
 
-            if [[ $DNS_RC -ne 0 ]]; then
+            RESOLVED_PRE=$(wc -l < "$TDIR/resolved.txt" 2>/dev/null | tr -d ' ' || echo 0)
+            if [[ $DNS_RC -ne 0 ]] || [[ "$RESOLVED_PRE" -eq 0 && -s "$TDIR/subs.txt" ]]; then
               if [[ -s "$TDIR/subs.txt" ]]; then
                 cp "$TDIR/subs.txt" "$TDIR/resolved.txt"
                 DNS_OK=1
-                echo "[$DOMAIN] dnsx failed (rc=$DNS_RC); falling back to discovered list"
+                echo "[$DOMAIN] dnsx rc=$DNS_RC resolved=$RESOLVED_PRE; falling back to discovered list ($(wc -l < "$TDIR/subs.txt" | tr -d ' ') hosts)"
               else
                 STATUS="INCOMPLETE"
                 REASON="dnsx failed and no discovery list"
@@ -285,7 +292,7 @@ jobs:
               : > "$TDIR/live_raw.json"
               HX_RC=0
             fi
-            set -e
+            set +e
 
             if [[ $HX_RC -ne 0 ]]; then
               HTTP_OK=0
@@ -313,7 +320,7 @@ jobs:
               : > "$TDIR/subzy_raw.json"
               SZ_RC=0
             fi
-            set -e
+            set +e
 
             if [[ $SZ_RC -ne 0 ]]; then
               TAKEOVER_OK=0
@@ -398,6 +405,7 @@ jobs:
             echo "[$DOMAIN] COMPLETE total=$TOTAL live=$LIVE new=$NEW removed=$REMOVED takeovers=$TAKEOVERS baseline=$IS_BASELINE"
           }
 
+          set +e
           while IFS= read -r DOMAIN || [[ -n "$DOMAIN" ]]; do
             DOMAIN=$(echo "$DOMAIN" | xargs)
             [[ -z "$DOMAIN" ]] && continue
@@ -405,10 +413,15 @@ jobs:
               echo "::warning::Skipping invalid domain: $DOMAIN"
               continue
             fi
-            process_target "$DOMAIN" || {
-              echo "::error::Unexpected failure processing $DOMAIN — continuing"
+            # Never let a single target abort the whole run (set -e must stay off)
+            set +e
+            process_target "$DOMAIN"
+            PT_RC=$?
+            if [[ $PT_RC -ne 0 ]]; then
+              echo "::error::Unexpected failure processing $DOMAIN (rc=$PT_RC) — continuing"
               INCOMPLETE=$((INCOMPLETE + 1))
-            }
+            fi
+            set +e
           done < "$TARGETS_FILE"
 
           {
