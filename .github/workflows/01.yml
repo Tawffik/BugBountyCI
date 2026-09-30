@@ -478,11 +478,28 @@ jobs:
           set -uo pipefail
           if [[ -z "${WEBHOOK:-}" ]]; then
             echo "DISCORD_WEBHOOK not set — skipping notification"
+            echo "Results are still in results/<domain>/ and results/submon_run_summary.md"
             exit 0
           fi
 
           AGG=/tmp/submon/aggregate.json
-          [[ -f "$AGG" ]] || { echo "No aggregate data"; exit 0; }
+          if [[ ! -f "$AGG" ]]; then
+            # Fallback minimal alert if scan step crashed before aggregate
+            jq -n \
+              --arg title "Subdomain Monitor — no aggregate data" \
+              --arg url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+              --arg sha "${{ github.sha }}" \
+            '{
+              username: "SubMonitor",
+              embeds: [{
+                title: $title,
+                color: 15158332,
+                description: ("Check Actions logs: " + $url),
+                fields: [{name:"Commit", value:$sha, inline:false}]
+              }]
+            }' | curl -s -X POST "$WEBHOOK" -H "Content-Type: application/json" -d @- || true
+            exit 0
+          fi
 
           COMPLETED="${COMPLETED:-0}"
           INCOMPLETE="${INCOMPLETE:-0}"
@@ -492,84 +509,86 @@ jobs:
           BASELINES="${BASELINES:-0}"
           TARGET_COUNT="${TARGET_COUNT:-0}"
           RUN_TS="${RUN_TS:-unknown}"
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
-          CHANGES=$(jq -r '
-            [.[] | select(.status=="COMPLETE" and (.new > 0 or .removed > 0 or .takeovers > 0 or .baseline == true))]
-            | if length == 0 then "None"
-              else map(
-                if .baseline then
-                  "• **\(.domain)** FIRST BASELINE (\(.total // 0) assets)"
-                else
-                  "• **\(.domain)** new=\(.new) removed=\(.removed) takeovers=\(.takeovers)"
-                end
-              ) | join("\n")
-              end
-          ' "$AGG" 2>/dev/null || echo "None")
+          # Full per-target lines (trim to Discord field limit ~1024)
+          PER_TARGET=$(jq -r '
+            .[] |
+            if .status == "INCOMPLETE" then
+              "❌ \(.domain): INCOMPLETE — \(.reason)"
+            elif .baseline == true then
+              "📌 \(.domain): BASELINE total=\(.total // 0) live=\(.live // 0)"
+            elif (.new > 0 or .removed > 0 or .takeovers > 0) then
+              "🔔 \(.domain): new=\(.new) removed=\(.removed) takeovers=\(.takeovers) live=\(.live // 0)"
+            else
+              "✅ \(.domain): no change (total=\(.total // 0) live=\(.live // 0))"
+            end
+          ' "$AGG" 2>/dev/null | head -c 900)
+          [[ -z "$PER_TARGET" ]] && PER_TARGET="(no per-target data)"
 
-          INCOMPLETE_LIST=$(jq -r '
-            [.[] | select(.status=="INCOMPLETE")]
-            | if length == 0 then "None"
-              else map("• **\(.domain)**: \(.reason)") | join("\n")
-              end
-          ' "$AGG" 2>/dev/null || echo "None")
+          NEW_DETAIL=$(jq -r '
+            [.[] | select(.new > 0)] |
+            if length == 0 then "None"
+            else map("• \(.domain): +\(.new)") | join("\n")
+            end
+          ' "$AGG" 2>/dev/null | head -c 500)
+          [[ -z "$NEW_DETAIL" ]] && NEW_DETAIL="None"
 
           TAKEOVER_DETAIL=$(jq -r '
-            [.[] | select(.takeovers > 0)]
-            | if length == 0 then "None"
-              else map("• **\(.domain)**: \(.takeovers) candidate(s)") | join("\n")
-              end
-          ' "$AGG" 2>/dev/null || echo "None")
+            [.[] | select(.takeovers > 0)] |
+            if length == 0 then "None"
+            else map("• \(.domain): \(.takeovers)") | join("\n")
+            end
+          ' "$AGG" 2>/dev/null | head -c 400)
+          [[ -z "$TAKEOVER_DETAIL" ]] && TAKEOVER_DETAIL="None"
 
-          CHANGES=$(echo "$CHANGES" | head -c 900)
-          INCOMPLETE_LIST=$(echo "$INCOMPLETE_LIST" | head -c 600)
-          TAKEOVER_DETAIL=$(echo "$TAKEOVER_DETAIL" | head -c 400)
+          INCOMPLETE_LIST=$(jq -r '
+            [.[] | select(.status=="INCOMPLETE")] |
+            if length == 0 then "None"
+            else map("• \(.domain): \(.reason)") | join("\n")
+            end
+          ' "$AGG" 2>/dev/null | head -c 500)
+          [[ -z "$INCOMPLETE_LIST" ]] && INCOMPLETE_LIST="None"
 
           COLOR=5814783
           [[ "$TOTAL_TAKEOVERS" != "0" ]] && COLOR=15158332
           [[ "$INCOMPLETE" != "0" ]] && COLOR=16776960
+          [[ "$BASELINES" != "0" && "$TOTAL_NEW" == "0" && "$TOTAL_REMOVED" == "0" ]] && COLOR=3447003
 
-          if [[ "$TOTAL_NEW" == "0" && "$TOTAL_REMOVED" == "0" && "$TOTAL_TAKEOVERS" == "0" \
-                && "$INCOMPLETE" == "0" && "$BASELINES" == "0" ]]; then
-            echo "No meaningful events — skipping Discord"
-            exit 0
-          fi
-
-          TITLE="Subdomain Monitor Run"
-          [[ "$TARGET_COUNT" == "1" ]] && TITLE="Subdomain Monitor"
+          # Always notify when we have aggregate (even pure baselines / no-change)
+          # so you can see the run outcome without opening Actions every time.
+          DESC="Targets **${TARGET_COUNT}** · Done **${COMPLETED}** · Incomplete **${INCOMPLETE}** · Baselines **${BASELINES}**"
+          DESC="${DESC}\nNew **${TOTAL_NEW}** · Removed **${TOTAL_REMOVED}** · Takeovers **${TOTAL_TAKEOVERS}**"
+          DESC="${DESC}\n[Open Actions run](${RUN_URL})"
 
           jq -n \
-            --arg title "$TITLE" \
+            --arg title "Subdomain Monitor" \
+            --arg desc "$DESC" \
             --arg ts "$RUN_TS" \
-            --arg tc "$TARGET_COUNT" \
-            --arg c "$COMPLETED" \
-            --arg i "$INCOMPLETE" \
-            --arg n "$TOTAL_NEW" \
-            --arg r "$TOTAL_REMOVED" \
-            --arg tk "$TOTAL_TAKEOVERS" \
-            --arg b "$BASELINES" \
-            --arg ch "$CHANGES" \
-            --arg il "$INCOMPLETE_LIST" \
+            --arg pt "$PER_TARGET" \
+            --arg nd "$NEW_DETAIL" \
             --arg td "$TAKEOVER_DETAIL" \
+            --arg il "$INCOMPLETE_LIST" \
+            --arg url "$RUN_URL" \
             --argjson color "$COLOR" \
           '{
             username: "SubMonitor",
+            content: null,
             embeds: [{
               title: $title,
+              description: $desc,
               color: $color,
               fields: [
-                {name:"Targets",   value:$tc, inline:true},
-                {name:"Completed", value:$c,  inline:true},
-                {name:"Incomplete",value:$i,  inline:true},
-                {name:"New",       value:$n,  inline:true},
-                {name:"Removed",   value:$r,  inline:true},
-                {name:"Takeovers", value:$tk, inline:true},
-                {name:"Baselines", value:$b,  inline:true},
-                {name:"Changes / Baselines", value:$ch, inline:false},
-                {name:"Incomplete Targets", value:$il, inline:false},
-                {name:"Takeover Summary", value:$td, inline:false},
-                {name:"Timestamp", value:$ts, inline:false}
+                {name: "Per-target status", value: $pt, inline: false},
+                {name: "New assets", value: $nd, inline: false},
+                {name: "Takeovers", value: $td, inline: false},
+                {name: "Incomplete", value: $il, inline: false},
+                {name: "Timestamp", value: $ts, inline: true},
+                {name: "Run", value: $url, inline: false}
               ]
             }]
           }' | curl -s -X POST "$WEBHOOK" \
                -H "Content-Type: application/json" \
                -d @- || echo "::warning::Discord notify failed"
+
+          echo "Discord payload sent (targets=$TARGET_COUNT completed=$COMPLETED incomplete=$INCOMPLETE)"
