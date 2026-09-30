@@ -1,0 +1,33 @@
+# =============================================================================
+# Bug Bounty targets for Subdomain Monitor
+# One apex domain per line. Comments (#) and blank lines ignored.
+#
+# FILTER: public paid programs, legitimate brands, useful web surface.
+# Capacity: sequential ~90 min → ~15-18 targets safe on Sengi.
+#
+# LEGAL: Only test programs YOU are authorized for. Always verify official scope.
+# =============================================================================
+
+# --- Tier A: high payout / mature triage ---
+shopify.com
+gitlab.com
+stripe.com
+coinbase.com
+github.com
+paypal.com
+
+# --- Tier B: strong ROI / responsive ---
+vercel.com
+linktr.ee
+cloudflare.com
+slack.com
+dropbox.com
+nintendo.com
+
+# --- Tier C: solid web surface ---
+atlassian.com
+netflix.com
+spotify.com
+canva.com
+openai.com
+okta.com

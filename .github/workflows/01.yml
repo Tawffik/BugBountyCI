@@ -1,24 +1,27 @@
 name: "Subdomain Monitor"
 
 on:
-  # DISABLED: was running automatically every 6 hours forever, burning CI
-  # minutes with no one asking for it. Manual trigger still works below.
+  # Schedule disabled until reliability is proven.
   # schedule:
   #   - cron: '0 */6 * * *'
   workflow_dispatch:
     inputs:
       domain:
-        description: 'Target Domain'
-        required: true
+        description: 'Optional single domain override (leave empty to scan all targets in targets-bb.txt)'
+        required: false
         default: ''
 
 permissions:
   contents: write
 
+concurrency:
+  group: subdomain-monitor
+  cancel-in-progress: false
+
 jobs:
   scan:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+    runs-on: sengi-standard-2-ubuntu-2404
+    timeout-minutes: 90
 
     steps:
       - uses: actions/checkout@v4
@@ -38,189 +41,522 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/go/bin
-          key: go-tools-${{ runner.os }}-v3
+          key: go-tools-submon-${{ runner.os }}-v4
 
       - name: Install Tools
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
-          go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
-          go install github.com/projectdiscovery/httpx/cmd/httpx@latest
-          go install github.com/projectdiscovery/dnsx/cmd/dnsx@latest
+          set -e
+          go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@v2.6.6
+          go install github.com/projectdiscovery/httpx/cmd/httpx@v1.6.8
+          go install github.com/projectdiscovery/dnsx/cmd/dnsx@v1.2.1
           go install github.com/PentestPad/subzy@latest
+          echo "Tools installed"
 
       - name: Update PATH
         run: echo "$HOME/go/bin" >> $GITHUB_PATH
 
-      - name: Set Domain
+      - name: Resolve target inventory
+        id: targets
+        env:
+          INPUT_DOMAIN: ${{ github.event.inputs.domain }}
         run: |
-          DOMAIN="${{ github.event.inputs.domain || secrets.TARGET_DOMAIN }}"
-          if [ -z "$DOMAIN" ]; then
-            echo "DOMAIN is empty"
+          set -euo pipefail
+          mkdir -p /tmp/submon
+          TARGETS_FILE=/tmp/submon/targets.txt
+          : > "$TARGETS_FILE"
+
+          is_valid_domain() {
+            local d="$1"
+            [[ -z "$d" ]] && return 1
+            [[ "$d" =~ [[:space:]/\\\$\`\;\|\&\<\>\(\)\{\}\[\]\'\"\*] ]] && return 1
+            [[ "$d" =~ ^https?:// ]] && return 1
+            [[ "$d" =~ ^[0-9.]+$ ]] && return 1
+            [[ "$d" =~ ^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$ ]] || return 1
+            return 0
+          }
+
+          normalize_domain() {
+            echo "$1" | tr '[:upper:]' '[:lower:]' | sed 's/^\*\.//' | xargs
+          }
+
+          add_target() {
+            local raw="$1"
+            local d
+            d=$(normalize_domain "$raw")
+            if ! is_valid_domain "$d"; then
+              echo "::warning::Rejecting malformed target: '$raw'"
+              return 0
+            fi
+            if ! grep -qxF "$d" "$TARGETS_FILE" 2>/dev/null; then
+              echo "$d" >> "$TARGETS_FILE"
+            fi
+          }
+
+          if [[ -n "${INPUT_DOMAIN:-}" ]]; then
+            echo "Mode: single-target override"
+            add_target "$INPUT_DOMAIN"
+          elif [[ -f targets-bb.txt ]]; then
+            echo "Mode: bug bounty inventory from targets-bb.txt"
+            while IFS= read -r line || [[ -n "$line" ]]; do
+              line=$(echo "$line" | sed 's/#.*//' | xargs)
+              [[ -z "$line" ]] && continue
+              add_target "$line"
+            done < targets-bb.txt
+          else
+            echo "::error::targets-bb.txt not found. Create it at repo root with one domain per line."
             exit 1
           fi
-          echo "DOMAIN=$DOMAIN" >> $GITHUB_ENV
-          mkdir -p "results/$DOMAIN"
-          touch "results/$DOMAIN/prev.txt" \
-                /tmp/takeovers.txt \
-                /tmp/new_subs.txt \
-                /tmp/removed_subs.txt \
-                /tmp/live_hosts.txt \
-                /tmp/live.txt
 
-      - name: Enumerate Subdomains
-        continue-on-error: true
+          COUNT=$(wc -l < "$TARGETS_FILE" | tr -d ' ')
+          if [[ "$COUNT" -eq 0 ]]; then
+            echo "::error::No valid targets. Add domains to targets-bb.txt or pass a domain override."
+            exit 1
+          fi
+
+          echo "Authorized targets ($COUNT):"
+          cat "$TARGETS_FILE"
+          echo "TARGET_COUNT=$COUNT" >> "$GITHUB_ENV"
+          echo "TARGETS_FILE=$TARGETS_FILE" >> "$GITHUB_ENV"
+
+      - name: Scan all targets
+        id: scan
         run: |
-          subfinder -d "$DOMAIN" -all -silent \
-            -o /tmp/subs_raw.txt 2>/dev/null || true
+          set -uo pipefail
+          TARGETS_FILE="${TARGETS_FILE:-/tmp/submon/targets.txt}"
+          RUN_TS=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          RUN_DIR=/tmp/submon/run
+          mkdir -p "$RUN_DIR" results
+          AGG_SUMMARY="$RUN_DIR/aggregate.md"
+          AGG_JSON="$RUN_DIR/aggregate.json"
+          echo "[]" > "$AGG_JSON"
 
-          grep -iE "^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+${DOMAIN}$" \
-            /tmp/subs_raw.txt 2>/dev/null \
-            | sort -u > /tmp/subs.txt || true
+          COMPLETED=0
+          INCOMPLETE=0
+          TOTAL_NEW=0
+          TOTAL_REMOVED=0
+          TOTAL_TAKEOVERS=0
+          BASELINES=0
 
-          echo "Raw: $(wc -l < /tmp/subs_raw.txt 2>/dev/null || echo 0)"
-          echo "Valid: $(wc -l < /tmp/subs.txt 2>/dev/null || echo 0)"
+          is_valid_domain() {
+            local d="$1"
+            [[ -z "$d" ]] && return 1
+            [[ "$d" =~ [[:space:]/\\\$\`\;\|\&\<\>\(\)\{\}\[\]\'\"\*] ]] && return 1
+            [[ "$d" =~ ^https?:// ]] && return 1
+            [[ "$d" =~ ^[0-9.]+$ ]] && return 1
+            [[ "$d" =~ ^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$ ]] || return 1
+            return 0
+          }
 
-      - name: DNS Resolve
-        continue-on-error: true
-        run: |
-          dnsx -l /tmp/subs.txt -silent -a \
-            -o /tmp/resolved.txt 2>/dev/null || \
-            cp /tmp/subs.txt /tmp/resolved.txt
-          sort -u /tmp/resolved.txt -o /tmp/resolved.txt
+          process_target() {
+            local DOMAIN="$1"
+            local TDIR="/tmp/submon/${DOMAIN}"
+            local RDIR="results/${DOMAIN}"
+            local STATUS="COMPLETE"
+            local REASON=""
+            local DISCOVERY_OK=0
+            local DNS_OK=0
+            local HTTP_OK=0
+            local TAKEOVER_OK=0
+            local IS_BASELINE=0
+            local NEW=0
+            local REMOVED=0
+            local TAKEOVERS=0
+            local TOTAL=0
+            local LIVE=0
+            local RESOLVED_COUNT=0
 
-      - name: HTTP Probe
-        continue-on-error: true
-        run: |
-          httpx -l /tmp/resolved.txt \
-            -silent \
-            -status-code \
-            -title \
-            -tech-detect \
-            -threads 50 \
-            -timeout 8 \
-            -json \
-            -o /tmp/live_raw.json 2>/dev/null || true
+            echo ""
+            echo "======== TARGET: $DOMAIN ========"
+            mkdir -p "$TDIR" "$RDIR"
+            [[ -f "$RDIR/prev.txt" ]] || touch "$RDIR/prev.txt"
+            PREV_COUNT=$(wc -l < "$RDIR/prev.txt" | tr -d ' ' || echo 0)
 
-          jq -r '.url' /tmp/live_raw.json 2>/dev/null \
-            | sort -u > /tmp/live_hosts.txt || true
+            set +e
+            subfinder -d "$DOMAIN" -all -silent -o "$TDIR/subs_raw.txt" 2>"$TDIR/subfinder.err"
+            SF_RC=$?
+            set -e
 
-          jq -r '[.url, .status_code, .title] | @tsv' /tmp/live_raw.json 2>/dev/null \
-            | sort > /tmp/live.txt || true
+            if [[ $SF_RC -ne 0 ]]; then
+              STATUS="INCOMPLETE"
+              REASON="subfinder exit code $SF_RC"
+              echo "::warning::[$DOMAIN] discovery failed: $REASON"
+            else
+              grep -iE "^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+${DOMAIN}$" \
+                "$TDIR/subs_raw.txt" 2>/dev/null \
+                | tr '[:upper:]' '[:lower:]' | sort -u > "$TDIR/subs.txt" || true
+              echo "$DOMAIN" >> "$TDIR/subs.txt"
+              sort -u "$TDIR/subs.txt" -o "$TDIR/subs.txt"
+              DISCOVERY_OK=1
+              echo "[$DOMAIN] discovery OK: $(wc -l < "$TDIR/subs.txt") candidates"
+            fi
 
-      - name: Takeover Check
-        continue-on-error: true
-        run: |
-          subzy run \
-            --targets /tmp/resolved.txt \
-            --concurrency 20 \
-            --hide_fails \
-            --verify_ssl \
-            --output /tmp/subzy_raw.json 2>/dev/null || true
+            if [[ "$STATUS" == "INCOMPLETE" ]]; then
+              {
+                echo "# Recon Summary: $DOMAIN"
+                echo "Last Updated: $RUN_TS"
+                echo "Status: INCOMPLETE"
+                echo "Reason: $REASON"
+                echo "Previous trusted baseline count: $PREV_COUNT"
+                echo ""
+                echo "Trusted baseline was NOT overwritten."
+              } > "$RDIR/summary.md"
+              [[ -f "$TDIR/subs_raw.txt" ]] && cp "$TDIR/subs_raw.txt" "$RDIR/subs_raw_failed.txt" 2>/dev/null || true
+              INCOMPLETE=$((INCOMPLETE + 1))
+              jq --arg d "$DOMAIN" --arg s "$STATUS" --arg r "$REASON" --argjson p "$PREV_COUNT" \
+                '. + [{"domain":$d,"status":$s,"reason":$r,"prev":$p,"new":0,"removed":0,"takeovers":0,"baseline":false}]' \
+                "$AGG_JSON" > "$AGG_JSON.tmp" && mv "$AGG_JSON.tmp" "$AGG_JSON"
+              return 0
+            fi
 
-          grep -s '.' /tmp/subzy_raw.json \
-            | jq -r 'select(.vulnerable == true) | "[TAKEOVER] \(.subdomain) => \(.service)"' \
-            > /tmp/takeovers.txt 2>/dev/null || true
+            set +e
+            if [[ -s "$TDIR/subs.txt" ]]; then
+              dnsx -l "$TDIR/subs.txt" -silent -a -o "$TDIR/resolved.txt" 2>"$TDIR/dnsx.err"
+              DNS_RC=$?
+            else
+              : > "$TDIR/resolved.txt"
+              DNS_RC=0
+            fi
+            set -e
 
-          echo "Confirmed takeovers: $(wc -l < /tmp/takeovers.txt)"
+            if [[ $DNS_RC -ne 0 ]]; then
+              if [[ -s "$TDIR/subs.txt" ]]; then
+                cp "$TDIR/subs.txt" "$TDIR/resolved.txt"
+                DNS_OK=1
+                echo "[$DOMAIN] dnsx failed (rc=$DNS_RC); falling back to discovered list"
+              else
+                STATUS="INCOMPLETE"
+                REASON="dnsx failed and no discovery list"
+                echo "::warning::[$DOMAIN] $REASON"
+              fi
+            else
+              sort -u "$TDIR/resolved.txt" -o "$TDIR/resolved.txt" 2>/dev/null || true
+              DNS_OK=1
+            fi
 
-      - name: Diff Against Previous Run
-        run: |
-          comm -23 \
-            <(sort /tmp/resolved.txt) \
-            <(sort "results/$DOMAIN/prev.txt") \
-            > /tmp/new_subs.txt
+            if [[ "$STATUS" == "INCOMPLETE" ]]; then
+              {
+                echo "# Recon Summary: $DOMAIN"
+                echo "Last Updated: $RUN_TS"
+                echo "Status: INCOMPLETE"
+                echo "Reason: $REASON"
+                echo "Previous trusted baseline count: $PREV_COUNT"
+                echo ""
+                echo "Trusted baseline was NOT overwritten."
+              } > "$RDIR/summary.md"
+              INCOMPLETE=$((INCOMPLETE + 1))
+              jq --arg d "$DOMAIN" --arg s "$STATUS" --arg r "$REASON" --argjson p "$PREV_COUNT" \
+                '. + [{"domain":$d,"status":$s,"reason":$r,"prev":$p,"new":0,"removed":0,"takeovers":0,"baseline":false}]' \
+                "$AGG_JSON" > "$AGG_JSON.tmp" && mv "$AGG_JSON.tmp" "$AGG_JSON"
+              return 0
+            fi
 
-          comm -23 \
-            <(sort "results/$DOMAIN/prev.txt") \
-            <(sort /tmp/resolved.txt) \
-            > /tmp/removed_subs.txt
+            RESOLVED_COUNT=$(wc -l < "$TDIR/resolved.txt" | tr -d ' ' || echo 0)
+            TOTAL=$RESOLVED_COUNT
 
-          NEW=$(wc -l < /tmp/new_subs.txt)
-          REMOVED=$(wc -l < /tmp/removed_subs.txt)
-          TAKEOVERS=$(wc -l < /tmp/takeovers.txt 2>/dev/null || echo 0)
+            if [[ "$PREV_COUNT" -gt 20 ]] && [[ "$RESOLVED_COUNT" -eq 0 ]]; then
+              STATUS="INCOMPLETE"
+              REASON="suspicious empty result (prev=$PREV_COUNT, current=0)"
+              echo "::warning::[$DOMAIN] $REASON — preserving baseline"
+              {
+                echo "# Recon Summary: $DOMAIN"
+                echo "Last Updated: $RUN_TS"
+                echo "Status: INCOMPLETE"
+                echo "Reason: $REASON"
+                echo "Previous trusted baseline count: $PREV_COUNT"
+                echo ""
+                echo "Trusted baseline was NOT overwritten."
+              } > "$RDIR/summary.md"
+              INCOMPLETE=$((INCOMPLETE + 1))
+              jq --arg d "$DOMAIN" --arg s "$STATUS" --arg r "$REASON" --argjson p "$PREV_COUNT" \
+                '. + [{"domain":$d,"status":$s,"reason":$r,"prev":$p,"new":0,"removed":0,"takeovers":0,"baseline":false}]' \
+                "$AGG_JSON" > "$AGG_JSON.tmp" && mv "$AGG_JSON.tmp" "$AGG_JSON"
+              return 0
+            fi
 
-          echo "NEW=$NEW"             >> $GITHUB_ENV
-          echo "REMOVED=$REMOVED"     >> $GITHUB_ENV
-          echo "TAKEOVERS=$TAKEOVERS" >> $GITHUB_ENV
+            set +e
+            if [[ -s "$TDIR/resolved.txt" ]]; then
+              httpx -l "$TDIR/resolved.txt" \
+                -silent -status-code -title -tech-detect \
+                -threads 30 -timeout 8 -json \
+                -o "$TDIR/live_raw.json" 2>"$TDIR/httpx.err"
+              HX_RC=$?
+            else
+              : > "$TDIR/live_raw.json"
+              HX_RC=0
+            fi
+            set -e
 
-          echo "New: $NEW | Removed: $REMOVED | Takeovers: $TAKEOVERS"
+            if [[ $HX_RC -ne 0 ]]; then
+              HTTP_OK=0
+              echo "::warning::[$DOMAIN] httpx exited $HX_RC — live data may be partial"
+              touch "$TDIR/live_hosts.txt" "$TDIR/live.txt"
+            else
+              HTTP_OK=1
+              jq -r 'select(.url != null) | .url' "$TDIR/live_raw.json" 2>/dev/null \
+                | sort -u > "$TDIR/live_hosts.txt" || true
+              jq -r 'select(.url != null) | [.url, (.status_code|tostring), (.title // "")] | @tsv' \
+                "$TDIR/live_raw.json" 2>/dev/null | sort > "$TDIR/live.txt" || true
+            fi
+            LIVE=$(wc -l < "$TDIR/live_hosts.txt" 2>/dev/null | tr -d ' ' || echo 0)
 
-      - name: Save Results & Commit
-        run: |
-          cp /tmp/resolved.txt   "results/$DOMAIN/subdomains.txt"
-          cp /tmp/resolved.txt   "results/$DOMAIN/prev.txt"
-          cp /tmp/live_hosts.txt "results/$DOMAIN/live_hosts.txt" 2>/dev/null || true
-          cp /tmp/live.txt       "results/$DOMAIN/live.txt"       2>/dev/null || true
-          cp /tmp/new_subs.txt   "results/$DOMAIN/new.txt"        2>/dev/null || true
-          cp /tmp/takeovers.txt  "results/$DOMAIN/takeovers.txt"  2>/dev/null || true
+            set +e
+            if [[ -s "$TDIR/resolved.txt" ]]; then
+              subzy run \
+                --targets "$TDIR/resolved.txt" \
+                --concurrency 15 \
+                --hide_fails \
+                --verify_ssl \
+                --output "$TDIR/subzy_raw.json" 2>"$TDIR/subzy.err"
+              SZ_RC=$?
+            else
+              : > "$TDIR/subzy_raw.json"
+              SZ_RC=0
+            fi
+            set -e
 
-          TOTAL=$(wc -l < /tmp/resolved.txt   2>/dev/null || echo 0)
-          LIVE=$(wc -l  < /tmp/live_hosts.txt 2>/dev/null || echo 0)
+            if [[ $SZ_RC -ne 0 ]]; then
+              TAKEOVER_OK=0
+              echo "::warning::[$DOMAIN] subzy exited $SZ_RC"
+              : > "$TDIR/takeovers.txt"
+            else
+              TAKEOVER_OK=1
+              if [[ -s "$TDIR/subzy_raw.json" ]]; then
+                if jq -e 'type == "array"' "$TDIR/subzy_raw.json" >/dev/null 2>&1; then
+                  jq -r '.[] | select(.vulnerable == true) | "[TAKEOVER] \(.subdomain) => \(.service)"' \
+                    "$TDIR/subzy_raw.json" > "$TDIR/takeovers.txt" 2>/dev/null || true
+                else
+                  grep -s '.' "$TDIR/subzy_raw.json" \
+                    | jq -r 'select(.vulnerable == true) | "[TAKEOVER] \(.subdomain) => \(.service)"' \
+                    > "$TDIR/takeovers.txt" 2>/dev/null || true
+                fi
+              else
+                : > "$TDIR/takeovers.txt"
+              fi
+            fi
+            TAKEOVERS=$(wc -l < "$TDIR/takeovers.txt" 2>/dev/null | tr -d ' ' || echo 0)
+
+            sort -u "$TDIR/resolved.txt" -o "$TDIR/resolved.txt"
+            sort -u "$RDIR/prev.txt" -o "$RDIR/prev.txt" 2>/dev/null || true
+
+            if [[ "$PREV_COUNT" -eq 0 ]]; then
+              IS_BASELINE=1
+              NEW=0
+              REMOVED=0
+              : > "$TDIR/new_subs.txt"
+              : > "$TDIR/removed_subs.txt"
+              echo "[$DOMAIN] FIRST BASELINE ($RESOLVED_COUNT assets)"
+            else
+              sort "$TDIR/resolved.txt" -o "$TDIR/resolved_sorted.txt"
+              sort "$RDIR/prev.txt" -o "$TDIR/prev_sorted.txt"
+              comm -23 "$TDIR/resolved_sorted.txt" "$TDIR/prev_sorted.txt" > "$TDIR/new_subs.txt"
+              comm -23 "$TDIR/prev_sorted.txt" "$TDIR/resolved_sorted.txt" > "$TDIR/removed_subs.txt"
+              NEW=$(wc -l < "$TDIR/new_subs.txt" | tr -d ' ')
+              REMOVED=$(wc -l < "$TDIR/removed_subs.txt" | tr -d ' ')
+            fi
+
+            cp "$TDIR/resolved.txt"     "$RDIR/subdomains.txt"
+            cp "$TDIR/resolved.txt"     "$RDIR/prev.txt"
+            cp "$TDIR/live_hosts.txt"   "$RDIR/live_hosts.txt" 2>/dev/null || touch "$RDIR/live_hosts.txt"
+            cp "$TDIR/live.txt"         "$RDIR/live.txt"       2>/dev/null || touch "$RDIR/live.txt"
+            cp "$TDIR/new_subs.txt"     "$RDIR/new.txt"
+            cp "$TDIR/removed_subs.txt" "$RDIR/removed.txt" 2>/dev/null || touch "$RDIR/removed.txt"
+            cp "$TDIR/takeovers.txt"    "$RDIR/takeovers.txt"
+
+            {
+              echo "# Recon Summary: $DOMAIN"
+              echo "Last Updated: $RUN_TS"
+              echo "Status: COMPLETE"
+              if [[ "$IS_BASELINE" -eq 1 ]]; then
+                echo "Mode: FIRST BASELINE"
+              fi
+              echo ""
+              echo "| Metric | Count |"
+              echo "|--------|-------|"
+              echo "| Total Subdomains | $TOTAL |"
+              echo "| Live Hosts | $LIVE |"
+              echo "| New (this run) | $NEW |"
+              echo "| Removed | $REMOVED |"
+              echo "| Confirmed Takeovers | $TAKEOVERS |"
+              echo ""
+              echo "Discovery OK: $DISCOVERY_OK | DNS OK: $DNS_OK | HTTP OK: $HTTP_OK | Takeover OK: $TAKEOVER_OK"
+            } > "$RDIR/summary.md"
+
+            COMPLETED=$((COMPLETED + 1))
+            TOTAL_NEW=$((TOTAL_NEW + NEW))
+            TOTAL_REMOVED=$((TOTAL_REMOVED + REMOVED))
+            TOTAL_TAKEOVERS=$((TOTAL_TAKEOVERS + TAKEOVERS))
+            [[ "$IS_BASELINE" -eq 1 ]] && BASELINES=$((BASELINES + 1))
+
+            jq --arg d "$DOMAIN" --arg s "COMPLETE" --arg r "" \
+              --argjson p "$PREV_COUNT" --argjson n "$NEW" --argjson rm "$REMOVED" \
+              --argjson tk "$TAKEOVERS" --argjson t "$TOTAL" --argjson l "$LIVE" \
+              --argjson b "$IS_BASELINE" \
+              '. + [{"domain":$d,"status":$s,"reason":$r,"prev":$p,"new":$n,"removed":$rm,"takeovers":$tk,"total":$t,"live":$l,"baseline":($b==1)}]' \
+              "$AGG_JSON" > "$AGG_JSON.tmp" && mv "$AGG_JSON.tmp" "$AGG_JSON"
+
+            echo "[$DOMAIN] COMPLETE total=$TOTAL live=$LIVE new=$NEW removed=$REMOVED takeovers=$TAKEOVERS baseline=$IS_BASELINE"
+          }
+
+          while IFS= read -r DOMAIN || [[ -n "$DOMAIN" ]]; do
+            DOMAIN=$(echo "$DOMAIN" | xargs)
+            [[ -z "$DOMAIN" ]] && continue
+            if ! is_valid_domain "$DOMAIN"; then
+              echo "::warning::Skipping invalid domain: $DOMAIN"
+              continue
+            fi
+            process_target "$DOMAIN" || {
+              echo "::error::Unexpected failure processing $DOMAIN — continuing"
+              INCOMPLETE=$((INCOMPLETE + 1))
+            }
+          done < "$TARGETS_FILE"
 
           {
-            echo "# Recon Summary: $DOMAIN"
-            echo "Last Updated: $(date -u)"
+            echo "# Subdomain Monitor Run"
+            echo "Timestamp: $RUN_TS"
             echo ""
-            echo "| Metric | Count |"
+            echo "| Metric | Value |"
             echo "|--------|-------|"
-            echo "| Total Subdomains | $TOTAL |"
-            echo "| Live Hosts | $LIVE |"
-            echo "| New (this run) | ${{ env.NEW }} |"
-            echo "| Removed | ${{ env.REMOVED }} |"
-            echo "| Confirmed Takeovers | ${{ env.TAKEOVERS }} |"
-          } > "results/$DOMAIN/summary.md"
+            echo "| Targets scanned | $TARGET_COUNT |"
+            echo "| Completed | $COMPLETED |"
+            echo "| Incomplete | $INCOMPLETE |"
+            echo "| Baselines | $BASELINES |"
+            echo "| New assets | $TOTAL_NEW |"
+            echo "| Removed | $TOTAL_REMOVED |"
+            echo "| Takeovers | $TOTAL_TAKEOVERS |"
+            echo ""
+            echo "## Per-target"
+            jq -r '.[] | "- **\(.domain)**: \(.status)" + (if .status=="INCOMPLETE" then " — \(.reason)" else " (new=\(.new) removed=\(.removed) takeovers=\(.takeovers))" end)' "$AGG_JSON"
+          } > "$AGG_SUMMARY"
+          cp "$AGG_SUMMARY" results/submon_run_summary.md
 
+          echo "COMPLETED=$COMPLETED" >> "$GITHUB_ENV"
+          echo "INCOMPLETE=$INCOMPLETE" >> "$GITHUB_ENV"
+          echo "TOTAL_NEW=$TOTAL_NEW" >> "$GITHUB_ENV"
+          echo "TOTAL_REMOVED=$TOTAL_REMOVED" >> "$GITHUB_ENV"
+          echo "TOTAL_TAKEOVERS=$TOTAL_TAKEOVERS" >> "$GITHUB_ENV"
+          echo "BASELINES=$BASELINES" >> "$GITHUB_ENV"
+          echo "RUN_TS=$RUN_TS" >> "$GITHUB_ENV"
+
+          cp "$AGG_JSON" /tmp/submon/aggregate.json
+          cp "$AGG_SUMMARY" /tmp/submon/aggregate.md
+
+          echo "==== RUN COMPLETE ===="
+          cat "$AGG_SUMMARY"
+
+      - name: Commit results
+        run: |
+          set -euo pipefail
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add "results/$DOMAIN/"
-          git diff --staged --quiet || \
-            git commit -m "Recon Update [$DOMAIN] $(date -u +'%Y-%m-%d %H:%M')"
-          git push || true
+          git add results/ || true
+          if git diff --staged --quiet; then
+            echo "No repository changes to commit"
+          else
+            git commit -m "Subdomain Monitor update $(date -u +'%Y-%m-%d %H:%M')"
+            git push || echo "::warning::git push failed (non-fatal)"
+          fi
 
-      - name: Discord — Only on Changes
-        if: env.NEW != '0' || env.REMOVED != '0' || env.TAKEOVERS != '0'
+      - name: Discord notification
+        if: always()
         env:
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
-          TOTAL=$(wc -l < /tmp/resolved.txt   2>/dev/null || echo 0)
-          LIVE=$(wc -l  < /tmp/live_hosts.txt 2>/dev/null || echo 0)
+          set -uo pipefail
+          if [[ -z "${WEBHOOK:-}" ]]; then
+            echo "DISCORD_WEBHOOK not set — skipping notification"
+            exit 0
+          fi
 
-          NEW_LIST=$(head -10 /tmp/new_subs.txt 2>/dev/null \
-            | awk '{print "- "$0}' | paste -sd '\n' || echo "None")
-          [ -z "$NEW_LIST" ] && NEW_LIST="None"
+          AGG=/tmp/submon/aggregate.json
+          [[ -f "$AGG" ]] || { echo "No aggregate data"; exit 0; }
 
-          TAKEOVER_LIST=$(head -5 /tmp/takeovers.txt 2>/dev/null \
-            | awk '{print "- "$0}' | paste -sd '\n' || echo "None")
-          [ -z "$TAKEOVER_LIST" ] && TAKEOVER_LIST="None"
+          COMPLETED="${COMPLETED:-0}"
+          INCOMPLETE="${INCOMPLETE:-0}"
+          TOTAL_NEW="${TOTAL_NEW:-0}"
+          TOTAL_REMOVED="${TOTAL_REMOVED:-0}"
+          TOTAL_TAKEOVERS="${TOTAL_TAKEOVERS:-0}"
+          BASELINES="${BASELINES:-0}"
+          TARGET_COUNT="${TARGET_COUNT:-0}"
+          RUN_TS="${RUN_TS:-unknown}"
+
+          CHANGES=$(jq -r '
+            [.[] | select(.status=="COMPLETE" and (.new > 0 or .removed > 0 or .takeovers > 0 or .baseline == true))]
+            | if length == 0 then "None"
+              else map(
+                if .baseline then
+                  "• **\(.domain)** FIRST BASELINE (\(.total // 0) assets)"
+                else
+                  "• **\(.domain)** new=\(.new) removed=\(.removed) takeovers=\(.takeovers)"
+                end
+              ) | join("\n")
+              end
+          ' "$AGG" 2>/dev/null || echo "None")
+
+          INCOMPLETE_LIST=$(jq -r '
+            [.[] | select(.status=="INCOMPLETE")]
+            | if length == 0 then "None"
+              else map("• **\(.domain)**: \(.reason)") | join("\n")
+              end
+          ' "$AGG" 2>/dev/null || echo "None")
+
+          TAKEOVER_DETAIL=$(jq -r '
+            [.[] | select(.takeovers > 0)]
+            | if length == 0 then "None"
+              else map("• **\(.domain)**: \(.takeovers) candidate(s)") | join("\n")
+              end
+          ' "$AGG" 2>/dev/null || echo "None")
+
+          CHANGES=$(echo "$CHANGES" | head -c 900)
+          INCOMPLETE_LIST=$(echo "$INCOMPLETE_LIST" | head -c 600)
+          TAKEOVER_DETAIL=$(echo "$TAKEOVER_DETAIL" | head -c 400)
 
           COLOR=5814783
-          [ "${{ env.TAKEOVERS }}" != "0" ] && COLOR=15158332
+          [[ "$TOTAL_TAKEOVERS" != "0" ]] && COLOR=15158332
+          [[ "$INCOMPLETE" != "0" ]] && COLOR=16776960
+
+          if [[ "$TOTAL_NEW" == "0" && "$TOTAL_REMOVED" == "0" && "$TOTAL_TAKEOVERS" == "0" \
+                && "$INCOMPLETE" == "0" && "$BASELINES" == "0" ]]; then
+            echo "No meaningful events — skipping Discord"
+            exit 0
+          fi
+
+          TITLE="Subdomain Monitor Run"
+          [[ "$TARGET_COUNT" == "1" ]] && TITLE="Subdomain Monitor"
 
           jq -n \
-            --arg d  "$DOMAIN" \
-            --arg t  "$TOTAL" \
-            --arg l  "$LIVE" \
-            --arg n  "${{ env.NEW }}" \
-            --arg r  "${{ env.REMOVED }}" \
-            --arg tk "${{ env.TAKEOVERS }}" \
-            --arg nl "$NEW_LIST" \
-            --arg tl "$TAKEOVER_LIST" \
+            --arg title "$TITLE" \
+            --arg ts "$RUN_TS" \
+            --arg tc "$TARGET_COUNT" \
+            --arg c "$COMPLETED" \
+            --arg i "$INCOMPLETE" \
+            --arg n "$TOTAL_NEW" \
+            --arg r "$TOTAL_REMOVED" \
+            --arg tk "$TOTAL_TAKEOVERS" \
+            --arg b "$BASELINES" \
+            --arg ch "$CHANGES" \
+            --arg il "$INCOMPLETE_LIST" \
+            --arg td "$TAKEOVER_DETAIL" \
             --argjson color "$COLOR" \
           '{
             username: "SubMonitor",
             embeds: [{
-              title: ("Subdomain Change: " + $d),
+              title: $title,
               color: $color,
               fields: [
-                {name:"Total",            value:$t,  inline:true},
-                {name:"Live",             value:$l,  inline:true},
-                {name:"New",              value:$n,  inline:true},
-                {name:"Removed",          value:$r,  inline:true},
-                {name:"Takeovers",        value:$tk, inline:true},
-                {name:"New Subdomains",   value:$nl, inline:false},
-                {name:"Takeover Targets", value:$tl, inline:false}
+                {name:"Targets",   value:$tc, inline:true},
+                {name:"Completed", value:$c,  inline:true},
+                {name:"Incomplete",value:$i,  inline:true},
+                {name:"New",       value:$n,  inline:true},
+                {name:"Removed",   value:$r,  inline:true},
+                {name:"Takeovers", value:$tk, inline:true},
+                {name:"Baselines", value:$b,  inline:true},
+                {name:"Changes / Baselines", value:$ch, inline:false},
+                {name:"Incomplete Targets", value:$il, inline:false},
+                {name:"Takeover Summary", value:$td, inline:false},
+                {name:"Timestamp", value:$ts, inline:false}
               ]
             }]
           }' | curl -s -X POST "$WEBHOOK" \
                -H "Content-Type: application/json" \
-               -d @- || true
+               -d @- || echo "::warning::Discord notify failed"
