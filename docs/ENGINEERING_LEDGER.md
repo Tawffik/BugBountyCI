@@ -129,6 +129,7 @@ confirmed it yet — check that before assuming it's actually closed.
 | 18 | Workflow step ordering | SSRF Engine's findings wouldn't appear in that same run's own `hunter_queue.md`/`metrics.json` | New step was inserted right before "OOB Check" — but AFTER "Hunter Queue Builder" and "Metrics Baseline" already read `engine_results.json` for that run | `401b09d` (caught and fixed in the same change, before merge) | FIXED+VERIFIED (real run confirms SSRF entries rank #1-2 in `hunter_queue.md`) |
 | 19 | `live_host_probing.sh` | 221 candidate subdomains, DNS resolved: 0 — pipeline ran entirely starved | `dnsx` returning 0 with no fallback | `b6c34c4` | FIXED+VERIFIED (75/114 resolved via `dig`/`getent` fallback on the confirming run) |
 | 20 | `live_host_probing.sh` | httpx found only ~2-14 live hosts when DNS resolved 75 | Recovery/seeding logic only ran when `live.txt` was completely EMPTY, not when it was merely sparse | `11ba302` | FIXED (unverified per this ledger — check next run's `live_hosts` count against `dns_resolve`'s `resolved=` count) |
+| 21 | Content Discovery `common.txt` fallback (Gap D) | Smart-fuzzing EMPTY_VALID (`status=empty` in phase JSON) still triggered SecLists `common.txt`, undoing target-aware selection | Consumer only checked `! -s fuzzing/discovered.txt` and ignored `meta/phases/smart_fuzzing.json` | (this commit) | FIXED (unit-tested; live verification pending next Actions run) |
 
 **Not yet in this table:** the pre-2026-09-13 commit history (the
 "chore: stage ... / fix(#N)" era, ~150+ commits) has its own real fixes
@@ -148,7 +149,7 @@ applicable, so cross-referencing stays possible.
 
 | Gap | What's actually wrong | Why it matters more than a new engine |
 |---|---|---|
-| **D** | The `common.txt` fallback in Content Discovery Fuzzing still triggers on "smart-fuzzing produced zero interesting output" alone — it does NOT read `meta/phases/smart_fuzzing.json`'s new `empty` vs `error` distinction (bug #16 fixed the reporting, not the consumer) | A healthy "genuinely found nothing" run can still get silently overridden by the generic wordlist, undoing the whole point of Smart Fuzzing |
+| **D** | ~~common.txt fallback ignored phase status~~ **CLOSED** — see bug #21 / Gap D evidence | Consumer now uses `fallback_gate.py` |
 | **E** | `response_diff.py` doesn't store the actual response body — length/status/content-type only | Every "SPA fallback" or "identical content" claim is inferred, never directly checked |
 | **F** | Response classification is still coarse (status/length/content-type) | No `WAF_BLOCK` / `SPA_CATCHALL` / `AUTH_REQUIRED` / `SERVER_ERROR` / `REAL_CONTENT` split — a differential result can't yet distinguish "found a WAF" from "found content" |
 | **I** | Access-Control and Open-Redirect run BEFORE parameter_intelligence.json exists in the workflow; only SSRF (built last) consumes it | Both older engines are working with weaker candidate data than they could — see §4 item 2 |
@@ -222,12 +223,21 @@ applicable, so cross-referencing stays possible.
 
 ---
 
+
+### Gap D evidence (2026-09-30)
+
+- **Wrong:** Content Discovery Fuzzing fell back to SecLists `common.txt` whenever `fuzzing/discovered.txt` was empty, including when smart-fuzzing wrote `meta/phases/smart_fuzzing.json` with `"status":"empty"` (EMPTY_VALID).
+- **Change:** `pipeline/smart-fuzzing/fallback_gate.py` decides allow/skip; workflow calls it before common.txt; statuses `empty`/`ok` → skip; `error`/`skipped*`/`cancelled`/missing/malformed → allow.
+- **Tests:** `pipeline/smart-fuzzing/tests/test_fallback_gate.py` (12 cases) — all passed.
+- **YAML:** minimal consumer change only in Content Discovery Fuzzing step (no job/trigger/order redesign).
+- **Limitation:** FIXED until a live Actions run log shows `skipping common.txt fallback (Gap D)` or `gate=error` as appropriate; mark FIXED+VERIFIED after that.
+
 ## 6. What "next" actually means right now
 
 Per §3, the highest-leverage NOT-YET-DONE items, in order:
-1. Gap D (fallback logic must read `meta/phases/smart_fuzzing.json`,
-   not just check for an empty file) — cheap, closes a real hole in
-   work already shipped.
+1. ~~Gap D~~ **DONE** (commit this session): `fallback_gate.py` + Content
+   Discovery step reads `meta/phases/smart_fuzzing.json`; EMPTY_VALID/ok
+   skips common.txt; error/missing/malformed still allow fallback.
 2. §4 item 2 (Access-Control and Open-Redirect consuming
    parameter_intelligence.json) — same shape of improvement that
    already worked once for SSRF.
