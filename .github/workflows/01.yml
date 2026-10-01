@@ -226,16 +226,17 @@ jobs:
             set +e
 
             RESOLVED_PRE=$(wc -l < "$TDIR/resolved.txt" 2>/dev/null | tr -d ' ' || echo 0)
-            if [[ $DNS_RC -ne 0 ]] || [[ "$RESOLVED_PRE" -eq 0 && -s "$TDIR/subs.txt" ]]; then
-              if [[ -s "$TDIR/subs.txt" ]]; then
-                cp "$TDIR/subs.txt" "$TDIR/resolved.txt"
-                DNS_OK=1
-                echo "[$DOMAIN] dnsx rc=$DNS_RC resolved=$RESOLVED_PRE; falling back to discovered list ($(wc -l < "$TDIR/subs.txt" | tr -d ' ') hosts)"
-              else
-                STATUS="INCOMPLETE"
-                REASON="dnsx failed and no discovery list"
-                echo "::warning::[$DOMAIN] $REASON"
-              fi
+            # No fallback to discovery list. DNS failure or zero-from-nonempty discovery = incomplete.
+            if [[ $DNS_RC -ne 0 ]]; then
+              STATUS="INCOMPLETE"
+              REASON="dnsx exit code $DNS_RC"
+              DNS_OK=0
+              echo "::warning::[$DOMAIN] DNS incomplete: $REASON"
+            elif [[ "$RESOLVED_PRE" -eq 0 && -s "$TDIR/subs.txt" ]]; then
+              STATUS="INCOMPLETE"
+              REASON="dnsx returned 0 resolved hosts from $(wc -l < "$TDIR/subs.txt" | tr -d ' ') discovery candidates (no fallback)"
+              DNS_OK=0
+              echo "::warning::[$DOMAIN] DNS incomplete: $REASON"
             else
               sort -u "$TDIR/resolved.txt" -o "$TDIR/resolved.txt" 2>/dev/null || true
               DNS_OK=1
@@ -296,8 +297,14 @@ jobs:
 
             if [[ $HX_RC -ne 0 ]]; then
               HTTP_OK=0
-              echo "::warning::[$DOMAIN] httpx exited $HX_RC — live data may be partial"
+              echo "::warning::[$DOMAIN] httpx exited $HX_RC"
               touch "$TDIR/live_hosts.txt" "$TDIR/live.txt"
+              # When resolved hosts exist, HTTP is health-bearing
+              if [[ "$RESOLVED_COUNT" -gt 0 ]]; then
+                STATUS="INCOMPLETE"
+                REASON="httpx exit code $HX_RC"
+                echo "::warning::[$DOMAIN] HTTP incomplete: $REASON — baseline will not be updated"
+              fi
             else
               HTTP_OK=1
               jq -r 'select(.url != null) | .url' "$TDIR/live_raw.json" 2>/dev/null \
@@ -326,6 +333,12 @@ jobs:
               TAKEOVER_OK=0
               echo "::warning::[$DOMAIN] subzy exited $SZ_RC"
               : > "$TDIR/takeovers.txt"
+              # When resolved hosts exist, takeover is health-bearing
+              if [[ "$RESOLVED_COUNT" -gt 0 ]]; then
+                STATUS="INCOMPLETE"
+                REASON="subzy exit code $SZ_RC"
+                echo "::warning::[$DOMAIN] Takeover incomplete: $REASON — baseline will not be updated"
+              fi
             else
               TAKEOVER_OK=1
               if [[ -s "$TDIR/subzy_raw.json" ]]; then
@@ -342,6 +355,34 @@ jobs:
               fi
             fi
             TAKEOVERS=$(wc -l < "$TDIR/takeovers.txt" 2>/dev/null | tr -d ' ' || echo 0)
+
+            # ---- TRUSTED BASELINE GATE ----
+            # Only proceed to update prev.txt when all required stages are healthy.
+            # DNS/HTTP/Takeover incompleteness already set STATUS=INCOMPLETE above when resolved>0.
+            if [[ "$STATUS" == "INCOMPLETE" ]]; then
+              {
+                echo "# Recon Summary: $DOMAIN"
+                echo "Last Updated: $RUN_TS"
+                echo "Status: INCOMPLETE"
+                echo "Reason: $REASON"
+                echo "Previous trusted baseline count: $PREV_COUNT"
+                echo "Discovery OK: $DISCOVERY_OK | DNS OK: $DNS_OK | HTTP OK: $HTTP_OK | Takeover OK: $TAKEOVER_OK"
+                echo ""
+                echo "Trusted baseline was NOT overwritten."
+              } > "$RDIR/summary.md"
+              # Preserve any partial evidence without touching prev.txt
+              [[ -f "$TDIR/resolved.txt" ]] && cp "$TDIR/resolved.txt" "$RDIR/resolved_incomplete.txt" 2>/dev/null || true
+              [[ -f "$TDIR/live_hosts.txt" ]] && cp "$TDIR/live_hosts.txt" "$RDIR/live_hosts_incomplete.txt" 2>/dev/null || true
+              [[ -f "$TDIR/takeovers.txt" ]] && cp "$TDIR/takeovers.txt" "$RDIR/takeovers_incomplete.txt" 2>/dev/null || true
+              INCOMPLETE=$((INCOMPLETE + 1))
+              jq --arg d "$DOMAIN" --arg s "$STATUS" --arg r "$REASON" --argjson p "$PREV_COUNT" \
+                --argjson n 0 --argjson rm 0 --argjson tk 0 \
+                --argjson dok "$DISCOVERY_OK" --argjson dnok "$DNS_OK" --argjson hok "$HTTP_OK" --argjson tok "$TAKEOVER_OK" \
+                '. + [{"domain":$d,"status":$s,"reason":$r,"prev":$p,"new":$n,"removed":$rm,"takeovers":$tk,"baseline":false,"discovery_ok":$dok,"dns_ok":$dnok,"http_ok":$hok,"takeover_ok":$tok}]' \
+                "$AGG_JSON" > "$AGG_JSON.tmp" && mv "$AGG_JSON.tmp" "$AGG_JSON"
+              echo "[$DOMAIN] INCOMPLETE reason=$REASON — prev.txt preserved"
+              return 0
+            fi
 
             sort -u "$TDIR/resolved.txt" -o "$TDIR/resolved.txt"
             sort -u "$RDIR/prev.txt" -o "$RDIR/prev.txt" 2>/dev/null || true
@@ -362,6 +403,7 @@ jobs:
               REMOVED=$(wc -l < "$TDIR/removed_subs.txt" | tr -d ' ')
             fi
 
+            # Trusted write — only reached when STATUS is still COMPLETE
             cp "$TDIR/resolved.txt"     "$RDIR/subdomains.txt"
             cp "$TDIR/resolved.txt"     "$RDIR/prev.txt"
             cp "$TDIR/live_hosts.txt"   "$RDIR/live_hosts.txt" 2>/dev/null || touch "$RDIR/live_hosts.txt"
@@ -387,6 +429,7 @@ jobs:
               echo "| Confirmed Takeovers | $TAKEOVERS |"
               echo ""
               echo "Discovery OK: $DISCOVERY_OK | DNS OK: $DNS_OK | HTTP OK: $HTTP_OK | Takeover OK: $TAKEOVER_OK"
+              echo "Baseline updated: YES"
             } > "$RDIR/summary.md"
 
             COMPLETED=$((COMPLETED + 1))
