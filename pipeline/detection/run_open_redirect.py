@@ -87,8 +87,22 @@ def main():
     target_profile = load_json("target_profile.json")
     vocabulary = load_json("vocabulary.json")
 
+    # Gap I: consume parameter_intelligence.json when present (same shape as SSRF).
+    parameter_map = {"endpoints": []}
+    pi_path = os.path.join(rd, "detection", "parameter_intelligence.json")
+    if os.path.isfile(pi_path):
+        try:
+            with open(pi_path, "r", errors="ignore") as f:
+                parameter_map = json.load(f) or {"endpoints": []}
+        except Exception:
+            parameter_map = {"endpoints": []}
+
     prober = make_prober(args.user_agent, args.use_tor, args.timeout)
-    engine = OpenRedirectEngine(prober=prober, max_candidates=args.max_candidates)
+    engine = OpenRedirectEngine(
+        prober=prober,
+        parameter_map=parameter_map,
+        max_candidates=args.max_candidates,
+    )
 
     results = run_engines([engine], target_profile, vocabulary, results_dir=rd)
     r = results[0]

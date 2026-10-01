@@ -137,3 +137,40 @@ if __name__ == "__main__":
             print(f"  ❌ {t.__name__}: unexpected {type(e).__name__}: {e}")
     print(f"\n{len(tests) - failed}/{len(tests)} tests passed")
     sys.exit(1 if failed else 0)
+
+
+def test_parameter_intelligence_prefers_real_endpoints():
+    """Gap I: when parameter_intelligence.json supplies real endpoints
+    with redirect-like params, candidates come from those pairs — not
+    vocabulary host guesses alone."""
+    parameter_map = {
+        "endpoints": [
+            {
+                "endpoint": "https://app.example.com/login",
+                "parameters": ["next", "session"],
+            },
+            {
+                "endpoint": "https://app.example.com/out",
+                "parameters": ["redirect_url"],
+            },
+        ]
+    }
+    engine = OpenRedirectEngine(parameter_map=parameter_map)
+    profile = {"hosts": ["https://example.com"]}
+    # Empty vocabulary — must still produce candidates from the map
+    candidates = engine.generate_candidates(profile, {})
+    assert len(candidates) >= 2, f"expected map-driven candidates, got {len(candidates)}"
+    targets = [c.target for c in candidates]
+    assert any("next=" in t for t in targets)
+    assert any("redirect_url=" in t or "redirect" in t for t in targets)
+    assert all(c.metadata.get("source") == "parameter_intelligence" for c in candidates)
+    print("  ✅ parameter_intelligence map drives candidates when present")
+
+
+def test_parameter_intelligence_empty_falls_back_to_vocabulary():
+    engine = OpenRedirectEngine(parameter_map={"endpoints": []})
+    profile = {"hosts": ["https://example.com"]}
+    candidates = engine.generate_candidates(profile, {"redirect": {"sources": ["js"]}})
+    assert len(candidates) >= 1
+    assert candidates[0].metadata.get("source") != "parameter_intelligence"
+    print("  ✅ empty parameter_map falls back to vocabulary path")

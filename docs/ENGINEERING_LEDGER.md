@@ -152,7 +152,7 @@ applicable, so cross-referencing stays possible.
 | **D** | ~~common.txt fallback ignored phase status~~ **CLOSED** — see bug #21 / Gap D evidence | Consumer now uses `fallback_gate.py` |
 | **E** | `response_diff.py` doesn't store the actual response body — length/status/content-type only | Every "SPA fallback" or "identical content" claim is inferred, never directly checked |
 | **F** | Response classification is still coarse (status/length/content-type) | No `WAF_BLOCK` / `SPA_CATCHALL` / `AUTH_REQUIRED` / `SERVER_ERROR` / `REAL_CONTENT` split — a differential result can't yet distinguish "found a WAF" from "found content" |
-| **I** | Access-Control and Open-Redirect run BEFORE parameter_intelligence.json exists in the workflow; only SSRF (built last) consumes it | Both older engines are working with weaker candidate data than they could — see §4 item 2 |
+| **I** | ~~Access-Control and Open-Redirect run BEFORE parameter_intelligence.json~~ **CLOSED** — param intel runs after Content Discovery / before AC+OR; OpenRedirectEngine consumes the map (fallback to vocabulary remains) | See Gap I evidence below |
 | **K** | No explicit lower bound on what counts as evidence for WAF/header/origin-based checks | A bare status-code change can still read as a signal in some paths |
 | **L** | "Open scope" mode (no `scope.txt`) continues silently with a warning | Should require an explicit `AUTHORIZED_OPEN_SCAN=true`-style acknowledgment, not an implicit default |
 | **new** | Nuclei error rate has been stuck at 42-45% across every run reviewed (#96-#99) and has never been investigated, only reported | Directly limits Nuclei's own coverage; nobody has looked at WHY yet |
@@ -232,15 +232,43 @@ applicable, so cross-referencing stays possible.
 - **YAML:** minimal consumer change only in Content Discovery Fuzzing step (no job/trigger/order redesign).
 - **Limitation:** FIXED until a live Actions run log shows `skipping common.txt fallback (Gap D)` or `gate=error` as appropriate; mark FIXED+VERIFIED after that.
 
+
+
+### Gap I evidence (2026-10-01)
+
+- **Wrong:** `parameter_intelligence.py` ran only inside the SSRF step
+  (late in the workflow). Access-Control and Open-Redirect therefore
+  never saw real endpoint→parameter pairs and used weaker candidate
+  sources (response_diffs path mutations / vocabulary host guesses).
+- **Change:**
+  1. Workflow: new "Parameter Intelligence" step immediately after
+     Content Discovery Fuzzing and before Access-Control / Open-Redirect.
+  2. Removed the late generation call from the SSRF step (SSRF still
+     consumes the file).
+  3. `OpenRedirectEngine` accepts `parameter_map`; prefers real
+     endpoints that already expose redirect-like params; falls back to
+     pre-Gap-I vocabulary path when the map is empty.
+  4. `run_open_redirect.py` loads `detection/parameter_intelligence.json`
+     and injects it (same pattern as SSRF).
+- **Tests:** existing open-redirect suite + 2 new cases
+  (`test_parameter_intelligence_prefers_real_endpoints`,
+  `test_parameter_intelligence_empty_falls_back_to_vocabulary`); full
+  `pipeline/detection/tests` = 107 passed.
+- **Limitation:** FIXED (unit-tested). Live FIXED+VERIFIED only after a
+  zero-track-hunter run shows Parameter Intelligence before AC/OR and
+  open-redirect candidates sourced from parameter_intelligence when the
+  map is non-empty. Access-Control still does not yet expand candidates
+  from the map (path-mutation engine); map is available on disk for a
+  follow-up if triage shows need.
+
 ## 6. What "next" actually means right now
 
 Per §3, the highest-leverage NOT-YET-DONE items, in order:
-1. ~~Gap D~~ **DONE** (commit this session): `fallback_gate.py` + Content
-   Discovery step reads `meta/phases/smart_fuzzing.json`; EMPTY_VALID/ok
-   skips common.txt; error/missing/malformed still allow fallback.
-2. §4 item 2 (Access-Control and Open-Redirect consuming
-   parameter_intelligence.json) — same shape of improvement that
-   already worked once for SSRF.
+1. ~~Gap D~~ **DONE**: `fallback_gate.py` + Content Discovery step.
+2. ~~Gap I~~ **DONE** (this session): parameter_intelligence before AC/OR;
+   OpenRedirectEngine consumes the map. Access-Control still primarily
+   uses response_diffs (path mutations); map is available for future AC
+   enrichment.
 3. Manual triage of what's SITTING IN THE QUEUE RIGHT NOW: the 4-5
    subdomain-takeover candidates (Cargo Collective, stable across
    every run), the 8 CORS-CRITICAL findings (reflected origin +

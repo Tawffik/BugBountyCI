@@ -2780,6 +2780,24 @@ jobs:
           sort -u -o "$RD/fuzzing/discovered.txt" "$RD/fuzzing/discovered.txt"
           echo "✅ Content discovery hits: $(wc -l < "$RD/fuzzing/discovered.txt" 2>/dev/null || echo 0)"
 
+      - name: "🗺️ Parameter Intelligence"
+        continue-on-error: true
+        timeout-minutes: 5
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          mkdir -p "$RD/detection"
+          # Gap I: build endpoint→parameter map BEFORE Access-Control and
+          # Open-Redirect so those engines (and SSRF later) can consume
+          # real observed params instead of weaker static/vocabulary-only
+          # candidate sources. Sources: urls/, js/, arjun, smart-fuzzing
+          # vocabulary — all expected to exist by this point in the run.
+          python3 pipeline/detection/parameter_intelligence.py --results-dir "$RD" || true
+          if [ -f "$RD/detection/parameter_intelligence.json" ]; then
+            echo "✅ parameter_intelligence.json ready for downstream engines"
+          else
+            echo "⚠️ parameter_intelligence.json missing — engines will fall back to prior candidate sources"
+          fi
+
       - name: "🔐 Access-Control Intelligence (V1)"
         continue-on-error: true
         timeout-minutes: 10
@@ -4035,13 +4053,8 @@ jobs:
         run: |
           RD="results/${{ env.TIMESTAMP }}"
           mkdir -p "$RD/detection" "$RD/ai_agent"
-          # Priority 1 foundation: endpoint→parameter map (needed by this
-          # step and reused later by Metrics Baseline / future IDOR
-          # work) - run it here, BEFORE Hunter Queue/Metrics, not after,
-          # so this engine's own findings actually make it into this
-          # run's unified hunter_queue.md and metrics.json instead of
-          # only existing in engine_results.json for next time.
-          python3 pipeline/detection/parameter_intelligence.py --results-dir "$RD" || true
+          # parameter_intelligence.json is generated earlier (after Content
+          # Discovery / before Access-Control + Open-Redirect — Gap I).
           # Third real engine on the Detection Engine Framework
           # (docs/V2_ROADMAP.md Priority 1 item #3). Candidates come
           # from detection/parameter_intelligence.json (real
