@@ -288,6 +288,27 @@ applicable, so cross-referencing stays possible.
   true empty or silent failure; capital #100 had 6 arjun lines — target-
   dependent, not uniformly zero.
 
+
+### Port scan classification gaps after 28dd077 (2026-10-02)
+
+28dd077 fixed the **primary root cause** (Tor-only hostname path) but left
+classification holes:
+
+1. **Exit codes discarded** (`|| true`) — timeout (124) with ports=0 could
+   classify as EMPTY instead of ERROR.
+2. **FTL matched against shared `logs/naabu.log`** — ASN path also appends
+   there; false ERROR/EMPTY risk.
+3. Tor fallback still keyed on `ports==0` (acceptable) but status did not
+   distinguish DIRECT failure vs legitimate empty without FTL text.
+
+**Follow-up fix:** dedicated `logs/naabu_portscan.log`, preserve DIRECT_RC/TOR_RC,
+classify ERROR on non-zero exit or FTL in portscan-only log; ports>0 → OK;
+else clean exit 0 → EMPTY. Synthetic tests: `scripts/tests/test_port_scan_status.sh`.
+
+**Live:** #103 on 28dd077 still in_progress / no post-fix artifacts at time of
+write → **LIVE VERIFICATION PENDING** (not VERIFIED).
+
+
 ## 6. What "next" actually means right now
 
 Per §3, the highest-leverage NOT-YET-DONE items, in order:

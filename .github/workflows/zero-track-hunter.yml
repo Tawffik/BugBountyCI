@@ -1389,26 +1389,53 @@ jobs:
             NAABU_BIN="$(command -v naabu)"
             # BUGFIX 2026-10-01: Tor-only hostname scan -> FTL no valid ipv4/ipv6
             # on multiple runs while live hosts existed. DIRECT first (ASN path pattern).
+            # BUGFIX 2026-10-02: classification must not use shared logs/naabu.log
+            # (ASN path also appends there) and must preserve exit codes — timeout/FTL
+            # with ports=0 is ERROR, not EMPTY. Dedicated naabu_portscan.log segment.
             PORT_SCAN_STATUS="NOT_RUN"
+            DIRECT_RC=0
+            TOR_RC=0
+            mkdir -p "$RD/logs"
+            : > "$RD/logs/naabu_portscan.log"
             echo "Port scan input: $INPUT ($(wc -l < "$INPUT" | tr -d ' ') hosts)"
-            timeout 480 "$NAABU_BIN" -l "$INPUT" -top-ports 100 -p "$HIGH_VALUE_PORTS" -exclude-cdn -silent -rate 800 -c 15 -o "$RD/live/ports.txt" 2>>"$RD/logs/naabu.log" \
-              || timeout 480 sudo -n "$NAABU_BIN" -l "$INPUT" -top-ports 100 -p "$HIGH_VALUE_PORTS" -exclude-cdn -silent -rate 800 -c 15 -o "$RD/live/ports.txt" 2>>"$RD/logs/naabu.log" \
-              || true
+            set +e
+            timeout 480 "$NAABU_BIN" -l "$INPUT" -top-ports 100 -p "$HIGH_VALUE_PORTS" -exclude-cdn -silent -rate 800 -c 15 -o "$RD/live/ports.txt" 2>>"$RD/logs/naabu_portscan.log"
+            DIRECT_RC=$?
+            if [ "$DIRECT_RC" -ne 0 ]; then
+              timeout 480 sudo -n "$NAABU_BIN" -l "$INPUT" -top-ports 100 -p "$HIGH_VALUE_PORTS" -exclude-cdn -silent -rate 800 -c 15 -o "$RD/live/ports.txt" 2>>"$RD/logs/naabu_portscan.log"
+              DIRECT_RC=$?
+            fi
+            set -e
+            cat "$RD/logs/naabu_portscan.log" >> "$RD/logs/naabu.log" 2>/dev/null || true
             [ -f "$RD/live/ports.txt" ] || : > "$RD/live/ports.txt"
             port_n=$(wc -l < "$RD/live/ports.txt" 2>/dev/null | tr -d ' ' || echo 0)
             if [ "${port_n:-0}" -eq 0 ]; then
-              echo "naabu DIRECT returned 0 ports — Tor fallback (lower rate)..."
-              timeout 480 proxychains4 -q "$NAABU_BIN" -l "$INPUT" -top-ports 100 -p "$HIGH_VALUE_PORTS" -exclude-cdn -silent -rate 200 -c 5 -o "$RD/live/ports.txt" 2>>"$RD/logs/naabu.log" \
-                || timeout 480 sudo -n proxychains4 -q "$NAABU_BIN" -l "$INPUT" -top-ports 100 -p "$HIGH_VALUE_PORTS" -exclude-cdn -silent -rate 200 -c 5 -o "$RD/live/ports.txt" 2>>"$RD/logs/naabu.log" \
-                || true
+              echo "naabu DIRECT rc=$DIRECT_RC ports=0 — Tor fallback (lower rate)..."
+              : > /tmp/naabu_tor_segment.log
+              set +e
+              timeout 480 proxychains4 -q "$NAABU_BIN" -l "$INPUT" -top-ports 100 -p "$HIGH_VALUE_PORTS" -exclude-cdn -silent -rate 200 -c 5 -o "$RD/live/ports.txt" 2>>/tmp/naabu_tor_segment.log
+              TOR_RC=$?
+              if [ "$TOR_RC" -ne 0 ]; then
+                timeout 480 sudo -n proxychains4 -q "$NAABU_BIN" -l "$INPUT" -top-ports 100 -p "$HIGH_VALUE_PORTS" -exclude-cdn -silent -rate 200 -c 5 -o "$RD/live/ports.txt" 2>>/tmp/naabu_tor_segment.log
+                TOR_RC=$?
+              fi
+              set -e
+              cat /tmp/naabu_tor_segment.log >> "$RD/logs/naabu_portscan.log" 2>/dev/null || true
+              cat /tmp/naabu_tor_segment.log >> "$RD/logs/naabu.log" 2>/dev/null || true
               [ -f "$RD/live/ports.txt" ] || : > "$RD/live/ports.txt"
               port_n=$(wc -l < "$RD/live/ports.txt" 2>/dev/null | tr -d ' ' || echo 0)
             fi
+            # Classification priority: ports>0 → OK; else exit/timeout/FTL → ERROR; else EMPTY
+            # timeout(1) returns 124 on expiry.
+            _ftl=0
+            if grep -qE "FTL|Could not run enumeration|no valid ipv4|no valid ipv6" "$RD/logs/naabu_portscan.log" 2>/dev/null; then
+              _ftl=1
+            fi
             if [ "${port_n:-0}" -gt 0 ]; then
               PORT_SCAN_STATUS="OK"
-            elif grep -qE "FTL|Could not run enumeration|no valid ipv4" "$RD/logs/naabu.log" 2>/dev/null; then
+            elif [ "$_ftl" -eq 1 ] || [ "${DIRECT_RC:-0}" -ne 0 ] || [ "${TOR_RC:-0}" -ne 0 ]; then
               PORT_SCAN_STATUS="ERROR"
-              echo "::warning::Port scan ERROR — empty ports.txt is tool/network failure, not clean target"
+              echo "::warning::Port scan ERROR — empty ports.txt is tool/network/timeout failure (direct_rc=$DIRECT_RC tor_rc=$TOR_RC ftl=$_ftl), not clean target"
             else
               PORT_SCAN_STATUS="EMPTY"
             fi
