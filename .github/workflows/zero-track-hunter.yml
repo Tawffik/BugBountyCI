@@ -1354,7 +1354,14 @@ jobs:
         timeout-minutes: 35
         run: |
           RD="results/${{ env.TIMESTAMP }}"
-          INPUT="$RD/subdomains/all_subs.txt"
+          # Prefer DNS-confirmed hosts when available (live probe set).
+          # all_subs may include unresolved names; naabu via Tor often fails DNS
+          # with FTL "no valid ipv4 or ipv6 targets" (superdrug #101, capital #100).
+          if [ -s "$RD/subdomains/resolved.txt" ]; then
+            INPUT="$RD/subdomains/resolved.txt"
+          else
+            INPUT="$RD/subdomains/all_subs.txt"
+          fi
           [ -s "$INPUT" ] || { echo "${{ env.TARGET }}" > /tmp/fallback.txt; INPUT=/tmp/fallback.txt; }
           # Everything so far only ever checked 80/443. Admin panels, dev/staging
           # services, and internal tools are very commonly left open on non-standard
@@ -1380,11 +1387,31 @@ jobs:
             # the rest of this step always gets a real chance to run.
             # Prefer non-sudo on runners where passwordless sudo is flaky; fall back to sudo.
             NAABU_BIN="$(command -v naabu)"
-            timeout 600 proxychains4 -q "$NAABU_BIN" -l "$INPUT" -top-ports 100 -p "$HIGH_VALUE_PORTS" -exclude-cdn -silent -rate 800 -c 15 -o "$RD/live/ports.txt" 2>>"$RD/logs/naabu.log" \
-              || timeout 600 sudo -n proxychains4 -q "$NAABU_BIN" -l "$INPUT" -top-ports 100 -p "$HIGH_VALUE_PORTS" -exclude-cdn -silent -rate 800 -c 15 -o "$RD/live/ports.txt" 2>>"$RD/logs/naabu.log" \
+            # BUGFIX 2026-10-01: Tor-only hostname scan -> FTL no valid ipv4/ipv6
+            # on multiple runs while live hosts existed. DIRECT first (ASN path pattern).
+            PORT_SCAN_STATUS="NOT_RUN"
+            echo "Port scan input: $INPUT ($(wc -l < "$INPUT" | tr -d ' ') hosts)"
+            timeout 480 "$NAABU_BIN" -l "$INPUT" -top-ports 100 -p "$HIGH_VALUE_PORTS" -exclude-cdn -silent -rate 800 -c 15 -o "$RD/live/ports.txt" 2>>"$RD/logs/naabu.log" \
+              || timeout 480 sudo -n "$NAABU_BIN" -l "$INPUT" -top-ports 100 -p "$HIGH_VALUE_PORTS" -exclude-cdn -silent -rate 800 -c 15 -o "$RD/live/ports.txt" 2>>"$RD/logs/naabu.log" \
               || true
             [ -f "$RD/live/ports.txt" ] || : > "$RD/live/ports.txt"
-            port_n=$(wc -l < "$RD/live/ports.txt" 2>/dev/null || echo 0)
+            port_n=$(wc -l < "$RD/live/ports.txt" 2>/dev/null | tr -d ' ' || echo 0)
+            if [ "${port_n:-0}" -eq 0 ]; then
+              echo "naabu DIRECT returned 0 ports — Tor fallback (lower rate)..."
+              timeout 480 proxychains4 -q "$NAABU_BIN" -l "$INPUT" -top-ports 100 -p "$HIGH_VALUE_PORTS" -exclude-cdn -silent -rate 200 -c 5 -o "$RD/live/ports.txt" 2>>"$RD/logs/naabu.log" \
+                || timeout 480 sudo -n proxychains4 -q "$NAABU_BIN" -l "$INPUT" -top-ports 100 -p "$HIGH_VALUE_PORTS" -exclude-cdn -silent -rate 200 -c 5 -o "$RD/live/ports.txt" 2>>"$RD/logs/naabu.log" \
+                || true
+              [ -f "$RD/live/ports.txt" ] || : > "$RD/live/ports.txt"
+              port_n=$(wc -l < "$RD/live/ports.txt" 2>/dev/null | tr -d ' ' || echo 0)
+            fi
+            if [ "${port_n:-0}" -gt 0 ]; then
+              PORT_SCAN_STATUS="OK"
+            elif grep -qE "FTL|Could not run enumeration|no valid ipv4" "$RD/logs/naabu.log" 2>/dev/null; then
+              PORT_SCAN_STATUS="ERROR"
+              echo "::warning::Port scan ERROR — empty ports.txt is tool/network failure, not clean target"
+            else
+              PORT_SCAN_STATUS="EMPTY"
+            fi
             echo "✅ Open host:port pairs: ${port_n:-0}"
             awk -F: '$2!=80 && $2!=443 {print}' "$RD/live/ports.txt" 2>/dev/null > /tmp/nonstd_ports.txt || true
             if [ -s /tmp/nonstd_ports.txt ]; then
@@ -1420,7 +1447,23 @@ jobs:
             fi
           else
             echo "⚠️ naabu not available, skipping port scan"
+            PORT_SCAN_STATUS="NOT_RUN"
           fi
+
+          # Truthful phase status: ERROR ≠ EMPTY (runs #100/#101 had empty ports + FTL)
+          mkdir -p "$RD/meta/phases"
+          _ps="${PORT_SCAN_STATUS:-UNKNOWN}"
+          _pd="ports=$(wc -l < "$RD/live/ports.txt" 2>/dev/null | tr -d ' ' || echo 0)"
+          if [ -f scripts/pipeline_lib.sh ]; then
+            # shellcheck source=/dev/null
+            . scripts/pipeline_lib.sh 2>/dev/null || true
+          fi
+          if declare -f write_phase_status >/dev/null 2>&1; then
+            write_phase_status "$RD" "port_scan" "$_ps" "$_pd"
+          else
+            printf '{"phase":"port_scan","status":"%s","detail":"%s"}\n' "$_ps" "$_pd" > "$RD/meta/phases/port_scan.json"
+          fi
+          echo "port_scan phase status=$_ps $_pd"
 
           # Always enrich live.txt from naabu open ports (union, never shrink).
           # Critical for cases where Tor/direct probe failed but DNS+ports succeeded

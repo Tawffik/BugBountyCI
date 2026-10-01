@@ -261,6 +261,33 @@ applicable, so cross-referencing stays possible.
   from the map (path-mutation engine); map is available on disk for a
   follow-up if triage shows need.
 
+
+
+### Port scan empty-with-live-hosts (2026-10-01 study)
+
+- **Observation:** Runs #100 (capital.com) and #101 (superdrug.com) both had
+  live hosts (126 / 98) and `live/ports.txt` line count **0**.
+- **Root cause (evidence):** `logs/naabu.log` on both runs:
+  `FTL Could not run enumeration: no valid ipv4 or ipv6 targets were found`
+  (repeated). Port Scanning step used **Tor-only** `proxychains4 naabu -l`
+  on hostnames (`all_subs.txt`). Classification: **TOOL/NETWORK ERROR**,
+  not TRUE EMPTY and not "port discovery absent from workflow".
+- **Why it mattered:** Downstream treated empty ports as no non-standard
+  services; health report did not flag ports as ERROR; enrich-from-ports
+  path never ran.
+- **Change (same session):**
+  1. Prefer `subdomains/resolved.txt` as naabu input when non-empty.
+  2. **DIRECT-first** naabu, then Tor fallback (same pattern as ASN CIDR path).
+  3. Phase status `meta/phases/port_scan.json` with OK | EMPTY | ERROR | NOT_RUN
+     so ERROR ≠ EMPTY.
+- **Verification:** unit/YAML only until next zero-track completes with
+  non-empty ports or explicit ERROR without silent empty. Mark
+  FIXED+VERIFIED after live log shows DIRECT attempt and truthful status.
+- **Related open:** Nuclei ~42.8% error rate (health report #101) remains
+  open investigation — not fixed here. Arjun 0 / Corsy 0 on #101 may be
+  true empty or silent failure; capital #100 had 6 arjun lines — target-
+  dependent, not uniformly zero.
+
 ## 6. What "next" actually means right now
 
 Per §3, the highest-leverage NOT-YET-DONE items, in order:
@@ -269,15 +296,14 @@ Per §3, the highest-leverage NOT-YET-DONE items, in order:
    OpenRedirectEngine consumes the map. Access-Control still primarily
    uses response_diffs (path mutations); map is available for future AC
    enrichment.
-3. Manual triage of what's SITTING IN THE QUEUE RIGHT NOW: the 4-5
-   subdomain-takeover candidates (Cargo Collective, stable across
-   every run), the 8 CORS-CRITICAL findings (reflected origin +
-   credentials=true, a genuinely strict check), and the WordPress
-   oEmbed SSRF candidate — none of these need a line of new code, they
-   need a human to open `hunter_queue.md` and verify.
-4. Nuclei's 42-45% error rate and the Arjun/Corsy zero-findings pattern
-   — both unconfirmed root causes, both potentially the same class of
-   bug as #12 (silent tool failure hiding behind "0 findings").
+3. ~~Port scan Tor-only empty~~ **FIXED (unverified live)** this session —
+   DIRECT-first + resolved input + phase status ERROR≠EMPTY.
+4. Nuclei's 42-45% error rate (confirmed 42.8% on #101 health report) —
+   tool is running; high request errors — incomplete coverage, not clean.
+5. Arjun/Corsy: not uniformly zero (#100 capital had 6 arjun lines; #101
+   superdrug 0) — investigate before assuming silent failure.
+6. Manual triage of existing hunter_queue items still valuable (takeovers,
+   CORS-CRITICAL, oEmbed SSRF candidate).
 
 **Do not start a new engine (XSS, SQLi, IDOR-multi-session, etc.)
 before these.** That was the mistake §61 of the Notion doc warns about
