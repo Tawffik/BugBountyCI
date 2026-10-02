@@ -399,3 +399,12 @@ limitations documented (flaky-host nuclei errors; arjun upstream bug).
 
 **Next:** meta/engine_health.json + meta/target_profile.json written at health
 step (schema v1) for stable downstream export — live verify on next run.
+
+
+### #111 export LIVE VERIFIED + hosts.jsonl (2026-10-02)
+
+**#111** (a1cfe2f): meta/engine_health.json + meta/target_profile.json present and
+consistent with phases (port OK 25, arjun PARTIAL, nuclei PARTIAL 51.9%, overall
+DEGRADED). Protected fixes intact.
+
+**Next:** meta/hosts.jsonl additive host surface model from live/verified/ports/resolved.

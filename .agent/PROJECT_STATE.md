@@ -1,43 +1,37 @@
 # BugBountyCI — PROJECT STATE
 
 ## MODE
-FULL RELIABILITY + SYSTEM EVOLUTION CAMPAIGN  
-EXIT: CAMPAIGN_COMPLETE | CAMPAIGN_BLOCKED
+FULL AUTONOMOUS CAMPAIGN V3  
+EXIT only: CAMPAIGN_COMPLETE | CAMPAIGN_BLOCKED
 
-## HEAD
-See main tip.
+## VERIFIED
+| Item | Evidence |
+|------|----------|
+| Port discovery / ERROR≠EMPTY | #106–#111 |
+| Nuclei filter / Tor gate / PARTIAL | #109–#111 |
+| Arjun PARTIAL + Health warning | #110–#111 |
+| **Export engine_health.json** | **#111 LIVE VERIFIED** |
+| **Export target_profile.json** | **#111 LIVE VERIFIED** |
 
-## RELIABILITY FOUNDATION (Phase 1)
+## LIMITATIONS (honest)
+| Item | Representation |
+|------|----------------|
+| Nuclei ~52% flaky-host errors | PARTIAL + DEGRADED |
+| Arjun upstream AttributeError | PARTIAL not clean |
 
-| Item | Status | Evidence |
-|------|--------|----------|
-| Port discovery | LIVE VERIFIED | #106–#110 |
-| Port ERROR≠EMPTY | LIVE VERIFIED | #103/#104 |
-| Nuclei hostname/HTTPS filter | LIVE VERIFIED | #107–#110 |
-| Nuclei light Tor gate | LIVE VERIFIED | #109/#110 |
-| Nuclei PARTIAL semantics | LIVE VERIFIED | #108–#110 |
-| Arjun ERROR≠EMPTY / PARTIAL | LIVE VERIFIED | **#110** phase+health flag |
-| High nuclei error flaky hosts | KNOWN LIMITATION | stays DEGRADED/PARTIAL |
-| Arjun upstream AttributeError | KNOWN LIMITATION | PARTIAL not clean |
-
-## ADDITIVE EXPORT (Phase 2 start)
-| Artifact | Purpose |
-|----------|---------|
-| meta/engine_health.json | all phases + overall + flags |
-| meta/target_profile.json | counts + phase_summary |
+## IN PROGRESS
+| Item | Status |
+|------|--------|
+| hosts.jsonl (Phase 3 surface model) | CODE — verify #112 |
+| Phase 2 full observation.jsonl | next after hosts |
+| Vocabulary / response intel / adaptive SF | later dependencies |
 
 ## RUNS
-| # | SHA | Notes |
-|---|-----|-------|
-| 109 | 8e237ee | Tor gate OK |
-| 110 | 987d88c | Arjun PARTIAL verified; ports 15; nuclei PARTIAL 51.8% |
-| 111 | pending | export + regression check |
-
-## NEXT (dependency order)
-1. Live-verify engine_health + target_profile export
-2. Normalize more engines to phase files (corsy, dalfox) where silent
-3. Target/surface model enrichment (hosts.jsonl) without rewrite
-4. Do NOT claim CAMPAIGN_COMPLETE until observation+health contracts hold E2E
+| # | Result |
+|---|--------|
+| 110 | Arjun PARTIAL verified |
+| 111 | **export LIVE VERIFIED**; ports 25; arjun PARTIAL; nuclei PARTIAL 51.9% |
+| 112 | pending hosts.jsonl |
 
 ## BOUNDARY
-BugBountyCI = recon/observation producer only. No SRA merge.
+Recon/observation producer only. No SRA merge.

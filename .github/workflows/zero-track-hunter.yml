@@ -5044,7 +5044,82 @@ jobs:
           with open(os.path.join(rd, "meta", "target_profile.json"), "w") as fh:
               _json.dump(profile, fh, indent=2)
               fh.write("\n")
-          print("Wrote meta/engine_health.json + meta/target_profile.json")
+
+          # Additive hosts.jsonl (Phase 3 surface model starter) — no raw overwrite
+          import re as _re
+          from urllib.parse import urlparse as _urlparse
+          resolved=set(); live_urls=[]; verified=set(); ports_by_ip={}
+          try:
+              with open(os.path.join(rd,"subdomains/resolved.txt")) as fh:
+                  resolved={l.strip().lower() for l in fh if l.strip()}
+          except Exception:
+              pass
+          try:
+              with open(os.path.join(rd,"live/verified.txt")) as fh:
+                  for l in fh:
+                      u=l.strip()
+                      if not u: continue
+                      verified.add(u)
+                      live_urls.append(u)
+          except Exception:
+              pass
+          try:
+              with open(os.path.join(rd,"live/live.txt")) as fh:
+                  for l in fh:
+                      u=l.strip()
+                      if u and u not in verified:
+                          live_urls.append(u)
+          except Exception:
+              pass
+          try:
+              with open(os.path.join(rd,"live/ports.txt")) as fh:
+                  for l in fh:
+                      l=l.strip()
+                      if ":" not in l: continue
+                      ip,port=l.rsplit(":",1)
+                      ports_by_ip.setdefault(ip,set()).add(port)
+          except Exception:
+              pass
+          hosts=[]
+          seen=set()
+          for u in live_urls:
+              try:
+                  p=_urlparse(u if "://" in u else "http://"+u)
+              except Exception:
+                  continue
+              host=(p.hostname or "").lower()
+              if not host or host in seen:
+                  continue
+              seen.add(host)
+              is_ip=bool(_re.fullmatch(r"\d{1,3}(?:\.\d{1,3}){3}", host))
+              host_ports=sorted(ports_by_ip.get(host,[])) if is_ip else []
+              reach="REACHABLE"
+              if host in { _urlparse(v).hostname for v in verified if v}:
+                  host_class="VERIFIED_HTTP"
+              else:
+                  host_class="LIVE_HTTP"
+              hosts.append({
+                  "schema":"bugbountyci.host.v1",
+                  "run_id": os.environ.get("TIMESTAMP",""),
+                  "target": os.environ.get("TARGET",""),
+                  "hostname": host,
+                  "is_ip": is_ip,
+                  "dns_resolved": (not is_ip) and (host in resolved),
+                  "host_class": host_class,
+                  "reachability": reach,
+                  "sample_url": u,
+                  "open_ports": host_ports,
+                  "provenance": "live/verified+live.txt+ports.txt+resolved.txt",
+              })
+          hosts_path=os.path.join(rd,"meta","hosts.jsonl")
+          with open(hosts_path,"w") as fh:
+              for h in hosts:
+                  fh.write(_json.dumps(h)+"\n")
+          profile["counts"]["hosts_modeled"]=len(hosts)
+          with open(os.path.join(rd, "meta", "target_profile.json"), "w") as fh:
+              _json.dump(profile, fh, indent=2)
+              fh.write("\n")
+          print(f"Wrote meta/engine_health.json + meta/target_profile.json + meta/hosts.jsonl ({len(hosts)} hosts)")
 
           # Post directly to the GitHub Actions run summary page - visible immediately,
           # no artifact download/unzip/upload round-trip needed to see it.
