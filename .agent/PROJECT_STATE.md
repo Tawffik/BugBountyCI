@@ -10,11 +10,12 @@
 |-------|--------|
 | Repository | `Tawffik/BugBountyCI` |
 | Default branch | `main` |
-| **Current HEAD** | **`1491f1f`** (`fix(ports): preserve naabu exit codes; isolate portscan log for ERROR≠EMPTY`) |
+| **Current HEAD** | **`69097f3`** (`chore(state): add canonical project state control`) |
+| Port-scan code tip | **`1491f1f`** (latest ports classification fix; parent `28dd077`) |
 | Parent of port-path fix | `28dd077` (`DIRECT-first naabu; resolved input; ERROR≠EMPTY phase status`) |
 | Last state reconciliation | 2026-10-02 (from HEAD + Zero Track **#103** artifacts) |
 
-**Contradiction vs older baseline:** some notes still say HEAD=`28dd077`. **Repository truth is `1491f1f`.** Do not reset to `28dd077`.
+**Contradiction vs older baseline:** notes that say HEAD=`28dd077` only are stale. **Repository truth is `69097f3`** (state file) with port-scan tip **`1491f1f`**. Do not reset to `28dd077`.
 
 ---
 
