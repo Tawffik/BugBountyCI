@@ -2848,20 +2848,79 @@ jobs:
           # can include hosts Tor never proved reachable — scanning those via Tor
           # was a major source of 50%+ error rates (superdrug run 65).
           if [ -s "$RD/live/verified.txt" ]; then
-            INPUT="$RD/live/verified.txt"
-            echo "ℹ️ Nuclei INPUT=verified.txt"
+            RAW_INPUT="$RD/live/verified.txt"
+            echo "ℹ️ Nuclei RAW_INPUT=verified.txt"
           elif [ -s "$RD/live/scan_order.txt" ]; then
-            INPUT="$RD/live/scan_order.txt"
-            echo "ℹ️ Nuclei INPUT=scan_order.txt (verified empty)"
+            RAW_INPUT="$RD/live/scan_order.txt"
+            echo "ℹ️ Nuclei RAW_INPUT=scan_order.txt (verified empty)"
           else
-            INPUT="$RD/live/live.txt"
+            RAW_INPUT="$RD/live/live.txt"
           fi
 
-          if [ ! -s "$INPUT" ]; then
+          if [ ! -s "$RAW_INPUT" ]; then
             echo "⏭️ STAGE GATE: no live hosts — skipping Nuclei (would produce misleading empty/clean results)"
             echo "skipped-no-live-hosts" > "$RD/nuclei/skipped.txt"
+            mkdir -p "$RD/meta/phases"
+            echo '{"phase":"nuclei","status":"NOT_RUN","detail":"no live hosts"}' > "$RD/meta/phases/nuclei.json"
             exit 0
           fi
+
+          # #106 evidence (nuva.finance): 41.6% nuclei errors; log shows hosts skipped
+          # as "no address found" / "port closed" / i/o timeout — many from:
+          #  - pure IP URLs (port-enrichment) with weak HTTP surface
+          #  - http:// duplicates when only https responds
+          # Prefer hostname https:// targets; drop pure-IP and redundant http.
+          : > /tmp/nuclei_input.txt
+          export NUCLEI_RAW_INPUT="$RAW_INPUT"
+          python3 - <<'PYN' || true
+          import re, os
+          from urllib.parse import urlparse
+          from pathlib import Path
+          raw = Path(os.environ["NUCLEI_RAW_INPUT"]).read_text(errors="ignore").splitlines()
+          host_https = {}
+          host_http = {}
+          for line in raw:
+              u = line.strip().split()[0] if line.strip() else ""
+              if not u.startswith("http"):
+                  continue
+              try:
+                  p = urlparse(u)
+              except Exception:
+                  continue
+              host = (p.hostname or "").lower()
+              if not host:
+                  continue
+              # skip pure IP hosts for nuclei (high error, low template value)
+              if re.fullmatch(r"\d{1,3}(?:\.\d{1,3}){3}", host):
+                  continue
+              scheme = (p.scheme or "http").lower()
+              # normalize to origin without path noise for dedupe
+              port = p.port
+              if port and not ((scheme == "https" and port == 443) or (scheme == "http" and port == 80)):
+                  origin = f"{scheme}://{host}:{port}"
+              else:
+                  origin = f"{scheme}://{host}"
+              if scheme == "https":
+                  host_https[host] = origin
+              else:
+                  host_http[host] = origin
+          out = []
+          for h, o in sorted(host_https.items()):
+              out.append(o)
+          for h, o in sorted(host_http.items()):
+              if h not in host_https:
+                  out.append(o)
+          Path("/tmp/nuclei_input.txt").write_text("\n".join(out) + ("\n" if out else ""))
+          print(f"Nuclei filtered targets: {len(out)} (hostname preferred; IPs dropped; https preferred over http)")
+          PYN
+          INPUT=/tmp/nuclei_input.txt
+          if [ ! -s "$INPUT" ]; then
+            # fallback: original list if filter emptied everything
+            echo "⚠️ Nuclei hostname filter empty — falling back to RAW_INPUT"
+            INPUT="$RAW_INPUT"
+          fi
+          cp "$INPUT" "$RD/logs/nuclei_input.txt" 2>/dev/null || true
+          echo "ℹ️ Nuclei INPUT lines=$(wc -l < "$INPUT" | tr -d ' ')"
 
           # Always hard-cap target count on GH runners (even when "verified").
           # Full surface through high template counts blows error budget.
@@ -2992,6 +3051,47 @@ jobs:
           if grep -q '"errors":"[1-9]' "$RD/logs/nuclei.log" 2>/dev/null; then
             echo "⚠️ nuclei.log contains non-zero error counters — see pipeline_health for rate" | tee -a "$RD/meta/nuclei_summary.txt"
           fi
+
+
+          # Phase status from last stats line in nuclei.log (error rate honesty)
+          mkdir -p "$RD/meta/phases"
+          export NUCLEI_RD="$RD"
+          python3 - <<'PYP' || true
+          import json, os
+          from pathlib import Path
+          rd = Path(os.environ["NUCLEI_RD"])
+          log = rd / "logs" / "nuclei.log"
+          findings = 0
+          fp = rd / "nuclei" / "findings.jsonl"
+          if fp.exists():
+              findings = sum(1 for l in fp.read_text(errors="ignore").splitlines() if l.strip())
+          req = err = 0
+          if log.exists():
+              for line in log.read_text(errors="ignore").splitlines():
+                  line=line.strip()
+                  if not line.startswith("{"):
+                      continue
+                  try:
+                      j=json.loads(line)
+                  except Exception:
+                      continue
+                  if "requests" in j and "errors" in j:
+                      req=int(j.get("requests") or 0)
+                      err=int(j.get("errors") or 0)
+          rate = round(100.0*err/req, 1) if req else None
+          if req > 0 and rate is not None and rate >= 40:
+              status = "PARTIAL"
+          elif findings > 0:
+              status = "OK"
+          elif req > 0:
+              status = "EMPTY"
+          else:
+              status = "ERROR"
+          detail = f"findings={findings}, requests={req}, errors={err}, error_rate={rate}"
+          out = {"phase":"nuclei","status":status,"detail":detail}
+          (rd/"meta"/"phases"/"nuclei.json").write_text(json.dumps(out)+"\n")
+          print(f"nuclei phase status={status} {detail}")
+          PYP
 
       - name: "🩹 Nikto Scan"
         continue-on-error: true
