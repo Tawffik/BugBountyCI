@@ -1397,13 +1397,38 @@ jobs:
             TOR_RC=0
             mkdir -p "$RD/logs"
             : > "$RD/logs/naabu_portscan.log"
-            echo "Port scan input: $INPUT ($(wc -l < "$INPUT" | tr -d ' ') hosts)"
+            # Pre-resolve hostnames → IPs (naabu FTL "no valid ipv4/ipv6 targets" on
+            # hostnames even under DIRECT on #103 nuva.finance with valid resolved.txt).
+            PORT_INPUT="$INPUT"
+            if command -v dnsx >/dev/null 2>&1; then
+              timeout 120 dnsx -l "$INPUT" -a -resp-only -silent -o /tmp/port_scan_ips.txt 2>>"$RD/logs/naabu_portscan.log" || true
+              if [ -s /tmp/port_scan_ips.txt ]; then
+                sort -u /tmp/port_scan_ips.txt -o /tmp/port_scan_ips.txt
+                PORT_INPUT=/tmp/port_scan_ips.txt
+                echo "Port scan DNS pre-resolve: $(wc -l < "$PORT_INPUT" | tr -d ' ') IPs from $(wc -l < "$INPUT" | tr -d ' ') hosts"
+              else
+                echo "Port scan DNS pre-resolve empty — using hostnames as-is"
+              fi
+            fi
+            echo "Port scan input: $PORT_INPUT ($(wc -l < "$PORT_INPUT" | tr -d ' ') targets) (source=$INPUT)"
             set +e
-            timeout 480 "$NAABU_BIN" -l "$INPUT" -top-ports 100 -p "$HIGH_VALUE_PORTS" -exclude-cdn -silent -rate 800 -c 15 -o "$RD/live/ports.txt" 2>>"$RD/logs/naabu_portscan.log"
+            timeout 480 "$NAABU_BIN" -l "$PORT_INPUT" -top-ports 100 -p "$HIGH_VALUE_PORTS" -exclude-cdn -silent -rate 800 -c 15 -o "$RD/live/ports.txt" 2>>"$RD/logs/naabu_portscan.log"
             DIRECT_RC=$?
             if [ "$DIRECT_RC" -ne 0 ]; then
-              timeout 480 sudo -n "$NAABU_BIN" -l "$INPUT" -top-ports 100 -p "$HIGH_VALUE_PORTS" -exclude-cdn -silent -rate 800 -c 15 -o "$RD/live/ports.txt" 2>>"$RD/logs/naabu_portscan.log"
+              timeout 480 sudo -n "$NAABU_BIN" -l "$PORT_INPUT" -top-ports 100 -p "$HIGH_VALUE_PORTS" -exclude-cdn -silent -rate 800 -c 15 -o "$RD/live/ports.txt" 2>>"$RD/logs/naabu_portscan.log"
               DIRECT_RC=$?
+            fi
+            # If still zero and FTL/empty, one DIRECT pass without -exclude-cdn
+            # (CDN filter can drop all targets on fully-CDN assets).
+            port_n_tmp=$(wc -l < "$RD/live/ports.txt" 2>/dev/null | tr -d ' ' || echo 0)
+            if [ "${port_n_tmp:-0}" -eq 0 ]; then
+              echo "naabu DIRECT+cdn-exclude ports=0 — retry DIRECT without -exclude-cdn..."
+              timeout 480 "$NAABU_BIN" -l "$PORT_INPUT" -top-ports 100 -p "$HIGH_VALUE_PORTS" -silent -rate 800 -c 15 -o "$RD/live/ports.txt" 2>>"$RD/logs/naabu_portscan.log"
+              DIRECT_RC=$?
+              if [ "$DIRECT_RC" -ne 0 ]; then
+                timeout 480 sudo -n "$NAABU_BIN" -l "$PORT_INPUT" -top-ports 100 -p "$HIGH_VALUE_PORTS" -silent -rate 800 -c 15 -o "$RD/live/ports.txt" 2>>"$RD/logs/naabu_portscan.log"
+                DIRECT_RC=$?
+              fi
             fi
             set -e
             cat "$RD/logs/naabu_portscan.log" >> "$RD/logs/naabu.log" 2>/dev/null || true
@@ -1413,10 +1438,10 @@ jobs:
               echo "naabu DIRECT rc=$DIRECT_RC ports=0 — Tor fallback (lower rate)..."
               : > /tmp/naabu_tor_segment.log
               set +e
-              timeout 480 proxychains4 -q "$NAABU_BIN" -l "$INPUT" -top-ports 100 -p "$HIGH_VALUE_PORTS" -exclude-cdn -silent -rate 200 -c 5 -o "$RD/live/ports.txt" 2>>/tmp/naabu_tor_segment.log
+              timeout 480 proxychains4 -q "$NAABU_BIN" -l "${PORT_INPUT:-$INPUT}" -top-ports 100 -p "$HIGH_VALUE_PORTS" -silent -rate 200 -c 5 -o "$RD/live/ports.txt" 2>>/tmp/naabu_tor_segment.log
               TOR_RC=$?
               if [ "$TOR_RC" -ne 0 ]; then
-                timeout 480 sudo -n proxychains4 -q "$NAABU_BIN" -l "$INPUT" -top-ports 100 -p "$HIGH_VALUE_PORTS" -exclude-cdn -silent -rate 200 -c 5 -o "$RD/live/ports.txt" 2>>/tmp/naabu_tor_segment.log
+                timeout 480 sudo -n proxychains4 -q "$NAABU_BIN" -l "${PORT_INPUT:-$INPUT}" -top-ports 100 -p "$HIGH_VALUE_PORTS" -silent -rate 200 -c 5 -o "$RD/live/ports.txt" 2>>/tmp/naabu_tor_segment.log
                 TOR_RC=$?
               fi
               set -e
@@ -4809,6 +4834,18 @@ jobs:
             echo "### Phase status"
             cat "$RD/meta/phases"/*.json 2>/dev/null || true
             echo ""
+          fi
+          # Surface port_scan ERROR so empty ports is not read as "no open ports"
+          if [ -f "$RD/meta/phases/port_scan.json" ]; then
+            _ps_status=$(python3 -c "import json;print(json.load(open('$RD/meta/phases/port_scan.json')).get('status',''))" 2>/dev/null || echo "")
+            _ps_ports=$(wc -l < "$RD/live/ports.txt" 2>/dev/null | tr -d ' ' || echo 0)
+            if [ "$_ps_status" = "ERROR" ] || [ "$_ps_status" = "error" ]; then
+              echo "⚠️ **Port scan ERROR** (ports=${_ps_ports}) — empty/zero ports is tool/network failure, NOT evidence the target has no open ports. See logs/naabu_portscan.log"
+            elif [ "$_ps_status" = "EMPTY" ] || [ "$_ps_status" = "empty" ]; then
+              echo "ℹ️ Port scan EMPTY (clean execution, 0 open ports in scanned set)"
+            elif [ "$_ps_status" = "OK" ] || [ "$_ps_status" = "ok" ]; then
+              echo "✅ Port scan OK (ports=${_ps_ports})"
+            fi
           fi
           if [ "${SKIP_HEAVY_SCAN:-false}" = "true" ]; then
             echo "⚠️ SKIP_HEAVY_SCAN=true — do not interpret empty nuclei/fuzz as a clean target"
