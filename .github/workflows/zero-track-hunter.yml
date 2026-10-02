@@ -2922,6 +2922,27 @@ jobs:
           cp "$INPUT" "$RD/logs/nuclei_input.txt" 2>/dev/null || true
           echo "ℹ️ Nuclei INPUT lines=$(wc -l < "$INPUT" | tr -d ' ')"
 
+          # #107: hostname HTTPS still hit "no address found" mid-scan — dig pre-check.
+          if [ -s "$INPUT" ] && command -v dig >/dev/null 2>&1; then
+            : > /tmp/nuclei_dns_ok.txt
+            while IFS= read -r u || [ -n "$u" ]; do
+              u="$(echo "$u" | tr -d '\r' | xargs)"
+              [ -z "$u" ] && continue
+              h=$(echo "$u" | sed -E 's#https?://##;s#/.*##;s#:.*##')
+              [ -z "$h" ] && continue
+              if dig +short +time=2 +tries=1 A "$h" 2>/dev/null | grep -qE '^[0-9.]+$'; then
+                echo "$u" >> /tmp/nuclei_dns_ok.txt
+              else
+                echo "⚠️ Nuclei DNS pre-check fail: $h — dropped"
+              fi
+            done < "$INPUT"
+            if [ -s /tmp/nuclei_dns_ok.txt ]; then
+              INPUT=/tmp/nuclei_dns_ok.txt
+              cp "$INPUT" "$RD/logs/nuclei_input.txt" 2>/dev/null || true
+              echo "ℹ️ Nuclei after DNS pre-check: $(wc -l < "$INPUT" | tr -d ' ') targets"
+            fi
+          fi
+
           # Always hard-cap target count on GH runners (even when "verified").
           # Full surface through high template counts blows error budget.
           NUCLEI_CAP=12
@@ -2991,7 +3012,9 @@ jobs:
             -jsonl -o "$RD/nuclei/findings.jsonl" -sarif-export "$RD/nuclei/findings.sarif" \
             2>>"$RD/logs/nuclei.log" || true
 
-          if [ -s "$RD/live/tech.json" ]; then
+          if [ "${HUNTING_MODE:-normal}" = "light" ]; then
+            echo "ℹ️ HUNTING_MODE=light — skipping Nuclei pass 2 (-as)"
+          elif [ -s "$RD/live/tech.json" ]; then
             echo "☢️ Nuclei pass 2: tech-aware (-as) via DIRECT..."
             nuclei -l "$INPUT" -as -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}" "${WAF_ARGS[@]}" \
               -mhe 50 -rl 20 -c 4 -timeout 12 -retries 1 \
@@ -3004,12 +3027,16 @@ jobs:
           # page" live in nuclei-templates. Those are high recon value even though
           # their official severity is low, so run them as their own unrestricted-
           # severity pass instead of losing them to the severity filter.
-          echo "☢️ Nuclei pass 3: exposure/panel tags via DIRECT..."
-          nuclei -l "$INPUT" -tags exposure,panel,config,default-login,exposed-panels -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}" "${WAF_ARGS[@]}" \
-            -mhe 50 -rl 20 -c 4 -timeout 12 -retries 1 \
-            -jsonl -o "$RD/nuclei/findings_exposure.jsonl" \
-            2>>"$RD/logs/nuclei.log" || true
-          cat "$RD/nuclei/findings_exposure.jsonl" 2>/dev/null >> "$RD/nuclei/findings.jsonl" || true
+          if [ "${HUNTING_MODE:-normal}" != "light" ]; then
+            echo "☢️ Nuclei pass 3: exposure/panel tags via DIRECT..."
+            nuclei -l "$INPUT" -tags exposure,panel,config,default-login,exposed-panels -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}" "${WAF_ARGS[@]}" \
+              -mhe 50 -rl 20 -c 4 -timeout 12 -retries 1 \
+              -jsonl -o "$RD/nuclei/findings_exposure.jsonl" \
+              2>>"$RD/logs/nuclei.log" || true
+            cat "$RD/nuclei/findings_exposure.jsonl" 2>/dev/null >> "$RD/nuclei/findings.jsonl" || true
+          else
+            echo "ℹ️ HUNTING_MODE=light — skipping Nuclei pass 3 (exposure)"
+          fi
 
           # If DIRECT still yielded nothing, one low-rate Tor pass (last resort only).
           findings_n=$(wc -l < "$RD/nuclei/findings.jsonl" 2>/dev/null || echo 0)
@@ -4837,6 +4864,21 @@ jobs:
           err_rate = nuclei_error_rate()
           if err_rate is not None and err_rate > 40:
               flags.append(f"⚠️ **Nuclei error rate is {err_rate}%** - findings from this run are likely incomplete (requests are failing, not necessarily 'no vulnerabilities').")
+              # Synthesize phase file if step timed out before writing it (#107)
+              try:
+                  import pathlib
+                  phases = pathlib.Path(rd) / "meta" / "phases"
+                  phases.mkdir(parents=True, exist_ok=True)
+                  nj = phases / "nuclei.json"
+                  if not nj.exists():
+                      status = "PARTIAL" if float(err_rate) >= 40 else "OK"
+                      nj.write_text(__import__("json").dumps({
+                          "phase": "nuclei",
+                          "status": status,
+                          "detail": f"findings={nuclei_findings if 'nuclei_findings' in dir() else 'n/a'}, error_rate={err_rate}, synthesized_after_timeout=true",
+                      }) + "\n")
+              except Exception:
+                  pass
 
           # --- Regression vs the last run against this same target ---
           # This is the single highest-leverage check here: a metric that was fine
