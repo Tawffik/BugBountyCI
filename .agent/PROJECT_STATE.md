@@ -1,79 +1,54 @@
 # BugBountyCI — PROJECT STATE
 
-> Canonical operational state for implementation agents.
-> CURRENT STATE only — reconcile with repo + run evidence before code changes.
+> CURRENT operational state. Reconcile with repo + run evidence before code changes.
 
 ## 1. Identity
 
 | Field | Value |
 |-------|--------|
 | Repository | `Tawffik/BugBountyCI` |
-| Default branch | `main` |
-| **Current HEAD** | **`cd536a1`** (`fix(ports): dnsx IP pre-resolve + no-cdn retry; health surfaces port_scan ERROR`) |
-| Port-scan lineage | `28dd077` → `1491f1f` → `cd536a1` |
-| Last reconciliation | 2026-10-02 final repair pass |
+| Branch | `main` |
+| **Current HEAD** | **`963ba62`** |
+| Port lineage | `28dd077` → `1491f1f` → `cd536a1` → `ef143ac` → `963ba62` |
 
-## 2. Source of Truth
-
-1. Current repository code  
-2. Current run artifacts/logs  
-3. This file  
-4. Notion Fix Control Center  
-5. `docs/ENGINEERING_LEDGER.md`  
-6. Master Architecture  
-7. Older notes/chat  
-
-## 3. CURRENT ACTIVE WORK
+## 2. ACTIVE CAMPAIGN
 
 | Field | Value |
 |-------|--------|
-| Active Gate | **P0 — Zero Track Reliability (final repair)** |
-| Active Problem | **Port Scan discovery** (classification OK on #103; discovery FTL) |
-| Status | **VERIFYING** — `cd536a1` not live-verified yet |
+| Campaign | Full reliability repair |
+| Active problem | Port discovery (IP targets + connect-scan) |
+| Status | VERIFYING — Zero Track **#106** (`36961573652`) |
+| Baseline #104 | FTL, ports=0, phase ERROR, health OK |
 
-### Evidence #103 (`28dd077`, run `36930936152`)
+### Commits
 
-- Input: `resolved.txt` (6 hosts)  
-- DIRECT + Tor → `ports.txt=0`  
-- `port_scan.json`: **ERROR** (ERROR ≠ EMPTY **held**)  
-- `naabu.log`: FTL no valid ipv4/ipv6  
-- live hosts: 21  
-- Health: DEGRADED for Nuclei 44.7%; **did not** highlight port ERROR (fixed in `cd536a1`)
+| SHA | Note |
+|-----|------|
+| ef143ac | dig/getent/live IPs + connect-scan — broke GA 21k expression limit |
+| 963ba62 | scripts/port_scan.sh — parse fixed |
 
-### Code on main after repair commits
+### Runs
 
-| Commit | Role |
-|--------|------|
-| `28dd077` | DIRECT-first, resolved input, phase status |
-| `1491f1f` | exit codes, `naabu_portscan.log`, synthetic tests |
-| `cd536a1` | dnsx IP pre-resolve, no-cdn retry, health port ERROR flag |
+| Run | SHA | Result |
+|-----|-----|--------|
+| #104 | 413a93c | TRUTHFUL FAILURE (classification OK, discovery blocked) |
+| #105 | ef143ac | UNUSABLE (workflow parse failure) |
+| #106 | 963ba62 | in progress (Port step completed success at API; artifacts pending) |
 
-## 4. NEXT (after Port Scan closed)
+## 3. Matrix (abbrev)
 
-**Health Contract** pipeline-wide — not active until Port Scan VERIFIED or explicitly BLOCKED.
+| Issue | Status |
+|-------|--------|
+| Port ERROR≠EMPTY | LIVE VERIFIED |
+| Port discovery | VERIFYING #106 |
+| Nuclei ~44% errors | OPEN (next) |
+| Health contract full | OPEN |
+| Provenance | DEFER |
 
-## 5. DO NOT TOUCH NOW
+## 4. DO NOT TOUCH until ports settled
 
-Health Contract bulk, Provenance redesign, Nuclei/Arjun/Corsy engine rewrites, Smart Fuzz redesign, new engines, SRA merge, global `|| true` removal, infra.
+Nuclei rewrite, Smart Fuzz redesign, new engines, SRA, global || true.
 
-## 6. REFERENCE ONLY
+## 5. Principle
 
-Gap D, Gap I, Submon DNS (`e110544` / #313), response-diff INTERESTING (unless regression).
-
-## 7. EXECUTION LOOP
-
-SYMPTOM → FIRST BAD STAGE → EVIDENCE → ROOT CAUSE → BLAST RADIUS → SMALLEST FIX → REGRESSION → LIVE VERIFY → STATUS  
-
-Commit ≠ VERIFIED.
-
-## 8. STOP RULE
-
-After active problem closed → **STOP**. Next problem only after this file is updated.
-
-## 9. Project map
-
-BugBountyCI = Recon/Discovery/Observation. Not security-research-agent.
-
-## 10. Principle
-
-truthful observation > impressive output · evidence > assumption · known limitation > fake success
+truthful observation > impressive output · known limitation > fake success
