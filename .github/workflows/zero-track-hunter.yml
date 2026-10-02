@@ -3038,17 +3038,50 @@ jobs:
             echo "ℹ️ HUNTING_MODE=light — skipping Nuclei pass 3 (exposure)"
           fi
 
-          # If DIRECT still yielded nothing, one low-rate Tor pass (last resort only).
-          findings_n=$(wc -l < "$RD/nuclei/findings.jsonl" 2>/dev/null || echo 0)
-          if [ "${findings_n:-0}" -eq 0 ] && [ -s "$INPUT" ]; then
-            echo "⚠️ Nuclei DIRECT produced 0 findings — last-resort Tor pass (critical,high only, low rate)..."
+          # Tor last-resort only when DIRECT completed usefully and found nothing.
+          # #108: light skipped pass 2/3 then Tor still ran, burned budget, step timed
+          # out at 40m; error_rate ~52% on flaky hosts. Do not burn budget that way.
+          export NUCLEI_RD="$RD"
+          findings_n=$(wc -l < "$RD/nuclei/findings.jsonl" 2>/dev/null | tr -d ' ' || echo 0)
+          NUCLEI_PCT=0
+          NUCLEI_ERR_RATE=100
+          if [ -s "$RD/logs/nuclei.log" ]; then
+            eval $(python3 - <<'PYE' || true
+          import json, os
+          from pathlib import Path
+          req=err=pct=0
+          log = Path(os.environ["NUCLEI_RD"]) / "logs" / "nuclei.log"
+          for line in log.read_text(errors="ignore").splitlines():
+              line=line.strip()
+              if not line.startswith("{"):
+                  continue
+              try:
+                  j=json.loads(line)
+              except Exception:
+                  continue
+              if "requests" in j and "errors" in j:
+                  req=int(j.get("requests") or 0)
+                  err=int(j.get("errors") or 0)
+                  pct=int(j.get("percent") or 0)
+          print(f"NUCLEI_PCT={pct}")
+          print(f"NUCLEI_ERR_RATE={round(100*err/req,1) if req else 100}")
+          PYE
+          )
+          fi
+          if [ "${HUNTING_MODE:-normal}" = "light" ]; then
+            echo "ℹ️ HUNTING_MODE=light — skipping Nuclei Tor fallback (preserves step budget)"
+          elif [ "${findings_n:-0}" -eq 0 ] && [ -s "$INPUT" ] && [ "${NUCLEI_PCT:-0}" -ge 80 ] && python3 -c "import sys; sys.exit(0 if float('${NUCLEI_ERR_RATE:-100}') < 35 else 1)"; then
+            echo "⚠️ Nuclei DIRECT complete (pct>=80, err_rate<35, findings=0) — last-resort Tor pass..."
             echo "tor-fallback" > "$RD/meta/nuclei_path.txt"
             proxychains4 -q nuclei -l "$INPUT" -severity critical,high -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}" "${WAF_ARGS[@]}" \
               -mhe 30 -rl 8 -c 2 -timeout 20 -retries 1 \
               -jsonl -o "$RD/nuclei/findings_tor.jsonl" \
               2>>"$RD/logs/nuclei.log" || true
             cat "$RD/nuclei/findings_tor.jsonl" 2>/dev/null >> "$RD/nuclei/findings.jsonl" || true
+          else
+            echo "ℹ️ Nuclei Tor fallback skipped (findings=${findings_n:-0} pct=${NUCLEI_PCT:-0} err_rate=${NUCLEI_ERR_RATE:-?} mode=${HUNTING_MODE:-normal})"
           fi
+
           # If the 40-minute timeout killed nuclei mid-write, the last line of the
           # jsonl output could be a truncated/invalid JSON fragment. Strip anything
           # that doesn't parse so downstream steps never choke on it.
