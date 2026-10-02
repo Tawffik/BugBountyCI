@@ -372,3 +372,16 @@ coverage pct>=80 and error_rate<35 before Tor.
 **Limitation:** high nuclei error_rate on hosts that flake mid-scan
 ("no address found" / i/o timeout) remains target/network behavior;
 must stay PARTIAL/DEGRADED, not CLEAN.
+
+
+### #109 LIVE VERIFIED — Nuclei Tor gate (2026-10-02)
+
+**#109** (8e237ee): Port OK ports=29. Nuclei: skip pass 2/3 + **skip Tor**
+confirmed in logs; step completed success ~32m (no 40m timeout);
+phase PARTIAL written in-step (findings=0, error_rate=52.3, coverage 67%).
+Health DEGRADED correctly.
+
+**Limitation retained:** ~52% nuclei errors on nuva flaky hosts mid-scan
+("no address found" / i/o timeout) — not treated as clean.
+
+**Next:** Arjun DIRECT-first + phase ERROR on AttributeError (#108 evidence).

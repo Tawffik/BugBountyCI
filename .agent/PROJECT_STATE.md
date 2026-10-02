@@ -1,33 +1,27 @@
 # BugBountyCI — PROJECT STATE
 
-## ACTIVE MODE
+## MODE
 FULL RELIABILITY REPAIR CAMPAIGN  
-EXIT only: CAMPAIGN_COMPLETE | CAMPAIGN_BLOCKED
-
-## HEAD
-See latest main.
+EXIT: CAMPAIGN_COMPLETE | CAMPAIGN_BLOCKED
 
 ## VERIFIED
 | Item | Evidence |
 |------|----------|
-| Port discovery | #106, #107, **#108** (26 ports, OK) |
+| Port discovery | #106–**#109** (29 ports OK) |
 | Port ERROR≠EMPTY | #103/#104 |
-| Nuclei hostname HTTPS filter | #107/#108 |
-| Nuclei phase PARTIAL after timeout | **#108** synthesized |
-| Light skip pass 2/3 | #108 logs |
+| Nuclei hostname HTTPS filter | #107–#109 |
+| Nuclei light skip pass 2/3 | #108/#109 |
+| **Nuclei Tor fallback skip (light)** | **#109** log + step completed ~32m without timeout |
+| Nuclei phase PARTIAL in-step | **#109** (not synthesized) |
+| High nuclei error on flaky hosts | KNOWN LIMITATION — stays DEGRADED/PARTIAL |
 
-## OPEN / IN PROGRESS
-| Item | Notes |
-|------|-------|
-| Nuclei Tor fallback budget burn | **FIXED** — live verify #109 |
-| Nuclei high error on flaky hosts | KNOWN LIMITATION when PARTIAL/DEGRADED surfaced |
-| Arjun AttributeError mid-run | investigate if ERROR silent |
-| Info disclosure / API Discovery step timeouts | observe |
+## ACTIVE
+| Item | Status |
+|------|--------|
+| Arjun ERROR≠EMPTY + DIRECT-first | FIXING — verify #110 |
 
 ## RUNS
-| # | SHA | Class |
-|---|-----|-------|
-| 106 | 963ba62 | ports VERIFIED; nuclei 41% |
-| 107 | 9739fd7 | ports 22; nuclei 53% filter OK |
-| 108 | 7279d32 | ports 26; nuclei PARTIAL 52%; health synth OK |
-| 109 | pending | Tor-gate verify |
+| # | Result |
+|---|--------|
+| 108 | ports 26; nuclei PARTIAL timeout+Tor burn |
+| 109 | ports 29; Tor skip OK; nuclei PARTIAL 52.3% in-step; 67% coverage |
