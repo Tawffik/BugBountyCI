@@ -1397,18 +1397,51 @@ jobs:
             TOR_RC=0
             mkdir -p "$RD/logs"
             : > "$RD/logs/naabu_portscan.log"
-            # Pre-resolve hostnames → IPs (naabu FTL "no valid ipv4/ipv6 targets" on
-            # hostnames even under DIRECT on #103 nuva.finance with valid resolved.txt).
-            PORT_INPUT="$INPUT"
-            if command -v dnsx >/dev/null 2>&1; then
-              timeout 120 dnsx -l "$INPUT" -a -resp-only -silent -o /tmp/port_scan_ips.txt 2>>"$RD/logs/naabu_portscan.log" || true
-              if [ -s /tmp/port_scan_ips.txt ]; then
-                sort -u /tmp/port_scan_ips.txt -o /tmp/port_scan_ips.txt
-                PORT_INPUT=/tmp/port_scan_ips.txt
-                echo "Port scan DNS pre-resolve: $(wc -l < "$PORT_INPUT" | tr -d ' ') IPs from $(wc -l < "$INPUT" | tr -d ' ') hosts"
-              else
-                echo "Port scan DNS pre-resolve empty — using hostnames as-is"
+            # Build literal IPv4 targets for naabu.
+            # #104 evidence (nuva.finance): dnsx -l -a -resp-only returned EMPTY while
+            # resolved.txt had 6 live hostnames and httpx saw ~19 hosts (incl. IPs).
+            # naabu then FTL "no valid ipv4 or ipv6 targets" on hostnames under DIRECT.
+            # Prefer dig/getent + IPs already observed in live.txt (port scan runs after live).
+            : > /tmp/port_scan_ips.txt
+            # 1) IPs already present in live surface (ASN probe / httpx IP URLs)
+            if [ -s "$RD/live/live.txt" ]; then
+              grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' "$RD/live/live.txt" 2>/dev/null                 | grep -vE '^(0\.|127\.|10\.|192\.168\.|169\.254\.)'                 | sort -u >> /tmp/port_scan_ips.txt || true
+            fi
+            if [ -s "$RD/subdomains/asn_ips.txt" ]; then
+              grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' "$RD/subdomains/asn_ips.txt" 2>/dev/null                 | sort -u >> /tmp/port_scan_ips.txt || true
+            fi
+            # 2) dig/getent for each hostname in INPUT (do not rely on dnsx -l alone)
+            while IFS= read -r h || [ -n "$h" ]; do
+              h="$(echo "$h" | tr -d '\r' | xargs)"
+              [ -z "$h" ] && continue
+              # already an IP?
+              if echo "$h" | grep -qE '^([0-9]{1,3}\.){3}[0-9]{1,3}$'; then
+                echo "$h" >> /tmp/port_scan_ips.txt
+                continue
               fi
+              if command -v dig >/dev/null 2>&1; then
+                dig +short +time=2 +tries=1 A "$h" 2>/dev/null | grep -E '^[0-9.]+$' | head -3 >> /tmp/port_scan_ips.txt || true
+              fi
+              if command -v getent >/dev/null 2>&1; then
+                getent ahostsv4 "$h" 2>/dev/null | awk '{print $1}' | grep -E '^[0-9.]+$' | head -2 >> /tmp/port_scan_ips.txt || true
+              fi
+            done < "$INPUT"
+            # 3) optional dnsx via stdin (stdin path matches DNS resolve stage; -l had hang history)
+            if command -v dnsx >/dev/null 2>&1 && [ -s "$INPUT" ]; then
+              timeout 90 bash -c 'cat "$0" | dnsx -silent -a -resp-only -t 30 -retry 1' "$INPUT"                 2>>"$RD/logs/naabu_portscan.log" | grep -E '^[0-9.]+$' >> /tmp/port_scan_ips.txt || true
+            fi
+            if [ -s /tmp/port_scan_ips.txt ]; then
+              sort -u /tmp/port_scan_ips.txt -o /tmp/port_scan_ips.txt
+              # drop obvious non-routable noise
+              grep -vE '^(0\.|127\.|10\.|192\.168\.|169\.254\.|255\.)' /tmp/port_scan_ips.txt                 | sort -u -o /tmp/port_scan_ips.txt || true
+            fi
+            PORT_INPUT="$INPUT"
+            if [ -s /tmp/port_scan_ips.txt ]; then
+              PORT_INPUT=/tmp/port_scan_ips.txt
+              echo "Port scan IP targets: $(wc -l < "$PORT_INPUT" | tr -d ' ') IPs (from dig/getent/live/dnsx; host source=$INPUT lines=$(wc -l < "$INPUT" | tr -d ' '))"
+              cp /tmp/port_scan_ips.txt "$RD/logs/port_scan_ips.txt" 2>/dev/null || true
+            else
+              echo "Port scan IP resolution empty — using hostnames as last resort (naabu may FTL)"
             fi
             echo "Port scan input: $PORT_INPUT ($(wc -l < "$PORT_INPUT" | tr -d ' ') targets) (source=$INPUT)"
             set +e
@@ -1449,6 +1482,25 @@ jobs:
               cat /tmp/naabu_tor_segment.log >> "$RD/logs/naabu.log" 2>/dev/null || true
               [ -f "$RD/live/ports.txt" ] || : > "$RD/live/ports.txt"
               port_n=$(wc -l < "$RD/live/ports.txt" 2>/dev/null | tr -d ' ' || echo 0)
+            fi
+            # Connect-scan fallback when SYN/default still yields 0 (common without CAP_NET_RAW)
+            if [ "${port_n:-0}" -eq 0 ] && [ -s "${PORT_INPUT:-$INPUT}" ]; then
+              echo "naabu still ports=0 after DIRECT/Tor — try -scan-type connect..."
+              set +e
+              timeout 300 "$NAABU_BIN" -l "${PORT_INPUT:-$INPUT}" -top-ports 100 -p "$HIGH_VALUE_PORTS" -scan-type connect -silent -rate 400 -c 10 -o "$RD/live/ports.txt" 2>>"$RD/logs/naabu_portscan.log"
+              CONNECT_RC=$?
+              if [ "$(wc -l < "$RD/live/ports.txt" 2>/dev/null | tr -d ' ' || echo 0)" -eq 0 ]; then
+                timeout 300 sudo -n "$NAABU_BIN" -l "${PORT_INPUT:-$INPUT}" -top-ports 100 -p "$HIGH_VALUE_PORTS" -scan-type connect -silent -rate 400 -c 10 -o "$RD/live/ports.txt" 2>>"$RD/logs/naabu_portscan.log"
+                CONNECT_RC=$?
+              fi
+              set -e
+              [ -f "$RD/live/ports.txt" ] || : > "$RD/live/ports.txt"
+              port_n=$(wc -l < "$RD/live/ports.txt" 2>/dev/null | tr -d ' ' || echo 0)
+              echo "naabu connect-scan rc=${CONNECT_RC:-?} ports=${port_n:-0}"
+              if [ "${port_n:-0}" -eq 0 ] && [ "${CONNECT_RC:-1}" -ne 0 ]; then
+                DIRECT_RC=${DIRECT_RC:-1}
+              fi
+              cat "$RD/logs/naabu_portscan.log" >> "$RD/logs/naabu.log" 2>/dev/null || true
             fi
             # Classification priority: ports>0 → OK; else exit/timeout/FTL → ERROR; else EMPTY
             # timeout(1) returns 124 on expiry.
