@@ -1,41 +1,29 @@
 # BugBountyCI — PROJECT STATE
 
-## 1. Identity
-| Field | Value |
-|-------|--------|
-| Repo | Tawffik/BugBountyCI |
-| Branch | main |
-| **HEAD** | pending post-nuclei-fix commit |
+## ACTIVE MODE
+FULL RELIABILITY REPAIR CAMPAIGN — continuous until CAMPAIGN_COMPLETE or BLOCKED.
 
-## 2. ACTIVE MODE
-```
-FULL RELIABILITY REPAIR CAMPAIGN
-ONE change at a time → test → run → harvest → next root cause
-EXIT: CAMPAIGN_COMPLETE | CAMPAIGN_BLOCKED
-```
-Single-ticket STOP rule is **retired**.
+## HEAD
+See latest main tip (nuclei dig pre-check + light mode + phase synthesize).
 
-## 3. Verified this campaign
+## VERIFIED
 | Item | Evidence |
 |------|----------|
+| Port discovery | #106 ports=14 OK; **#107 ports=22 OK** |
 | Port ERROR≠EMPTY | #103/#104 |
-| Port health flag | #104 |
-| Port **discovery** | **#106** — 8 IPs, **14 ports**, phase **OK**, health OK |
-| GA expression limit | #105 → scripts/port_scan.sh |
+| Nuclei hostname HTTPS filter | #107 — 6 targets logged |
 
-## 4. Active
-| Item | Status |
-|------|--------|
-| Nuclei input quality / error rate | FIX committed — live verify next |
-| Health contract (other stages) | OPEN |
-| Provenance redesign | DEFER |
+## #107 RESULT (9739fd7)
+- Port OK 22
+- Nuclei input filter OK (6 hostname HTTPS)
+- Error rate 53.2% (DNS/timeout — not fixed by filter alone)
+- nuclei.json missing (40m step timeout) — fixed in next commit
 
-## 5. Runs
-| # | SHA | Class |
-|---|-----|-------|
-| 104 | 413a93c | DEGRADED (ports ERROR) |
-| 105 | ef143ac | UNUSABLE |
-| 106 | 963ba62 | **DEGRADED** but ports **VERIFIED**; Nuclei 41.6% errors |
+## ACTIVE
+Nuclei reliability: dig pre-check + light skip + phase synthesize — VERIFYING next run
 
-## 6. Boundary
-Recon only. No SRA merge / new engines / LLM infra.
+## OPEN
+Health contract completeness, remaining stage phase files, response intelligence depth
+
+## BOUNDARY
+Recon only. No SRA / new engines.
