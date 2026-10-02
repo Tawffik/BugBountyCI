@@ -385,3 +385,17 @@ Health DEGRADED correctly.
 ("no address found" / i/o timeout) — not treated as clean.
 
 **Next:** Arjun DIRECT-first + phase ERROR on AttributeError (#108 evidence).
+
+
+### #110 Arjun LIVE VERIFIED + export v1 (2026-10-02)
+
+**#110** (987d88c, nuva.finance): port_scan OK ports=15; arjun phase=PARTIAL
+params=4 with tool errors still in log (upstream AttributeError); Health flag
+"Arjun phase=PARTIAL — Do not treat parameter discovery as clean." Nuclei
+PARTIAL error_rate=51.8%. Smart fuzz / OR / SSRF EMPTY_VALID intact.
+
+**Reliability foundation for critical stages considered closed** with known
+limitations documented (flaky-host nuclei errors; arjun upstream bug).
+
+**Next:** meta/engine_health.json + meta/target_profile.json written at health
+step (schema v1) for stable downstream export — live verify on next run.

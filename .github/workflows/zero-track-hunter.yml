@@ -4999,6 +4999,53 @@ jobs:
           with open(os.path.join(rd, "meta", "pipeline_health.md"), "w") as f:
               f.write(report)
 
+          # Stable machine-readable engine + target snapshot (additive; raw evidence unchanged)
+          import json as _json, glob as _glob
+          phases = {}
+          for pf in _glob.glob(os.path.join(rd, "meta", "phases", "*.json")):
+              try:
+                  with open(pf) as fh:
+                      j = _json.load(fh)
+                  phases[j.get("phase") or os.path.basename(pf).replace(".json","")] = j
+              except Exception:
+                  pass
+          eng = {
+              "schema": "bugbountyci.engine_health.v1",
+              "run_id": os.environ.get("TIMESTAMP", ""),
+              "overall": verdict,
+              "phases": phases,
+              "flags": flags,
+          }
+          with open(os.path.join(rd, "meta", "engine_health.json"), "w") as fh:
+              _json.dump(eng, fh, indent=2)
+              fh.write("\n")
+
+          def _nlines(p):
+              try:
+                  with open(os.path.join(rd, p)) as fh:
+                      return sum(1 for l in fh if l.strip())
+              except Exception:
+                  return 0
+          profile = {
+              "schema": "bugbountyci.target_profile.v1",
+              "run_id": os.environ.get("TIMESTAMP", ""),
+              "target": os.environ.get("TARGET", ""),
+              "counts": {
+                  "resolved_hosts": _nlines("subdomains/resolved.txt"),
+                  "live_hosts": _nlines("live/live.txt"),
+                  "verified_hosts": _nlines("live/verified.txt"),
+                  "ports": _nlines("live/ports.txt"),
+                  "urls": _nlines("urls/all.txt") if os.path.exists(os.path.join(rd,"urls/all.txt")) else counts.get("urls", 0),
+                  "arjun_params": _nlines("targeted/arjun_params.txt"),
+                  "nuclei_findings": _nlines("nuclei/findings.jsonl"),
+              },
+              "phase_summary": {k: v.get("status") for k, v in phases.items()},
+          }
+          with open(os.path.join(rd, "meta", "target_profile.json"), "w") as fh:
+              _json.dump(profile, fh, indent=2)
+              fh.write("\n")
+          print("Wrote meta/engine_health.json + meta/target_profile.json")
+
           # Post directly to the GitHub Actions run summary page - visible immediately,
           # no artifact download/unzip/upload round-trip needed to see it.
           summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
