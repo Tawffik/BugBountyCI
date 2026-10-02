@@ -1,29 +1,33 @@
 # BugBountyCI — PROJECT STATE
 
 ## ACTIVE MODE
-FULL RELIABILITY REPAIR CAMPAIGN — continuous until CAMPAIGN_COMPLETE or BLOCKED.
+FULL RELIABILITY REPAIR CAMPAIGN  
+EXIT only: CAMPAIGN_COMPLETE | CAMPAIGN_BLOCKED
 
 ## HEAD
-See latest main tip (nuclei dig pre-check + light mode + phase synthesize).
+See latest main.
 
 ## VERIFIED
 | Item | Evidence |
 |------|----------|
-| Port discovery | #106 ports=14 OK; **#107 ports=22 OK** |
+| Port discovery | #106, #107, **#108** (26 ports, OK) |
 | Port ERROR≠EMPTY | #103/#104 |
-| Nuclei hostname HTTPS filter | #107 — 6 targets logged |
+| Nuclei hostname HTTPS filter | #107/#108 |
+| Nuclei phase PARTIAL after timeout | **#108** synthesized |
+| Light skip pass 2/3 | #108 logs |
 
-## #107 RESULT (9739fd7)
-- Port OK 22
-- Nuclei input filter OK (6 hostname HTTPS)
-- Error rate 53.2% (DNS/timeout — not fixed by filter alone)
-- nuclei.json missing (40m step timeout) — fixed in next commit
+## OPEN / IN PROGRESS
+| Item | Notes |
+|------|-------|
+| Nuclei Tor fallback budget burn | **FIXED** — live verify #109 |
+| Nuclei high error on flaky hosts | KNOWN LIMITATION when PARTIAL/DEGRADED surfaced |
+| Arjun AttributeError mid-run | investigate if ERROR silent |
+| Info disclosure / API Discovery step timeouts | observe |
 
-## ACTIVE
-Nuclei reliability: dig pre-check + light skip + phase synthesize — VERIFYING next run
-
-## OPEN
-Health contract completeness, remaining stage phase files, response intelligence depth
-
-## BOUNDARY
-Recon only. No SRA / new engines.
+## RUNS
+| # | SHA | Class |
+|---|-----|-------|
+| 106 | 963ba62 | ports VERIFIED; nuclei 41% |
+| 107 | 9739fd7 | ports 22; nuclei 53% filter OK |
+| 108 | 7279d32 | ports 26; nuclei PARTIAL 52%; health synth OK |
+| 109 | pending | Tor-gate verify |

@@ -357,3 +357,18 @@ unresponsive "no address found" / port closed on http + IP targets. Health
 already DEGRADED. Follow-up commit filters nuclei input to hostname HTTPS and
 writes meta/phases/nuclei.json (PARTIAL when error_rate≥40).
 
+
+
+### #108 harvest + Nuclei Tor gate (2026-10-02)
+
+**#108** (7279d32, nuva.finance): ports=26 OK; nuclei input 6 hosts; DNS
+pre-check kept 6; light skipped pass 2/3; **Tor fallback still ran** on
+findings=0 → step timeout 40m; error_rate 52.1%; phase **PARTIAL**
+synthesized by health (`synthesized_after_timeout=true`).
+
+**Fix:** skip Tor nuclei fallback in light; in normal require DIRECT
+coverage pct>=80 and error_rate<35 before Tor.
+
+**Limitation:** high nuclei error_rate on hosts that flake mid-scan
+("no address found" / i/o timeout) remains target/network behavior;
+must stay PARTIAL/DEGRADED, not CLEAN.
