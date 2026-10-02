@@ -329,3 +329,18 @@ Per §3, the highest-leverage NOT-YET-DONE items, in order:
 **Do not start a new engine (XSS, SQLi, IDOR-multi-session, etc.)
 before these.** That was the mistake §61 of the Notion doc warns about
 by name, and this ledger's own bug list is the evidence for why.
+
+
+### Final repair — Port Scan follow-up (2026-10-02)
+
+**#103 evidence (SHA 28dd077, nuva.finance):** phase=`ERROR`, ports=0, FTL on
+DIRECT+Tor with valid `resolved.txt` (6 hosts). Classification honest;
+discovery still blocked. Health report did not flag port ERROR.
+
+**cd536a1:** (1) dnsx `-a -resp-only` pre-resolve → feed IPs to naabu;
+(2) if still 0, one DIRECT pass without `-exclude-cdn`; (3) Pipeline Health
+prints explicit warning when `port_scan` phase is ERROR.
+
+**Status:** FIXED — LIVE VERIFICATION PENDING (need ZT on cd536a1+).
+Synthetic classification tests still pass (1491f1f suite).
+
