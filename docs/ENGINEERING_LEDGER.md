@@ -344,3 +344,16 @@ prints explicit warning when `port_scan` phase is ERROR.
 **Status:** FIXED — LIVE VERIFICATION PENDING (need ZT on cd536a1+).
 Synthetic classification tests still pass (1491f1f suite).
 
+
+
+### Campaign — Port discovery VERIFIED + Nuclei input (2026-10-02)
+
+**#106** (SHA 963ba62, nuva.finance): Port scan **OK** — 8 IPs via dig/getent/live,
+14 open host:port pairs, phase OK, health "Port scan OK". Closes discovery FTL
+seen on #100–#104 for this path.
+
+**Nuclei #106:** error_rate 41.6% (hosts=12, ~32k errors / ~78k requests). Log:
+unresponsive "no address found" / port closed on http + IP targets. Health
+already DEGRADED. Follow-up commit filters nuclei input to hostname HTTPS and
+writes meta/phases/nuclei.json (PARTIAL when error_rate≥40).
+
