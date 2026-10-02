@@ -1814,16 +1814,39 @@ jobs:
           [ -s "$ARJUN_INPUT" ] || ARJUN_INPUT="$RD/live/live.txt"
           if command -v arjun >/dev/null 2>&1 && [ -s "$ARJUN_INPUT" ]; then
             echo "🔍 Running Arjun against prioritized hosts (interesting first, cap 30)..."
+            # #108: Tor-only arjun hit upstream AttributeError (request dict has no
+            # status_code). Prefer DIRECT first; Tor only if DIRECT produced nothing
+            # for that host. Always record phase status — crash ≠ clean empty.
             head -30 "$ARJUN_INPUT" | while IFS= read -r host; do
               [ -z "$host" ] && continue
-              proxychains4 -q arjun -u "$host" -t 10 --rate-limit 20 "${AUTH_ARGS[@]}" -oT /tmp/arjun_out.txt 2>>"$RD/logs/arjun.log" >/dev/null || true
+              : > /tmp/arjun_out.txt
+              arjun -u "$host" -t 10 --rate-limit 20 "${AUTH_ARGS[@]}" -oT /tmp/arjun_out.txt 2>>"$RD/logs/arjun.log" >/dev/null || true
+              if [ ! -s /tmp/arjun_out.txt ]; then
+                proxychains4 -q arjun -u "$host" -t 8 --rate-limit 10 "${AUTH_ARGS[@]}" -oT /tmp/arjun_out.txt 2>>"$RD/logs/arjun.log" >/dev/null || true
+              fi
               [ -s /tmp/arjun_out.txt ] && sed "s#^#[$host] #" /tmp/arjun_out.txt >> "$RD/targeted/arjun_params.txt"
               rm -f /tmp/arjun_out.txt
             done
           else
             echo "⚠️ arjun not installed or no live hosts - skipping"
           fi
-          echo "✅ Arjun hidden parameters: $(wc -l < "$RD/targeted/arjun_params.txt" 2>/dev/null || echo 0)"
+          arjun_n=$(wc -l < "$RD/targeted/arjun_params.txt" 2>/dev/null | tr -d ' ' || echo 0)
+          mkdir -p "$RD/meta/phases"
+          if grep -q "AttributeError\|Traceback" "$RD/logs/arjun.log" 2>/dev/null; then
+            if [ "${arjun_n:-0}" -gt 0 ]; then
+              echo "{\"phase\":\"arjun\",\"status\":\"PARTIAL\",\"detail\":\"params=${arjun_n}, tool errors in log\"}" > "$RD/meta/phases/arjun.json"
+            else
+              echo "{\"phase\":\"arjun\",\"status\":\"ERROR\",\"detail\":\"tool crash (see arjun.log); params=0\"}" > "$RD/meta/phases/arjun.json"
+            fi
+            echo "⚠️ Arjun phase=$(cat "$RD/meta/phases/arjun.json")"
+          elif [ ! -s "$ARJUN_INPUT" ] || ! command -v arjun >/dev/null 2>&1; then
+            echo '{"phase":"arjun","status":"NOT_RUN","detail":"no input or binary"}' > "$RD/meta/phases/arjun.json"
+          elif [ "${arjun_n:-0}" -gt 0 ]; then
+            echo "{\"phase\":\"arjun\",\"status\":\"OK\",\"detail\":\"params=${arjun_n}\"}" > "$RD/meta/phases/arjun.json"
+          else
+            echo '{"phase":"arjun","status":"EMPTY","detail":"ran, 0 params"}' > "$RD/meta/phases/arjun.json"
+          fi
+          echo "✅ Arjun hidden parameters: ${arjun_n:-0}"
 
           # --- Dalfox: dedicated reflected/stored/DOM XSS scanner, run against
           # the same [xss]-tagged URLs the gf-pattern step already
@@ -4912,6 +4935,19 @@ jobs:
                       }) + "\n")
               except Exception:
                   pass
+
+          # Arjun tool crash must not read as clean zero (#108 AttributeError)
+          try:
+              import json as _json
+              from pathlib import Path as _P
+              aj = _P(rd) / "meta" / "phases" / "arjun.json"
+              if aj.exists():
+                  ad = _json.loads(aj.read_text())
+                  st = (ad.get("status") or "").upper()
+                  if st in ("ERROR", "PARTIAL"):
+                      flags.append(f"⚠️ **Arjun phase={st}** — {ad.get('detail','')}. Do not treat parameter discovery as clean.")
+          except Exception:
+              pass
 
           # --- Regression vs the last run against this same target ---
           # This is the single highest-leverage check here: a metric that was fine
