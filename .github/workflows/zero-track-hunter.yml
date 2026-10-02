@@ -5119,7 +5119,69 @@ jobs:
           with open(os.path.join(rd, "meta", "target_profile.json"), "w") as fh:
               _json.dump(profile, fh, indent=2)
               fh.write("\n")
-          print(f"Wrote meta/engine_health.json + meta/target_profile.json + meta/hosts.jsonl ({len(hosts)} hosts)")
+          # Additive observations.jsonl (Phase 2) — LEAD not vulnerability claims
+          observations=[]
+          def _add_obs(**kw):
+              o={"schema":"bugbountyci.observation.v1","run_id":os.environ.get("TIMESTAMP",""),"timestamp":None}
+              o.update(kw)
+              observations.append(o)
+          try:
+              with open(os.path.join(rd,"targeted/arjun_params.txt")) as fh:
+                  for i,l in enumerate(fh):
+                      l=l.strip()
+                      if not l: continue
+                      _add_obs(observation_id=f"arjun-{i}",engine="arjun",observed_behavior="parameter_candidate",
+                               status=phases.get("arjun",{}).get("status","UNKNOWN"),sample=l[:300],
+                               classification="LEAD",confidence="low",
+                               limitations="upstream tool errors possible; not confirmed",
+                               provenance="targeted/arjun_params.txt")
+          except Exception:
+              pass
+          try:
+              with open(os.path.join(rd,"nuclei/findings.jsonl")) as fh:
+                  for i,l in enumerate(fh):
+                      if not l.strip(): continue
+                      try: j=_json.loads(l)
+                      except Exception: continue
+                      info=j.get("info") or {}
+                      _add_obs(observation_id=f"nuclei-{i}",engine="nuclei",
+                               url=j.get("matched-at") or j.get("host"),
+                               observed_behavior=info.get("name") or "finding",
+                               status="SUCCESS",classification="SIGNAL",
+                               confidence=str(info.get("severity") or "unknown"),
+                               provenance="nuclei/findings.jsonl")
+          except Exception:
+              pass
+          for rel in ("smart-fuzzing/interesting.txt","fuzzing/interesting.txt"):
+              p=os.path.join(rd,rel)
+              if not os.path.exists(p): continue
+              try:
+                  with open(p) as fh:
+                      for i,l in enumerate(fh):
+                          if not l.strip(): continue
+                          _add_obs(observation_id=f"smart_fuzz-{i}",engine="smart_fuzzing",
+                                   observed_behavior="interesting_response",status="SUCCESS",
+                                   sample=l.strip()[:400],classification="LEAD",confidence="low",
+                                   provenance=rel)
+              except Exception:
+                  pass
+              break
+          # negative/partial engine outcomes as observations for honesty
+          for eng,ph in phases.items():
+              st=(ph or {}).get("status") or ""
+              if st.upper() in ("PARTIAL","ERROR","EMPTY") or st.lower() in ("partial","error","empty"):
+                  _add_obs(observation_id=f"phase-{eng}",engine=eng,observed_behavior="phase_status",
+                           status=st,classification="HEALTH",confidence="high",
+                           detail=(ph or {}).get("detail"),provenance=f"meta/phases/{eng}.json")
+          obs_path=os.path.join(rd,"meta","observations.jsonl")
+          with open(obs_path,"w") as fh:
+              for o in observations:
+                  fh.write(_json.dumps(o,default=str)+"\n")
+          profile["counts"]["observations"]=len(observations)
+          with open(os.path.join(rd, "meta", "target_profile.json"), "w") as fh:
+              _json.dump(profile, fh, indent=2)
+              fh.write("\n")
+          print(f"Wrote meta/engine_health.json + target_profile.json + hosts.jsonl ({len(hosts)}) + observations.jsonl ({len(observations)})")
 
           # Post directly to the GitHub Actions run summary page - visible immediately,
           # no artifact download/unzip/upload round-trip needed to see it.

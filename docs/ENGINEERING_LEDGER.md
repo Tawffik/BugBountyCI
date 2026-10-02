@@ -408,3 +408,11 @@ consistent with phases (port OK 25, arjun PARTIAL, nuclei PARTIAL 51.9%, overall
 DEGRADED). Protected fixes intact.
 
 **Next:** meta/hosts.jsonl additive host surface model from live/verified/ports/resolved.
+
+
+### #112 hosts.jsonl LIVE VERIFIED (2026-10-02)
+
+**#112** (057aa91): hosts.jsonl=20 structured hosts; ports=19 OK; arjun PARTIAL;
+nuclei PARTIAL 52.3%; export engine_health+target_profile intact. No regression.
+
+**Next:** meta/observations.jsonl LEAD/SIGNAL/HEALTH rows from arjun/nuclei/smart_fuzz/phases.
