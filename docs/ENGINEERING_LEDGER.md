@@ -427,3 +427,13 @@ Additive export in `scripts/write_pipeline_exports.py`:
 
 Does not re-parse discovery; reuses Gap I parameter intelligence artifact.
 Local synthetic test passed. Live verify pending after #114 completes.
+
+
+### Export vocabulary + relationships (2026-10-03)
+
+**Code:** meta/vocabulary.json from smart-fuzzing vocabulary (schema
+bugbountyci.vocabulary.v1); meta/relationships.jsonl lightweight edges
+(HOST_HAS_PORT, HOST_HAS_URL, ENDPOINT_HAS_PARAMETER). Unit test
+tests/test_write_pipeline_exports.py passes.
+
+**Live:** pending after #114 harvest; tip includes surface model exports.

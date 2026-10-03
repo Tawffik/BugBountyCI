@@ -4,37 +4,31 @@
 FULL AUTONOMOUS ENGINEERING CAMPAIGN V4 — IN PROGRESS  
 EXIT: CAMPAIGN_COMPLETE | CAMPAIGN_BLOCKED only
 
-## HEAD
-See main tip (surface model urls/endpoints/parameters pending live verify)
-
-## VERIFIED CONTRACTS
+## VERIFIED
 | Contract | Evidence |
 |----------|----------|
-| Port discovery / ERROR≠EMPTY | #106–#112 |
+| Port / ERROR≠EMPTY | #106–#112 |
 | Nuclei filter/Tor/PARTIAL | #109–#112 |
 | Arjun PARTIAL + health | #110 |
 | engine_health + target_profile | #111 |
 | hosts.jsonl | #112 |
-| write_pipeline_exports extraction | a1bcb54 (await #114) |
+| export unit contract | local pytest |
 
-## IN PROGRESS
+## IN PROGRESS / PENDING LIVE
 | Item | Status |
 |------|--------|
-| #114 | live verify exports script + observations |
-| urls.jsonl + endpoints.jsonl + parameters.jsonl | CODE ready — live verify after #114 |
+| #114 on a1bcb54 | verify write_pipeline_exports extraction + observations |
+| urls/endpoints/parameters | code on 376c1d6 — need live |
+| vocabulary + relationships | code ready — need live |
 
 ## KNOWN LIMITATIONS
-| Item | Representation |
-|------|----------------|
-| Nuclei ~50% flaky hosts | PARTIAL / DEGRADED |
-| Arjun AttributeError upstream | PARTIAL |
+Nuclei ~50% flaky hosts → PARTIAL; Arjun AttributeError → PARTIAL
 
-## NEXT DEPENDENCY AFTER LIVE VERIFY
+## NEXT
 1. Harvest #114
-2. Dispatch run for urls/endpoints/parameters export
-3. Application vocabulary (smart-fuzzing/vocabulary + meta export)
-4. Response intelligence enrichment
-5. Continue roadmap — never stop at phase boundary
+2. Live run on tip for surface+vocab+relationships
+3. Response intelligence enrichment from existing smart-fuzz
+4. Continue roadmap
 
 ## BOUNDARY
-BugBountyCI = recon producer only. No SRA merge.
+BugBountyCI = recon producer. No SRA merge.
