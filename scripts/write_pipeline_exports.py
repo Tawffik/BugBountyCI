@@ -218,6 +218,87 @@ def main():
         for o in observations:
             fh.write(json.dumps(o, default=str) + "\n")
 
+    # --- urls.jsonl (capped; path/host normalized) ---
+    urls_rows = []
+    try:
+        with open(os.path.join(rd, "urls/all.txt")) as fh:
+            for i, line in enumerate(fh):
+                if i >= 5000:
+                    break
+                u = line.strip().split()[0] if line.strip() else ""
+                if not u.startswith("http"):
+                    continue
+                try:
+                    p = urlparse(u)
+                except Exception:
+                    continue
+                host = (p.hostname or "").lower()
+                if not host:
+                    continue
+                urls_rows.append({
+                    "schema": "bugbountyci.url.v1",
+                    "run_id": run_id,
+                    "target": target,
+                    "url": u[:500],
+                    "host": host,
+                    "scheme": (p.scheme or "").lower(),
+                    "path": p.path or "/",
+                    "has_query": bool(p.query),
+                    "provenance": "urls/all.txt",
+                })
+    except Exception:
+        pass
+    with open(os.path.join(rd, "meta", "urls.jsonl"), "w") as fh:
+        for row in urls_rows:
+            fh.write(json.dumps(row) + "\n")
+
+    # --- endpoints.jsonl + parameters.jsonl from parameter_intelligence ---
+    endpoints_rows = []
+    parameters_rows = []
+    pi_path = os.path.join(rd, "detection", "parameter_intelligence.json")
+    if os.path.exists(pi_path):
+        try:
+            with open(pi_path) as fh:
+                pi = json.load(fh)
+            for i, ep in enumerate(pi.get("endpoints") or []):
+                path_s = ep.get("endpoint") or ""
+                endpoints_rows.append({
+                    "schema": "bugbountyci.endpoint.v1",
+                    "run_id": run_id,
+                    "target": target,
+                    "endpoint": path_s,
+                    "parameter_count": len(ep.get("parameters") or []),
+                    "provenance": "detection/parameter_intelligence.json",
+                })
+                for prm in (ep.get("parameters") or []):
+                    parameters_rows.append({
+                        "schema": "bugbountyci.parameter.v1",
+                        "run_id": run_id,
+                        "target": target,
+                        "endpoint": path_s,
+                        "name": prm.get("name"),
+                        "sources": prm.get("sources") or [],
+                        "provenance": "detection/parameter_intelligence.json",
+                    })
+            for prm in (pi.get("global_parameter_hints") or []):
+                parameters_rows.append({
+                    "schema": "bugbountyci.parameter.v1",
+                    "run_id": run_id,
+                    "target": target,
+                    "endpoint": "_global",
+                    "name": prm.get("name"),
+                    "sources": prm.get("sources") or [],
+                    "provenance": "detection/parameter_intelligence.json",
+                })
+        except Exception:
+            pass
+    with open(os.path.join(rd, "meta", "endpoints.jsonl"), "w") as fh:
+        for row in endpoints_rows:
+            fh.write(json.dumps(row) + "\n")
+    with open(os.path.join(rd, "meta", "parameters.jsonl"), "w") as fh:
+        for row in parameters_rows:
+            fh.write(json.dumps(row) + "\n")
+
     urls_n = nlines("urls/all.txt")
     if urls_n == 0:
         # fallback from phase
@@ -240,6 +321,9 @@ def main():
             "nuclei_findings": nlines("nuclei/findings.jsonl"),
             "hosts_modeled": len(hosts),
             "observations": len(observations),
+            "urls_modeled": len(urls_rows),
+            "endpoints_modeled": len(endpoints_rows),
+            "parameters_modeled": len(parameters_rows),
         },
         "phase_summary": {k: v.get("status") for k, v in phases.items()},
     }
@@ -249,7 +333,9 @@ def main():
 
     print(
         f"Wrote meta/engine_health.json + target_profile.json + "
-        f"hosts.jsonl ({len(hosts)}) + observations.jsonl ({len(observations)})"
+        f"hosts.jsonl ({len(hosts)}) + observations.jsonl ({len(observations)}) + "
+        f"urls.jsonl ({len(urls_rows)}) + endpoints.jsonl ({len(endpoints_rows)}) + "
+        f"parameters.jsonl ({len(parameters_rows)})"
     )
 
 if __name__ == "__main__":

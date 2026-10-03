@@ -416,3 +416,14 @@ DEGRADED). Protected fixes intact.
 nuclei PARTIAL 52.3%; export engine_health+target_profile intact. No regression.
 
 **Next:** meta/observations.jsonl LEAD/SIGNAL/HEALTH rows from arjun/nuclei/smart_fuzz/phases.
+
+
+### Surface model urls/endpoints/parameters (2026-10-03)
+
+Additive export in `scripts/write_pipeline_exports.py`:
+- meta/urls.jsonl (cap 5000 from urls/all.txt)
+- meta/endpoints.jsonl from detection/parameter_intelligence.json
+- meta/parameters.jsonl (per-endpoint + global hints)
+
+Does not re-parse discovery; reuses Gap I parameter intelligence artifact.
+Local synthetic test passed. Live verify pending after #114 completes.
