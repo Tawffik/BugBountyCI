@@ -437,3 +437,14 @@ bugbountyci.vocabulary.v1); meta/relationships.jsonl lightweight edges
 tests/test_write_pipeline_exports.py passes.
 
 **Live:** pending after #114 harvest; tip includes surface model exports.
+
+
+### #114 observations LIVE VERIFIED (2026-10-03)
+
+**#114** (a1bcb54): write_pipeline_exports ran successfully. Port OK 13;
+hosts.jsonl=18; observations.jsonl=12 (arjun LEADs + phase health);
+engine_health+target_profile present. Nuclei PARTIAL 54.4%; Arjun PARTIAL.
+No GA 21k regression.
+
+**Still pending live on tip:** urls/endpoints/parameters, vocabulary,
+relationships, response_clusters (#115/#116).
