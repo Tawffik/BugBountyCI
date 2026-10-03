@@ -4688,6 +4688,8 @@ jobs:
           cp "$RD/js/files.txt" .previous_snapshot/js_files.txt 2>/dev/null || touch .previous_snapshot/js_files.txt
           cp "$RD/js/secrets_high.txt" .previous_snapshot/secrets_high.txt 2>/dev/null || touch .previous_snapshot/secrets_high.txt
           cp "$RD/live/interesting.txt" .previous_snapshot/interesting.txt 2>/dev/null || touch .previous_snapshot/interesting.txt
+          # V3 compact historical intelligence for next-run adaptive wordlist
+          cp "$RD/smart-fuzzing/strategy_outcome.json" .previous_snapshot/strategy_outcome.json 2>/dev/null || true
           # Merge nuclei findings into one snapshot file
           cat "$RD/nuclei/findings.jsonl" "$RD/nuclei/findings_exposure.jsonl" 2>/dev/null > .previous_snapshot/nuclei.jsonl || touch .previous_snapshot/nuclei.jsonl
           # Cache entries are immutable once saved, so this run's snapshot needs the old

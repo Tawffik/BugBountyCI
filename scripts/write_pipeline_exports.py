@@ -421,6 +421,31 @@ def main():
                     add_rel("JS_TO_ENDPOINT", "js:linkfinder", f"endpoint:{ep[:200]}", provenance="js_deep/linkfinder_endpoints.txt")
     except Exception:
         pass
+    # V3: JS -> API surface from swagger/graphql hits
+    try:
+        for fname, kind in (("swagger.txt", "openapi"), ("graphql.txt", "graphql")):
+            fp = os.path.join(rd, "js", fname)
+            if not os.path.isfile(fp):
+                continue
+            with open(fp) as fh:
+                for i, line in enumerate(fh):
+                    if i >= 100:
+                        break
+                    url = line.strip()
+                    if not url or url.startswith("#"):
+                        continue
+                    add_rel("JS_TO_API", f"js:{kind}", f"url:{url[:200]}", provenance=f"js/{fname}", api_style=kind)
+    except Exception:
+        pass
+    # V3: HOST -> ENDPOINT from endpoints rows
+    try:
+        for row in endpoints_rows[:300]:
+            ep = row.get("endpoint") or row.get("path")
+            host = row.get("host")
+            if ep and host:
+                add_rel("HOST_TO_ENDPOINT", f"host:{host}", f"endpoint:{ep[:200]}", provenance="meta/endpoints.jsonl")
+    except Exception:
+        pass
     # V3: ENDPOINT -> RESPONSE_CLUSTER sample links from response_diffs
     try:
         rdp = os.path.join(rd, "smart-fuzzing", "response_diffs.json")

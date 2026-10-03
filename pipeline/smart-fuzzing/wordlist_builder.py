@@ -58,6 +58,28 @@ STRUCTURAL_SHARE = {"light": 30, "normal": 80, "aggressive": 200}
 VOCAB_SHARE = {"light": 40, "normal": 120, "aggressive": 350}
 WOLF_SHARE = {"light": 30, "normal": 100, "aggressive": 250}
 
+def _load_previous_strategy_outcome():
+    """Compact historical note from Diff Mode snapshot if present.
+    Never invents outcomes. Missing file = no adaptation.
+    """
+    candidates = [
+        os.path.join(".previous_snapshot", "strategy_outcome.json"),
+        os.path.join("..", ".previous_snapshot", "strategy_outcome.json"),
+    ]
+    for path in candidates:
+        path = os.path.normpath(path)
+        if not os.path.isfile(path):
+            continue
+        try:
+            with open(path, "r", errors="ignore") as f:
+                data = json.load(f)
+            if isinstance(data, dict) and data.get("schema", "").startswith("bugbountyci.strategy_outcome"):
+                return data
+        except (OSError, json.JSONDecodeError, TypeError):
+            continue
+    return None
+
+
 
 def _load_predicted_fuzz_paths(out_dir):
     """Read predicted_paths.json (if pattern_predictor.py ran for this
@@ -121,10 +143,16 @@ def main():
             break
     vocab_candidates = vocab_candidates[:vocab_cap]
 
+    prev_outcome = _load_previous_strategy_outcome()
     structural_cap = STRUCTURAL_SHARE.get(args.mode, STRUCTURAL_SHARE["normal"])
+    # V3 adaptive: prior WAF-dominated run → shrink generic Wolf share, keep structural/vocab
+    if prev_outcome and (prev_outcome.get("waf_rate") or 0) >= 0.5:
+        wolf_cap_override = max(10, WOLF_SHARE.get(args.mode, 100) // 3)
+    else:
+        wolf_cap_override = None
     structural_paths = _load_predicted_fuzz_paths(out_dir)[:structural_cap]
 
-    wolf_cap = WOLF_SHARE.get(args.mode, WOLF_SHARE["normal"])
+    wolf_cap = wolf_cap_override if wolf_cap_override is not None else WOLF_SHARE.get(args.mode, WOLF_SHARE["normal"])
     wolf_candidates = wolf_lines[:wolf_cap]
 
     candidates = set(wolf_candidates) | set(vocab_candidates) | set(structural_paths)

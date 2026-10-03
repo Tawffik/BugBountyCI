@@ -466,3 +466,20 @@ vocabulary 1500; relationships 1004; observations 11; engine_health DEGRADED
 (Arjun+Nuclei PARTIAL). recon_export not on #116 (pre-tip).
 **#117:** workflow_dispatch on c721d1f target=nuva.finance authorized_open_scan=true
 — queued then in_progress (validates Gap L + tip contracts live).
+
+### V2 RELEASED — #118 LIVE (2026-10-03)
+
+Run **37103828216** / admin.shopify.com / SHA a1e0d7a / success.
+- recon_export.v1 schema + artifact index including ranking/outcome
+- response_ranking.v2: REDIRECT=1, waf_dominated=false
+- strategy_outcome.v3: useful_signals=1, recommendation=continue_target_aware
+- response_clusters: 1 REDIRECT
+- target_profile smart-fuzzing v2: Cloudflare, cdn_or_edge
+- hunter_queue: INTERESTING entry with (REDIRECT) classification
+- Arjun phase=ERROR (crash) not emptied — health DEGRADED truthful
+- Port OK 3074; relationships 987 including URL_TO_RESPONSE_CLASS
+
+### V3 tip (post-V2)
+- wordlist_builder adapts wolf cap from .previous_snapshot/strategy_outcome.json when waf_rate>=0.5
+- snapshot step copies strategy_outcome.json for next run
+- relationships: JS_TO_API (swagger/graphql), HOST_TO_ENDPOINT
