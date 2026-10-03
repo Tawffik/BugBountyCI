@@ -555,6 +555,8 @@ def main():
             "response_clusters": "meta/response_clusters.json",
             "response_ranking": "smart-fuzzing/response_ranking.json",
             "strategy_outcome": "smart-fuzzing/strategy_outcome.json",
+            "metrics": "detection/metrics.json",
+            "hunter_queue": "detection/hunter_queue.md",
         },
         "counts": profile.get("counts"),
         "limitations": eng.get("flags") or [],
