@@ -455,3 +455,14 @@ relationships, response_clusters (#115/#116).
 **#115** (92e1885): ports=20; hosts=20; observations=10; urls=1586;
 endpoints=24; parameters=42; vocabulary=1500; relationships=1037.
 response_clusters pending #116.
+
+### Tip pushed + #116 response_clusters LIVE + #117 started (2026-10-03)
+
+**Push:** c721d1f (then d66514a docs) on main — V1–V4 tip landed.
+**#116 harvest (token):** response_clusters.json schema bugbountyci.response_clusters.v1
+present; clusters=0 because response_diffs.json was empty [] — truthful EMPTY,
+not ERROR. Port OK 22; hosts 22; urls 838; endpoints 16; parameters 30;
+vocabulary 1500; relationships 1004; observations 11; engine_health DEGRADED
+(Arjun+Nuclei PARTIAL). recon_export not on #116 (pre-tip).
+**#117:** workflow_dispatch on c721d1f target=nuva.finance authorized_open_scan=true
+— queued then in_progress (validates Gap L + tip contracts live).
