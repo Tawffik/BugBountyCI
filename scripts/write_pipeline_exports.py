@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Write meta/engine_health.json, target_profile.json, hosts.jsonl, observations.jsonl.
+"""Write pipeline meta exports: health, profile, hosts, observations, surface, vocabulary, relationships.
 Called from Pipeline Health Report after pipeline_health.md is written.
 Does not replace raw evidence.
 """
@@ -299,6 +299,90 @@ def main():
         for row in parameters_rows:
             fh.write(json.dumps(row) + "\n")
 
+
+    # --- vocabulary.json (from smart-fuzzing if present; additive normalize) ---
+    vocab_out = {"schema": "bugbountyci.vocabulary.v1", "run_id": run_id, "target": target, "terms": []}
+    for vp in (
+        "smart-fuzzing/vocabulary.json",
+        "detection/vocabulary.json",
+    ):
+        p = os.path.join(rd, vp)
+        if not os.path.isfile(p):
+            continue
+        try:
+            with open(p) as fh:
+                raw = json.load(fh)
+        except Exception:
+            continue
+        # support {word: {sources, count}} or {terms: [...]}
+        if isinstance(raw, dict) and "terms" in raw:
+            vocab_out["terms"] = raw["terms"][:2000]
+            vocab_out["provenance"] = vp
+            break
+        terms = []
+        if isinstance(raw, dict):
+            for word, meta in list(raw.items())[:2000]:
+                if not isinstance(word, str) or word.startswith("schema"):
+                    continue
+                sources = []
+                count = 1
+                if isinstance(meta, dict):
+                    sources = list(meta.get("sources") or [])
+                    count = int(meta.get("count") or len(sources) or 1)
+                elif isinstance(meta, list):
+                    sources = list(meta)
+                    count = len(sources)
+                terms.append({
+                    "term": word,
+                    "sources": sources,
+                    "count": count,
+                    "category": "APPLICATION_EVIDENCE" if count >= 2 else "TARGET_SEMANTIC",
+                })
+        # prefer higher multi-source terms first
+        terms.sort(key=lambda t: (-t.get("count", 0), t.get("term", "")))
+        vocab_out["terms"] = terms[:1500]
+        vocab_out["provenance"] = vp
+        break
+    with open(os.path.join(rd, "meta", "vocabulary.json"), "w") as fh:
+        json.dump(vocab_out, fh, indent=2)
+        fh.write("\n")
+
+    # --- relationships.jsonl (lightweight edges; no graph DB) ---
+    rels = []
+    def add_rel(rel_type, src, dst, **kw):
+        r = {"schema": "bugbountyci.relationship.v1", "run_id": run_id, "type": rel_type, "from": src, "to": dst}
+        r.update(kw)
+        rels.append(r)
+    for h in hosts[:200]:
+        host = h.get("host")
+        if not host:
+            continue
+        for p in (h.get("ports") or [])[:20]:
+            add_rel("HOST_HAS_PORT", f"host:{host}", f"port:{host}:{p}", provenance="live/ports.txt")
+        for u in (h.get("urls") or [])[:5]:
+            add_rel("HOST_HAS_URL", f"host:{host}", f"url:{u}", provenance="live")
+    for row in urls_rows[:500]:
+        u = row.get("url")
+        host = row.get("host")
+        path = row.get("path")
+        if host and u:
+            add_rel("HOST_HAS_URL", f"host:{host}", f"url:{u}", provenance="urls/all.txt")
+        if path and path not in ("/", ""):
+            add_rel("URL_HAS_PATH", f"url:{u}", f"path:{path}", provenance="urls/all.txt")
+    for row in endpoints_rows[:300]:
+        ep = row.get("endpoint") or row.get("path")
+        if ep:
+            add_rel("ENDPOINT_DECLARED", f"endpoint:{ep}", f"endpoint:{ep}", provenance="detection/parameter_intelligence.json")
+    for row in parameters_rows[:300]:
+        name = row.get("name") or row.get("parameter")
+        ep = row.get("endpoint") or ""
+        if name:
+            add_rel("ENDPOINT_HAS_PARAMETER", f"endpoint:{ep}", f"param:{name}", provenance="detection/parameter_intelligence.json")
+    with open(os.path.join(rd, "meta", "relationships.jsonl"), "w") as fh:
+        for r in rels[:5000]:
+            fh.write(json.dumps(r) + "\n")
+
+
     urls_n = nlines("urls/all.txt")
     if urls_n == 0:
         # fallback from phase
@@ -324,6 +408,8 @@ def main():
             "urls_modeled": len(urls_rows),
             "endpoints_modeled": len(endpoints_rows),
             "parameters_modeled": len(parameters_rows),
+            "vocabulary_terms": len(vocab_out.get("terms") or []),
+            "relationships": len(rels),
         },
         "phase_summary": {k: v.get("status") for k, v in phases.items()},
     }
@@ -335,7 +421,9 @@ def main():
         f"Wrote meta/engine_health.json + target_profile.json + "
         f"hosts.jsonl ({len(hosts)}) + observations.jsonl ({len(observations)}) + "
         f"urls.jsonl ({len(urls_rows)}) + endpoints.jsonl ({len(endpoints_rows)}) + "
-        f"parameters.jsonl ({len(parameters_rows)})"
+        f"parameters.jsonl ({len(parameters_rows)}) + "
+        f"vocabulary.json ({len(vocab_out.get('terms') or [])}) + "
+        f"relationships.jsonl ({len(rels)})"
     )
 
 if __name__ == "__main__":
