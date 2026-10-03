@@ -448,3 +448,10 @@ No GA 21k regression.
 
 **Still pending live on tip:** urls/endpoints/parameters, vocabulary,
 relationships, response_clusters (#115/#116).
+
+
+### #115 surface+vocab+relationships LIVE VERIFIED (2026-10-03)
+
+**#115** (92e1885): ports=20; hosts=20; observations=10; urls=1586;
+endpoints=24; parameters=42; vocabulary=1500; relationships=1037.
+response_clusters pending #116.
