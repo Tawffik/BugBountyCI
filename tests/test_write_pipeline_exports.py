@@ -24,7 +24,7 @@ def test_exports_contract():
     meta = rd / "meta"
     for name in [
         "engine_health.json", "target_profile.json", "hosts.jsonl", "observations.jsonl",
-        "urls.jsonl", "endpoints.jsonl", "parameters.jsonl", "vocabulary.json", "relationships.jsonl",
+        "urls.jsonl", "endpoints.jsonl", "parameters.jsonl", "vocabulary.json", "relationships.jsonl", "response_clusters.json",
     ]:
         assert (meta / name).exists(), name
     v = json.loads((meta / "vocabulary.json").read_text())

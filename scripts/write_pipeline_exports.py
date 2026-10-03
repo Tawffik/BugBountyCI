@@ -383,6 +383,41 @@ def main():
             fh.write(json.dumps(r) + "\n")
 
 
+
+    # --- response_clusters.json from smart-fuzzing response_diffs if present ---
+    clusters = {"schema": "bugbountyci.response_clusters.v1", "run_id": run_id, "target": target, "clusters": []}
+    rd_path = os.path.join(rd, "smart-fuzzing", "response_diffs.json")
+    if os.path.isfile(rd_path):
+        try:
+            with open(rd_path) as fh:
+                diffs = json.load(fh)
+            by_cls = {}
+            items = diffs if isinstance(diffs, list) else (diffs.get("hits") or diffs.get("results") or [])
+            if isinstance(diffs, dict) and not items:
+                # maybe map url->detail
+                items = [{"url": k, **(v if isinstance(v, dict) else {})} for k, v in diffs.items() if k not in ("schema",)]
+            for it in items if isinstance(items, list) else []:
+                if not isinstance(it, dict):
+                    continue
+                cls = it.get("classification") or it.get("class") or "UNKNOWN"
+                by_cls.setdefault(cls, []).append({
+                    "url": it.get("url") or it.get("input"),
+                    "status": it.get("status"),
+                    "reason": (it.get("reason") or "")[:200],
+                })
+            for cls, samples in sorted(by_cls.items()):
+                clusters["clusters"].append({
+                    "classification": cls,
+                    "count": len(samples),
+                    "samples": samples[:20],
+                })
+            clusters["provenance"] = "smart-fuzzing/response_diffs.json"
+        except Exception as e:
+            clusters["error"] = str(e)[:200]
+    with open(os.path.join(rd, "meta", "response_clusters.json"), "w") as fh:
+        json.dump(clusters, fh, indent=2)
+        fh.write("\n")
+
     urls_n = nlines("urls/all.txt")
     if urls_n == 0:
         # fallback from phase
@@ -410,6 +445,7 @@ def main():
             "parameters_modeled": len(parameters_rows),
             "vocabulary_terms": len(vocab_out.get("terms") or []),
             "relationships": len(rels),
+            "response_clusters": len(clusters.get("clusters") or []),
         },
         "phase_summary": {k: v.get("status") for k, v in phases.items()},
     }
@@ -423,7 +459,8 @@ def main():
         f"urls.jsonl ({len(urls_rows)}) + endpoints.jsonl ({len(endpoints_rows)}) + "
         f"parameters.jsonl ({len(parameters_rows)}) + "
         f"vocabulary.json ({len(vocab_out.get('terms') or [])}) + "
-        f"relationships.jsonl ({len(rels)})"
+        f"relationships.jsonl ({len(rels)}) + "
+        f"response_clusters.json ({len(clusters.get('clusters') or [])})"
     )
 
 if __name__ == "__main__":
