@@ -33,6 +33,10 @@ on:
         description: "Enable source map analysis for JS files"
         type: boolean
         default: true
+      authorized_open_scan:
+        description: "Allow run when scope.txt is missing/empty"
+        type: boolean
+        default: false
   workflow_call:
     inputs:
       target:
@@ -265,6 +269,7 @@ jobs:
         # continue-on-error must stay OFF — this gates active/exploit phases.
         env:
           TARGET_INPUT: ${{ inputs.target }}
+          AUTHORIZED_OPEN_SCAN: ${{ inputs.authorized_open_scan }}
         run: |
           set -euo pipefail
           target="$(echo "${TARGET_INPUT}" | xargs)"
@@ -297,9 +302,10 @@ jobs:
           # Missing/empty scope.txt → continue with warning (open mode).
           # Non-empty scope.txt → enforce allow-list.
           if [[ ! -f "scope.txt" ]] || [[ ! -s "scope.txt" ]]; then
-            echo "⚠️ No scope.txt (or empty) — continuing without allow-list (open mode)."
-            echo "   Optional: add scope.txt (see scope.txt.example) to restrict targets."
-            echo "✅ Target format OK: $target_lower (no scope file to match)"
+            if [[ "${AUTHORIZED_OPEN_SCAN:-}" != "true" ]]; then
+              echo "::error::No scope.txt. Set AUTHORIZED_OPEN_SCAN=true for open-scope (Gap L)."
+              exit 1
+            fi
             echo "TARGET=$target_lower" >> "$GITHUB_ENV"
             exit 0
           fi
@@ -5010,6 +5016,7 @@ jobs:
           PYEOF
 
           python3 scripts/write_pipeline_exports.py "results/${{ env.TIMESTAMP }}" || true
+          [ -f scripts/validate_pipeline_exports.py ] && python3 scripts/validate_pipeline_exports.py "results/${{ env.TIMESTAMP }}" || true
 
       - name: "📋 Triage & Prioritization"
         id: triage

@@ -118,7 +118,46 @@ def load_smart_fuzzing_interesting(results_dir):
     return entries
 
 
-def render_markdown(entries, target_name):
+def load_surface_context(results_dir):
+    """Additive meta context. Never invents findings."""
+    meta = os.path.join(results_dir, "meta")
+    ctx = {"profile": None, "health": None, "clusters": None, "vocab_sample": []}
+    for name, key in (("target_profile.json","profile"),("engine_health.json","health"),("response_clusters.json","clusters")):
+        fp = os.path.join(meta, name)
+        if os.path.isfile(fp):
+            try:
+                with open(fp, "r", errors="ignore") as f:
+                    ctx[key] = json.load(f)
+            except Exception:
+                pass
+    vp = os.path.join(meta, "vocabulary.json")
+    if os.path.isfile(vp):
+        try:
+            with open(vp, "r", errors="ignore") as f:
+                v = json.load(f)
+            for term in (v.get("terms") or []):
+                if not isinstance(term, dict):
+                    continue
+                if (term.get("category") or "").upper() in ("BUILD_NOISE", "GENERIC", "COMMON"):
+                    continue
+                w = term.get("term") or term.get("word")
+                if w:
+                    ctx["vocab_sample"].append(str(w)[:64])
+                if len(ctx["vocab_sample"]) >= 12:
+                    break
+        except Exception:
+            pass
+    rank_path = os.path.join(results_dir, "smart-fuzzing", "response_ranking.json")
+    if os.path.isfile(rank_path):
+        try:
+            with open(rank_path, "r", errors="ignore") as f:
+                ctx["ranking"] = json.load(f)
+        except Exception:
+            pass
+    return ctx
+
+
+def render_markdown(entries, target_name, context=None):
     entries_sorted = sorted(entries, key=lambda e: PRIORITY_ORDER.get(e["priority_class"], 99))
 
     lines = [
@@ -132,6 +171,33 @@ def render_markdown(entries, target_name):
         "investigation before being treated as findings.",
         "",
     ]
+
+    if context:
+        health = (context.get("health") or {})
+        prof = (context.get("profile") or {})
+        counts = prof.get("counts") or {}
+        if health or counts:
+            lines += ["## Target surface snapshot", ""]
+            if health.get("overall"):
+                lines.append(f"**Engine health:** {health.get('overall')}")
+            parts = [f"{k}={counts[k]}" for k in ("live_hosts","ports","urls_modeled","endpoints_modeled","response_clusters","observations") if k in counts]
+            if parts:
+                lines.append("**Counts:** " + ", ".join(parts))
+            lines += ["", ""]
+        ranking = context.get("ranking") or {}
+        if ranking.get("waf_dominated"):
+            lines += ["## Adaptive note", "",
+                      f"**WAF-dominated responses** ({ranking.get('counts', {})}). "
+                      "Further generic path fuzzing may be low information gain.", "", ""]
+        clusters = (context.get("clusters") or {}).get("clusters") or []
+        if clusters:
+            lines += ["## Response intelligence (clusters)", ""]
+            for c in clusters[:8]:
+                lines.append(f"- **{c.get('classification','?')}** (n={c.get('count',0)})")
+            lines += ["", ""]
+        vocab = context.get("vocab_sample") or []
+        if vocab:
+            lines += ["## Target vocabulary (sample)", "", ", ".join(f"`{x}`" for x in vocab), "", ""]
 
     if not entries_sorted:
         lines.append("No signals reached the hunter queue threshold on this run.")
@@ -175,8 +241,9 @@ def main():
     out_dir = os.path.join(args.results_dir, "detection")
     os.makedirs(out_dir, exist_ok=True)
     out_path = os.path.join(out_dir, "hunter_queue.md")
+    context = load_surface_context(args.results_dir)
     with open(out_path, "w") as f:
-        f.write(render_markdown(entries, args.target))
+        f.write(render_markdown(entries, args.target, context=context))
 
     counts = {}
     for e in entries:

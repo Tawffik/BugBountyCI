@@ -76,7 +76,9 @@ def _signal_precision(counts: dict) -> float:
     if total == 0:
         return 0.0
     signal = (counts.get("LEAD", 0) + counts.get("HIGH_SIGNAL", 0)
-              + counts.get("CONFIRMED", 0) + counts.get("INTERESTING", 0))
+              + counts.get("CONFIRMED", 0) + counts.get("INTERESTING", 0)
+              + counts.get("AUTH_REQUIRED", 0) + counts.get("SERVER_ERROR", 0)
+              + counts.get("REDIRECT", 0))
     return round(signal / total, 3)
 
 
@@ -95,7 +97,7 @@ def detect_near_duplicate_clusters(evidence: list, byte_tolerance: int = 500) ->
     import re
     by_host_bucket = defaultdict(list)
     for e in evidence:
-        if e["classification"] not in ("INTERESTING", "LEAD", "HIGH_SIGNAL"):
+        if e["classification"] not in ("INTERESTING", "LEAD", "HIGH_SIGNAL", "AUTH_REQUIRED", "SERVER_ERROR", "REDIRECT"):
             continue
         target = e.get("candidate", {}).get("target", "")
         m = re.search(r"differs by (\d+) bytes", e.get("reason", ""))
@@ -144,7 +146,9 @@ def build_metrics(results_dir: str) -> dict:
         }
 
     clusters = detect_near_duplicate_clusters(all_evidence_for_clustering)
-    total_signal = sum(overall_counts.get(c, 0) for c in ("LEAD", "HIGH_SIGNAL", "CONFIRMED", "INTERESTING"))
+    total_signal = sum(overall_counts.get(c, 0) for c in (
+        "LEAD", "HIGH_SIGNAL", "CONFIRMED", "INTERESTING",
+        "AUTH_REQUIRED", "SERVER_ERROR", "REDIRECT"))
 
     return {
         "engines": per_engine,

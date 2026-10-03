@@ -74,21 +74,51 @@ def normalize_host(url):
 
 
 def classify(hit, base, body_available):
+    """V2 response ranking: evidence-backed classes from status/length/content-type.
+
+    A changed response is a signal, not a vulnerability. Labels are observational.
+    """
     if base is None:
         return "UNKNOWN", "no exact-host baseline match available for this candidate's host"
-
-    reasons = []
-    interesting = False
 
     if body_available and hit.get("fingerprint") and hit["fingerprint"] == base.get("fingerprint"):
         return "SPA_FALLBACK", "identical content fingerprint to baseline (likely catch-all response)"
 
-    if hit["status"] != base["status"]:
-        reasons.append(f"status {hit['status']} != baseline {base['status']}")
+    status = hit.get("status")
+    base_status = base.get("status")
+    try:
+        status_i = int(status) if status is not None else None
+    except (TypeError, ValueError):
+        status_i = None
+    try:
+        base_status_i = int(base_status) if base_status is not None else None
+    except (TypeError, ValueError):
+        base_status_i = None
+
+    # Status-first ranking when response diverges from baseline
+    if status_i is not None and status_i != base_status_i:
+        if status_i in (401, 407):
+            return "AUTH_REQUIRED", f"status {status_i} != baseline {base_status} (auth challenge)"
+        if status_i in (301, 302, 303, 307, 308):
+            loc = (hit.get("location") or hit.get("redirect_location") or "")[:120]
+            return "REDIRECT", f"status {status_i} != baseline {base_status}" + (f" loc={loc}" if loc else "")
+        if status_i in (500, 502, 503, 504):
+            return "SERVER_ERROR", f"status {status_i} != baseline {base_status}"
+        if status_i in (403, 406, 429, 493):
+            # 403 alone is not proof of WAF — label as WAF_BLOCK only when baseline was a normal success
+            if base_status_i is not None and 200 <= base_status_i < 300:
+                return "WAF_BLOCK", f"status {status_i} after baseline {base_status} (block/challenge vs prior success)"
+            return "INTERESTING", f"status {status_i} != baseline {base_status}"
+
+    reasons = []
+    interesting = False
+
+    if status_i is not None and status_i != base_status_i:
+        reasons.append(f"status {status_i} != baseline {base_status}")
         interesting = True
 
-    base_len = max(base.get("length", 0), 1)
-    diff = abs(hit.get("length", 0) - base_len)
+    base_len = max(base.get("length", 0) or 0, 1)
+    diff = abs((hit.get("length") or 0) - base_len)
     if diff >= max(base_len * 0.15, 200):
         reasons.append(f"length differs by {diff} bytes from baseline")
         interesting = True
@@ -186,12 +216,16 @@ def main():
     with open(os.path.join(out_dir, "response_diffs.json"), "w") as f:
         json.dump(diffs, f, indent=2)
 
-    interesting = [d for d in diffs if d["classification"] == "INTERESTING"]
+    SIGNAL_CLASSES = ("INTERESTING", "AUTH_REQUIRED", "SERVER_ERROR", "REDIRECT")
+    interesting = [d for d in diffs if d.get("classification") in SIGNAL_CLASSES]
     with open(os.path.join(out_dir, "interesting.txt"), "w") as f:
-        f.write("# INTERESTING RESPONSE (evidence-based, not a vulnerability claim)\n")
-        f.write("# A changed response is a signal, not a vulnerability.\n\n")
+        f.write("# RANKED RESPONSE SIGNALS (evidence-based, not a vulnerability claim)\n")
+        f.write("# A changed response is a signal, not a vulnerability.\n")
+        f.write("# Classes: INTERESTING | AUTH_REQUIRED | SERVER_ERROR | REDIRECT\n")
+        f.write("# WAF_BLOCK / SPA_FALLBACK / DUPLICATE / NOISE stay in response_diffs.json only.\n\n")
         for d in interesting:
-            f.write(f"{d['url']} [{d['status']}] {d['length']} bytes\n  {d['reason']}\n\n")
+            cls = d.get("classification", "INTERESTING")
+            f.write(f"{d['url']} [{d['status']}] {d.get('length', 0)} bytes ({cls})\n  {d['reason']}\n\n")
 
     counts = {}
     for d in diffs:
@@ -202,8 +236,43 @@ def main():
               f"(classified UNKNOWN, not guessed): {sorted(unmatched_hosts)[:5]}"
               f"{' ...' if len(unmatched_hosts) > 5 else ''}")
 
+    ranking = {
+        "schema": "bugbountyci.response_ranking.v2",
+        "total": len(diffs),
+        "counts": counts,
+        "signal_count": len(interesting),
+        "waf_dominated": (counts.get("WAF_BLOCK", 0) / max(len(diffs), 1)) >= 0.5,
+        "notes": (
+            "WAF_BLOCK majority — further path fuzzing on this host may be low information gain"
+            if (counts.get("WAF_BLOCK", 0) / max(len(diffs), 1)) >= 0.5
+            else ""
+        ),
+    }
+    with open(os.path.join(out_dir, "response_ranking.json"), "w") as f:
+        json.dump(ranking, f, indent=2)
+        f.write("\n")
+
+    # V3 compact historical outcome (no graph DB / giant memory)
+    outcome = {
+        "schema": "bugbountyci.strategy_outcome.v3",
+        "strategy": "smart_fuzzing_response_diff",
+        "total": len(diffs),
+        "counts": counts,
+        "useful_signals": len(interesting),
+        "duplicate_rate": round(counts.get("DUPLICATE", 0) / max(len(diffs), 1), 3),
+        "waf_rate": round(counts.get("WAF_BLOCK", 0) / max(len(diffs), 1), 3),
+        "recommendation": (
+            "reduce_generic_path_fuzzing"
+            if ranking.get("waf_dominated")
+            else "continue_target_aware"
+        ),
+    }
+    with open(os.path.join(out_dir, "strategy_outcome.json"), "w") as f:
+        json.dump(outcome, f, indent=2)
+        f.write("\n")
+
     print(f"✅ response_diff done: {len(diffs)} hit(s) -> {counts} "
-          f"({len(interesting)} INTERESTING written to interesting.txt)")
+          f"({len(interesting)} signals written to interesting.txt)")
 
 
 if __name__ == "__main__":

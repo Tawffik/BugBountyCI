@@ -1,32 +1,14 @@
 # BugBountyCI — PROJECT STATE
 
 ## MODE
-FULL AUTONOMOUS ENGINEERING CAMPAIGN V4 — IN PROGRESS  
-EXIT: CAMPAIGN_COMPLETE | CAMPAIGN_BLOCKED only
+FULL AUTONOMOUS V1→V4 — PUSHING TIP + LIVE VERIFY
 
-## LIVE VERIFIED
-| Contract | Evidence |
-|----------|----------|
-| Port / ERROR≠EMPTY | #106–#115 |
-| Nuclei PARTIAL + Tor gate | #109–#115 |
-| Arjun PARTIAL + health | #110/#114/#115 |
-| engine_health + target_profile | #111+ |
-| hosts.jsonl | #112–#115 |
-| observations.jsonl | #114/#115 |
-| **urls.jsonl** | **#115** (1586) |
-| **endpoints.jsonl** | **#115** (24) |
-| **parameters.jsonl** | **#115** (42) |
-| **vocabulary.json** | **#115** (1500) |
-| **relationships.jsonl** | **#115** (1037) |
-
-## PENDING LIVE
-response_clusters.json — #116 in progress (17cc9c9)
-
-## KNOWN LIMITATIONS
-Nuclei ~50%+ flaky hosts → PARTIAL; Arjun AttributeError → PARTIAL
-
-## NEXT
-Harvest #116 → response_clusters verify → hunter queue enrichment → continue roadmap
+## ORIGIN was 8b096b2 (V1 LIVE #106–#116)
+## TIP includes
+V1: recon_export.v1, Gap L, validator, rdiff SIGNAL, hunter surface
+V2: response ranking AUTH/WAF/REDIRECT/SERVER_ERROR, target_profile v2, response_ranking.json
+V3: JS_TO_ENDPOINT, URL_TO_RESPONSE_CLASS, strategy_outcome.json
+V4: metrics signal classes, classification contract
 
 ## BOUNDARY
-BugBountyCI = recon producer. No SRA merge.
+BugBountyCI recon producer. Adapter=recon_export. No SRA.

@@ -201,18 +201,47 @@ def main():
         except Exception:
             pass
         break
-    for eng, ph in phases.items():
+    rd_path = os.path.join(rd, "smart-fuzzing", "response_diffs.json")
+    if os.path.isfile(rd_path):
+        try:
+            with open(rd_path) as fh:
+                diffs = json.load(fh)
+            items = diffs if isinstance(diffs, list) else (diffs.get("hits") or diffs.get("results") or [])
+            n_rd = 0
+            for it in (items if isinstance(items, list) else []):
+                if not isinstance(it, dict):
+                    continue
+                cls = (it.get("classification") or it.get("class") or "").upper()
+                if cls in ("DUPLICATE", "NOISE", "UNKNOWN", ""):
+                    continue
+                if n_rd >= 40:
+                    break
+                add_obs(
+                    observation_id=f"rdiff-{n_rd}",
+                    engine="smart_fuzzing/response_diff",
+                    url=it.get("url") or it.get("input"),
+                    observed_behavior=cls or "response_diff",
+                    status=str(it.get("status") or ""),
+                    classification="SIGNAL" if cls == "INTERESTING" else "LEAD",
+                    confidence="medium" if cls == "INTERESTING" else "low",
+                    detail=(it.get("reason") or "")[:200],
+                    provenance="smart-fuzzing/response_diffs.json",
+                )
+                n_rd += 1
+        except Exception:
+            pass
+    for phase_name, ph in phases.items():
         st = (ph or {}).get("status") or ""
         if st.upper() in ("PARTIAL", "ERROR", "EMPTY") or st.lower() in ("partial", "error", "empty"):
             add_obs(
-                observation_id=f"phase-{eng}",
-                engine=eng,
+                observation_id=f"phase-{phase_name}",
+                engine=phase_name,
                 observed_behavior="phase_status",
                 status=st,
                 classification="HEALTH",
                 confidence="high",
                 detail=(ph or {}).get("detail"),
-                provenance=f"meta/phases/{eng}.json",
+                provenance=f"meta/phases/{phase_name}.json",
             )
     with open(os.path.join(rd, "meta", "observations.jsonl"), "w") as fh:
         for o in observations:
@@ -378,6 +407,36 @@ def main():
         ep = row.get("endpoint") or ""
         if name:
             add_rel("ENDPOINT_HAS_PARAMETER", f"endpoint:{ep}", f"param:{name}", provenance="detection/parameter_intelligence.json")
+    # V3: JS -> ENDPOINT from linkfinder (lightweight, capped)
+    try:
+        lf = os.path.join(rd, "js_deep", "linkfinder_endpoints.txt")
+        if os.path.isfile(lf):
+            with open(lf) as fh:
+                for i, line in enumerate(fh):
+                    if i >= 400:
+                        break
+                    ep = line.strip()
+                    if not ep or ep.startswith("#"):
+                        continue
+                    add_rel("JS_TO_ENDPOINT", "js:linkfinder", f"endpoint:{ep[:200]}", provenance="js_deep/linkfinder_endpoints.txt")
+    except Exception:
+        pass
+    # V3: ENDPOINT -> RESPONSE_CLUSTER sample links from response_diffs
+    try:
+        rdp = os.path.join(rd, "smart-fuzzing", "response_diffs.json")
+        if os.path.isfile(rdp):
+            with open(rdp) as fh:
+                diffs = json.load(fh)
+            items = diffs if isinstance(diffs, list) else []
+            for it in items[:200]:
+                if not isinstance(it, dict):
+                    continue
+                cls = it.get("classification") or "UNKNOWN"
+                url = it.get("url") or ""
+                if url:
+                    add_rel("URL_TO_RESPONSE_CLASS", f"url:{url[:200]}", f"class:{cls}", provenance="smart-fuzzing/response_diffs.json")
+    except Exception:
+        pass
     with open(os.path.join(rd, "meta", "relationships.jsonl"), "w") as fh:
         for r in rels[:5000]:
             fh.write(json.dumps(r) + "\n")
@@ -453,6 +512,32 @@ def main():
         json.dump(profile, fh, indent=2)
         fh.write("\n")
 
+    stable = {
+        "schema": "bugbountyci.recon_export.v1",
+        "run_id": run_id,
+        "target": target,
+        "overall_health": eng.get("overall"),
+        "artifacts": {
+            "engine_health": "meta/engine_health.json",
+            "target_profile": "meta/target_profile.json",
+            "hosts": "meta/hosts.jsonl",
+            "observations": "meta/observations.jsonl",
+            "urls": "meta/urls.jsonl",
+            "endpoints": "meta/endpoints.jsonl",
+            "parameters": "meta/parameters.jsonl",
+            "vocabulary": "meta/vocabulary.json",
+            "relationships": "meta/relationships.jsonl",
+            "response_clusters": "meta/response_clusters.json",
+            "response_ranking": "smart-fuzzing/response_ranking.json",
+            "strategy_outcome": "smart-fuzzing/strategy_outcome.json",
+        },
+        "counts": profile.get("counts"),
+        "limitations": eng.get("flags") or [],
+        "boundary": "BugBountyCI recon producer only; no SRA architecture",
+    }
+    with open(os.path.join(rd, "meta", "recon_export.json"), "w") as fh:
+        json.dump(stable, fh, indent=2)
+        fh.write("\n")
     print(
         f"Wrote meta/engine_health.json + target_profile.json + "
         f"hosts.jsonl ({len(hosts)}) + observations.jsonl ({len(observations)}) + "

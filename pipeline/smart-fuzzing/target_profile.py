@@ -117,8 +117,53 @@ def main():
     urls_gf = read_lines(os.path.join(rd, "urls", "gf_categorized.txt"))
     params = read_lines(os.path.join(rd, "targeted", "arjun_params.txt"))
 
+    # V2: response behavior summary from response_diffs if present (additive)
+    response_behavior = {}
+    rd_path = os.path.join(rd, "smart-fuzzing", "response_diffs.json")
+    if os.path.isfile(rd_path):
+        try:
+            with open(rd_path, "r", errors="ignore") as f:
+                diffs = json.load(f)
+            items = diffs if isinstance(diffs, list) else []
+            for it in items:
+                if not isinstance(it, dict):
+                    continue
+                cls = it.get("classification") or "UNKNOWN"
+                response_behavior[cls] = response_behavior.get(cls, 0) + 1
+        except Exception:
+            pass
+
+    # V2: predicted path count if pattern_predictor already ran
+    predicted_count = 0
+    pred_path = os.path.join(rd, "detection", "predicted_paths.json")
+    if os.path.isfile(pred_path):
+        try:
+            with open(pred_path, "r", errors="ignore") as f:
+                pred = json.load(f)
+            if isinstance(pred, list):
+                predicted_count = len(pred)
+            elif isinstance(pred, dict):
+                predicted_count = len(pred.get("predictions") or pred.get("paths") or [])
+        except Exception:
+            pass
+
+    # Simple tech-derived architecture hints (observational, not verified)
+    tech_l = [str(x).lower() for x in technologies]
+    web_architecture = []
+    if any("react" in x or "next" in x or "vue" in x or "angular" in x for x in tech_l):
+        web_architecture.append("spa_framework")
+    if any("wordpress" in x or "wp" == x for x in tech_l):
+        web_architecture.append("wordpress")
+    if any("nginx" in x or "cloudflare" in x or "akamai" in x for x in tech_l):
+        web_architecture.append("cdn_or_edge")
+    if graphql:
+        web_architecture.append("graphql")
+    if swagger:
+        web_architecture.append("openapi")
+
     profile = {
         "target": args.target,
+        "schema": "bugbountyci.smart_fuzzing_target_profile.v2",
         "hosts": hosts,
         "host_count": len(hosts),
         "technologies": technologies,
@@ -129,6 +174,11 @@ def main():
         "js_endpoint_count": len(js_endpoints),
         "url_count": len(set(urls_all) | set(urls_gf)),
         "parameter_count": len(params),
+        "predicted_path_count": predicted_count,
+        "response_behavior": response_behavior,
+        "web_architecture": web_architecture,
+        "waf_or_block_hint": bool(response_behavior.get("WAF_BLOCK")),
+        "auth_challenge_hint": bool(response_behavior.get("AUTH_REQUIRED")),
         "sources": {
             "tech": "live/tech.json",
             "hosts": "live/live.txt",
@@ -138,6 +188,8 @@ def main():
             "js_endpoints": "js_deep/linkfinder_endpoints.txt",
             "urls": ["urls/all.txt", "urls/gf_categorized.txt"],
             "parameters": "targeted/arjun_params.txt",
+            "response_diffs": "smart-fuzzing/response_diffs.json",
+            "predicted_paths": "detection/predicted_paths.json",
         },
     }
 
