@@ -61,4 +61,31 @@ if __name__ == "__main__":
         test_select_rejects_static(Path(td))
     with tempfile.TemporaryDirectory() as td:
         test_hunter_filters(Path(td))
+
+def test_out_of_scope_rejected(tmp_path):
+    rd = tmp_path / "results"
+    (rd / "urls").mkdir(parents=True)
+    (rd / "live").mkdir(parents=True)
+    (rd / "live" / "live.txt").write_text("https://nuva.finance\n")
+    (rd / "urls" / "all.txt").write_text(
+        "https://nuva.finance/api/v1/users\n"
+        "https://www.google.com/url?q=x\n"
+        "https://evil.com/api/secret\n"
+    )
+    c = mod.select_candidates(str(rd), cap=20, target="nuva.finance")
+    urls = [x["url"] for x in c]
+    assert all("nuva.finance" in u for u in urls)
+    assert not any("google" in u or "evil" in u for u in urls)
+    print("  OK scope")
+
+if __name__ == "__main__":
+    import tempfile
+    test_compare_same()
+    test_compare_meaningful_fields()
+    with tempfile.TemporaryDirectory() as td:
+        test_select_rejects_static(Path(td))
+    with tempfile.TemporaryDirectory() as td:
+        test_hunter_filters(Path(td))
+    with tempfile.TemporaryDirectory() as td:
+        test_out_of_scope_rejected(Path(td))
     print("all passed")

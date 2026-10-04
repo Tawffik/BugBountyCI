@@ -97,10 +97,49 @@ def _pack(status, ctype, body, error):
     }
 
 
-def select_candidates(rd: str, cap: int = 40) -> list:
+def in_scope_host(u: str, allowed_hosts: set[str]) -> bool:
+    """Only same registrable target hosts (no external google/cdn leakage)."""
+    if not allowed_hosts:
+        return True
+    try:
+        h = (urlparse(u).hostname or "").lower()
+    except Exception:
+        return False
+    if not h:
+        return False
+    if h in allowed_hosts:
+        return True
+    # subdomain of allowed host
+    for ah in allowed_hosts:
+        if h.endswith("." + ah) or ah.endswith("." + h):
+            return True
+    return False
+
+
+def select_candidates(rd: str, cap: int = 40, target: str = "") -> list:
     """Intelligence-driven: API-looking paths from existing artifacts only."""
     seen = set()
     out = []
+    allowed = set()
+    if target:
+        t = target.lower().strip().lstrip("*.")
+        if t:
+            allowed.add(t)
+            allowed.add("www." + t)
+    # also collect from live hosts
+    for rel in ("live/live.txt", "live/verified.txt"):
+        lp = os.path.join(rd, rel)
+        if os.path.isfile(lp):
+            with open(lp, "r", errors="ignore") as f:
+                for line in f:
+                    u = line.strip().split()[0] if line.strip() else ""
+                    if u.startswith("http"):
+                        try:
+                            h = (urlparse(u).hostname or "").lower()
+                            if h:
+                                allowed.add(h)
+                        except Exception:
+                            pass
 
     def add(u: str, reason: str):
         u = u.strip().split()[0] if u.strip() else ""
@@ -108,8 +147,14 @@ def select_candidates(rd: str, cap: int = 40) -> list:
             return
         if u in seen:
             return
+        if not in_scope_host(u, allowed):
+            return
         # skip static assets
         if re.search(r"\.(css|js|png|jpg|jpeg|gif|svg|ico|woff2?|map|mp4)(\?|$)", u, re.I):
+            return
+        # Prefer API-looking; allow non-API only if from endpoints with path depth
+        path = urlparse(u).path or "/"
+        if not API_HINT.search(u) and path in ("/", ""):
             return
         seen.add(u)
         out.append({"url": u, "reason_selected": reason})
@@ -224,7 +269,7 @@ def main():
     out_dir = os.path.join(rd, "info_disclosure")
     os.makedirs(out_dir, exist_ok=True)
 
-    candidates = select_candidates(rd, cap=max(args.budget, 10))
+    candidates = select_candidates(rd, cap=max(args.budget, 10), target=args.target)
     results = []
     stats = {
         "candidates": len(candidates),
