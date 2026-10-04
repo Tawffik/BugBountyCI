@@ -4734,6 +4734,20 @@ jobs:
           python3 pipeline/detection/hunter_queue_builder.py --results-dir "$RD" --target "${{ env.TARGET }}" || true
           echo "hunter_queue_lines=$(wc -l < "$RD/detection/hunter_queue.md" 2>/dev/null || echo 0)"
 
+      - name: "🔀 Representation Differential (Accept html vs json)"
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 5
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          # Intelligence-driven candidates only; bounded budget; not a second fuzz engine.
+          python3 scripts/representation_differential.py --results-dir "$RD" --target "${{ env.TARGET }}" --budget 25 || true
+          if [ -f "$RD/info_disclosure/representation_summary.json" ]; then
+            cat "$RD/info_disclosure/representation_summary.json"
+          fi
+          # Rebuild hunter so meaningful representation diffs appear
+          python3 pipeline/detection/hunter_queue_builder.py --results-dir "$RD" --target "${{ env.TARGET }}" || true
+
       - name: "🏥 Pipeline Health Report"
         if: always()
         continue-on-error: true

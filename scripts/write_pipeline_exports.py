@@ -604,6 +604,7 @@ def main():
             "hunter_queue": "detection/hunter_queue.md",
             "historical_pivots": "info_disclosure/historical_pivots.jsonl",
             "historical_validations": "info_disclosure/historical_validations.jsonl",
+            "representation_diffs": "info_disclosure/representation_diffs.jsonl",
         },
         "counts": profile.get("counts"),
         "limitations": eng.get("flags") or [],

@@ -166,6 +166,43 @@ def load_historical_validations(results_dir):
     return entries
 
 
+
+def load_representation_diffs(results_dir):
+    """MEANINGFUL representation differentials only → Hunter INTERESTING."""
+    path = os.path.join(results_dir, "info_disclosure", "representation_diffs.jsonl")
+    if not os.path.isfile(path):
+        return []
+    entries = []
+    with open(path, "r", errors="ignore") as f:
+        for line in f:
+            if not line.strip():
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if row.get("outcome") != "MEANINGFUL_DIFFERENTIAL":
+                continue
+            url = row.get("url") or ""
+            diff = row.get("differential") or {}
+            signals = "; ".join(diff.get("signals") or [])[:200]
+            sens = ",".join(diff.get("sensitive_keys") or [])[:80]
+            reason = (
+                f"representation differential (Accept html vs json). {signals}. "
+                + (f"sensitive_keys_hint={sens}. " if sens else "")
+                + "Evidence only — not a vulnerability. "
+                f"ladder={row.get('evidence_ladder')}; next={row.get('next_pivot')}"
+            )
+            entries.append({
+                "priority_class": "INTERESTING",
+                "engine": "representation_differential",
+                "target": url[:250],
+                "reason": reason[:500],
+                "stable": None,
+            })
+    return entries
+
+
 def load_surface_context(results_dir):
     """Additive meta context. Never invents findings."""
     meta = os.path.join(results_dir, "meta")
@@ -285,6 +322,7 @@ def main():
         + load_idor_findings(args.results_dir)
         + load_smart_fuzzing_interesting(args.results_dir)
         + load_historical_validations(args.results_dir)
+        + load_representation_diffs(args.results_dir)
     )
 
     out_dir = os.path.join(args.results_dir, "detection")

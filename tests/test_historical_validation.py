@@ -91,6 +91,59 @@ def test_hunter_loads_only_actionable(tmp_path):
     print("  OK hunter intake filters")
 
 
+def test_different_host_same_path_not_already_known(tmp_path):
+    """api.example.com/admin must NOT skip because www.example.com/admin exists."""
+    import json, subprocess, sys
+    from pathlib import Path
+    rd = tmp_path / "results"
+    (rd / "urls").mkdir(parents=True)
+    (rd / "live").mkdir(parents=True)
+    (rd / "urls" / "all.txt").write_text("https://www.example.com/admin\n")
+    (rd / "live" / "live.txt").write_text("https://api.example.com\nhttps://www.example.com\n")
+    piv = {
+        "schema": "bugbountyci.historical_pivot.v1",
+        "classification": "HISTORICAL_PATH_CURRENT_HOST",
+        "url": "https://api.example.com/admin",
+        "path": "/admin",
+        "historical_source": "wayback.txt",
+        "current_host_relation": True,
+    }
+    idir = rd / "info_disclosure"
+    idir.mkdir(parents=True)
+    (idir / "historical_pivots.jsonl").write_text(json.dumps(piv) + "\n")
+    subprocess.check_call([sys.executable, str(ROOT / "scripts" / "validate_historical_pivots.py"),
+                           "--results-dir", str(rd), "--budget", "5", "--dry-run"])
+    rows = [json.loads(l) for l in open(idir / "historical_validations.jsonl") if l.strip()]
+    assert rows[0]["outcome"] == "NOT_RUN"
+    assert rows[0].get("not_run_reason") == "dry_run" or rows[0].get("validation_url")
+    # must NOT be already_in_current_url_corpus
+    assert rows[0].get("not_run_reason") != "already_in_current_url_corpus"
+    print("  OK different_host_same_path")
+
+
+def test_same_host_same_path_already_known(tmp_path):
+    import json, subprocess, sys
+    rd = tmp_path / "results"
+    (rd / "urls").mkdir(parents=True)
+    (rd / "live").mkdir(parents=True)
+    (rd / "urls" / "all.txt").write_text("https://api.example.com/admin\n")
+    (rd / "live" / "live.txt").write_text("https://api.example.com\n")
+    piv = {
+        "classification": "HISTORICAL_PATH_CURRENT_HOST",
+        "url": "https://api.example.com/admin",
+        "path": "/admin",
+        "historical_source": "wayback.txt",
+    }
+    idir = rd / "info_disclosure"
+    idir.mkdir(parents=True)
+    (idir / "historical_pivots.jsonl").write_text(json.dumps(piv) + "\n")
+    subprocess.check_call([sys.executable, str(ROOT / "scripts" / "validate_historical_pivots.py"),
+                           "--results-dir", str(rd), "--budget", "5"])
+    rows = [json.loads(l) for l in open(idir / "historical_validations.jsonl") if l.strip()]
+    assert rows[0]["not_run_reason"] == "already_in_current_url_corpus"
+    print("  OK same_host_same_path")
+
+
 if __name__ == "__main__":
     import tempfile
     test_outcome_classifier_unit()
@@ -100,4 +153,8 @@ if __name__ == "__main__":
         test_budget_and_dedup(Path(td) / "b")
     with tempfile.TemporaryDirectory() as td:
         test_hunter_loads_only_actionable(Path(td) / "c")
+    with tempfile.TemporaryDirectory() as td:
+        test_different_host_same_path_not_already_known(Path(td) / "d")
+    with tempfile.TemporaryDirectory() as td:
+        test_same_host_same_path_already_known(Path(td) / "e")
     print("all passed")

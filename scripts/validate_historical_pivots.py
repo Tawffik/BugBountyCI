@@ -51,17 +51,34 @@ def host_of(u: str) -> str:
         return ""
 
 
-def build_validation_url(historical_url: str, current_hosts: set[str]) -> str | None:
-    """Prefer https://<current-matching-host><historical-path>."""
+def host_path_key(u: str) -> str:
+    """Stable identity: host + normalized path (not path-only).
+
+    Prevents false already_in_current_url_corpus when another host shares
+    the same path (e.g. api.example.com/admin vs www.example.com/admin).
+    """
+    h = host_of(u)
+    pk = path_key(u)
+    if not h or not pk:
+        return ""
+    return f"{h}{pk}"
+
+
+def scheme_for_host(host: str, host_schemes: dict) -> str:
+    """Reuse scheme observed on current surface for this host; default https."""
+    return host_schemes.get(host) or "https"
+
+
+def build_validation_url(historical_url: str, current_hosts: set[str], host_schemes: dict | None = None) -> str | None:
+    """Build current validation URL on the same host with scheme from current surface."""
     try:
         p = urlparse(historical_url)
         path = p.path or "/"
         query = p.query
         host = (p.hostname or "").lower()
         if host not in current_hosts:
-            # host relation was established at pivot time; still require match
             return None
-        scheme = "https"
+        scheme = scheme_for_host(host, host_schemes or {})
         netloc = host
         return urlunparse((scheme, netloc, path, "", query, ""))
     except Exception:
@@ -157,7 +174,8 @@ def classify_outcome(probe_result: dict) -> str:
 
 
 def load_current_urls(rd: str) -> set[str]:
-    paths = set()
+    """Return host+path keys present in current corpus (not path-only)."""
+    keys = set()
     for rel in ("urls/all.txt", "live/live.txt", "live/verified.txt"):
         p = os.path.join(rd, rel)
         if not os.path.isfile(p):
@@ -166,12 +184,16 @@ def load_current_urls(rd: str) -> set[str]:
             for line in f:
                 u = line.strip().split()[0] if line.strip() else ""
                 if u.startswith("http"):
-                    paths.add(path_key(u))
-    return paths
+                    k = host_path_key(u)
+                    if k:
+                        keys.add(k)
+    return keys
 
 
-def load_current_hosts(rd: str) -> set[str]:
+def load_current_hosts(rd: str) -> tuple:
+    """Return (hosts set, host->scheme map from current surface)."""
     hosts = set()
+    schemes = {}
     for rel in ("live/live.txt", "live/verified.txt", "urls/all.txt"):
         p = os.path.join(rd, rel)
         if not os.path.isfile(p):
@@ -179,10 +201,18 @@ def load_current_hosts(rd: str) -> set[str]:
         with open(p, "r", errors="ignore") as f:
             for line in f:
                 u = line.strip().split()[0] if line.strip() else ""
+                if not u.startswith("http"):
+                    continue
                 h = host_of(u)
-                if h:
-                    hosts.add(h)
-    return hosts
+                if not h:
+                    continue
+                hosts.add(h)
+                if h not in schemes:
+                    try:
+                        schemes[h] = urlparse(u).scheme or "https"
+                    except Exception:
+                        schemes[h] = "https"
+    return hosts, schemes
 
 
 def main():
@@ -209,8 +239,8 @@ def main():
                     continue
 
     eligible = [p for p in pivots if p.get("classification") == "HISTORICAL_PATH_CURRENT_HOST"]
-    current_paths = load_current_urls(rd)
-    current_hosts = load_current_hosts(rd)
+    current_keys = load_current_urls(rd)
+    current_hosts, host_schemes = load_current_hosts(rd)
 
     results = []
     stats = {
@@ -227,8 +257,9 @@ def main():
     for piv in eligible:
         hist_url = piv.get("url") or ""
         pk = piv.get("path") or path_key(hist_url)
-        # already in current corpus → attach provenance only, no request
-        if pk and pk in current_paths:
+        hpk = host_path_key(hist_url)
+        # already in current corpus on SAME host+path → no duplicate request
+        if hpk and hpk in current_keys:
             stats["already_known"] += 1
             results.append({
                 "schema": "bugbountyci.historical_validation.v1",
@@ -246,12 +277,12 @@ def main():
                 "evidence_ladder": "CORRELATED",
                 "confidence": "medium",
                 "next_pivot": "none_already_current",
-                "limitations": "path already present in current corpus; no duplicate validation",
+                "limitations": "same host+path already present in current corpus; no duplicate validation",
                 "provenance": "info_disclosure/historical_pivots.jsonl",
             })
             continue
 
-        vurl = build_validation_url(hist_url, current_hosts)
+        vurl = build_validation_url(hist_url, current_hosts, host_schemes)
         if not vurl:
             stats["not_run"] += 1
             results.append({
