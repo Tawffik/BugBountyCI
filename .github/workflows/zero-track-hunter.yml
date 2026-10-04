@@ -2042,7 +2042,10 @@ jobs:
                 echo "[SOURCEMAP] $mapurl" >> "$RD/source_maps/found.txt"
                 if grep -q '"sources"' /tmp/map_test 2>/dev/null; then
                   jq -r '.sources[]?' /tmp/map_test 2>/dev/null | grep -v '^null$' >> "$RD/source_maps/endpoints.txt" || true
+                  # Path-like routes from source names (webpack/next maps)
+                  jq -r '.sources[]?' /tmp/map_test 2>/dev/null | grep -oE '/[A-Za-z0-9_./-]{3,}' >> "$RD/source_maps/endpoints.txt" || true
                   jq -r '.sourcesContent[]?' /tmp/map_test 2>/dev/null | grep -oE 'https?://[^"'"'"'\s]+' >> "$RD/source_maps/endpoints.txt" || true
+                  jq -r '.sourcesContent[]?' /tmp/map_test 2>/dev/null | grep -oE '["'"'"'](/[A-Za-z0-9_./?&=-]{4,})["'"'"']' | tr -d "\"\'" | head -200 >> "$RD/source_maps/endpoints.txt" || true
                 fi
                 grep -oE 'AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{35}|eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}|sk-[A-Za-z0-9]{48}' /tmp/map_test 2>/dev/null | sort -u >> "$RD/source_maps/secrets.txt" || true
               fi
@@ -4704,6 +4707,15 @@ jobs:
         with:
           path: .previous_snapshot
           key: snapshot-${{ env.TARGET }}
+
+      - name: "📜 Historical 404/URL Pivot (offline correlation)"
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 3
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          python3 scripts/historical_404_pivot.py --results-dir "$RD" --target "${{ env.TARGET }}" || true
+          echo "historical_pivots=$(wc -l < "$RD/info_disclosure/historical_pivots.jsonl" 2>/dev/null || echo 0)"
 
       - name: "🏥 Pipeline Health Report"
         if: always()

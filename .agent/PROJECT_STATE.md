@@ -1,19 +1,21 @@
 # BugBountyCI — PROJECT STATE
 
 ## MODE
-AUTONOMOUS V1→V4 — **V2 RELEASED** · V3 tip live-run #119 · V4 contracts tested
+INTELLIGENCE EXPANSION — export regression fixed · historical pivot · source-map edges
 
 ## RELEASES
-| Ver | Status | Evidence |
-|-----|--------|----------|
-| V1 | **RELEASED** | #106–#118 LIVE (recon_export #118) |
-| V2 | **RELEASED** | #118 ranking.v2, profile v2, hunter REDIRECT, health truthful |
-| V3 | IN PROGRESS | tip 9ac0f03/8cc0420: adaptive outcome, JS_TO_API, HOST_TO_ENDPOINT; #119 nuva.finance running |
-| V4 | IN PROGRESS | AC/OR/SSRF framework + contract tests; metrics in export index |
+| Ver | Status |
+|-----|--------|
+| V1 | RELEASED |
+| V2 | RELEASED (#118) |
+| V3 | LIVE #119 JS_TO_ENDPOINT=400; adaptive tip |
+| V4 | framework partial |
 
-## LIVE RUNS
-- #118 success a1e0d7a admin.shopify.com — tip contracts LIVE
-- #119 in_progress 9ac0f03 nuva.finance — V3 adaptive + relationships harvest pending
+## THIS SLICE
+- FIX: vocabulary export KeyError when word map contains key `terms` (#120 root cause)
+- SOURCE_MAP_TO_ENDPOINT + HISTORICAL_URL relationships
+- historical_404_pivot.py offline correlation → info_disclosure/historical_pivots.jsonl
+- source map path extraction improved in workflow
 
 ## BOUNDARY
-BugBountyCI only. No SRA.
+BugBountyCI recon producer. No SRA.

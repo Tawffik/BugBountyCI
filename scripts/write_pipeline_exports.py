@@ -343,21 +343,30 @@ def main():
                 raw = json.load(fh)
         except Exception:
             continue
-        # support {word: {sources, count}} or {terms: [...]}
-        if isinstance(raw, dict) and "terms" in raw:
-            vocab_out["terms"] = raw["terms"][:2000]
-            vocab_out["provenance"] = vp
-            break
+        if not isinstance(raw, dict):
+            continue
         terms = []
-        if isinstance(raw, dict):
-            for word, meta in list(raw.items())[:2000]:
-                if not isinstance(word, str) or word.startswith("schema"):
+        # Normalized contract: schema + terms list
+        if str(raw.get("schema") or "").startswith("bugbountyci.vocabulary") and isinstance(raw.get("terms"), list):
+            for item in raw["terms"][:2000]:
+                if isinstance(item, dict) and (item.get("term") or item.get("word")):
+                    terms.append(item)
+        else:
+            # Live smart-fuzzing shape: {word: count} or {word: {sources, count}}
+            # NOTE: a word can literally be "terms" — do not treat that as schema.
+            for word, meta in list(raw.items())[:3000]:
+                if not isinstance(word, str) or word in ("schema", "run_id", "target", "provenance"):
                     continue
                 sources = []
                 count = 1
                 if isinstance(meta, dict):
                     sources = list(meta.get("sources") or [])
-                    count = int(meta.get("count") or len(sources) or 1)
+                    try:
+                        count = int(meta.get("count") or len(sources) or 1)
+                    except (TypeError, ValueError):
+                        count = 1
+                elif isinstance(meta, (int, float)):
+                    count = int(meta)
                 elif isinstance(meta, list):
                     sources = list(meta)
                     count = len(sources)
@@ -367,14 +376,18 @@ def main():
                     "count": count,
                     "category": "APPLICATION_EVIDENCE" if count >= 2 else "TARGET_SEMANTIC",
                 })
-        # prefer higher multi-source terms first
-        terms.sort(key=lambda t: (-t.get("count", 0), t.get("term", "")))
+        if not terms:
+            continue
+        terms.sort(key=lambda x: (-int(x.get("count") or 0), str(x.get("term") or "")))
         vocab_out["terms"] = terms[:1500]
         vocab_out["provenance"] = vp
         break
-    with open(os.path.join(rd, "meta", "vocabulary.json"), "w") as fh:
-        json.dump(vocab_out, fh, indent=2)
-        fh.write("\n")
+    try:
+        with open(os.path.join(rd, "meta", "vocabulary.json"), "w") as fh:
+            json.dump(vocab_out, fh, indent=2)
+            fh.write("\n")
+    except Exception as e:
+        print(f"⚠️ vocabulary export failed: {e}")
 
     # --- relationships.jsonl (lightweight edges; no graph DB) ---
     rels = []
@@ -407,6 +420,38 @@ def main():
         ep = row.get("endpoint") or ""
         if name:
             add_rel("ENDPOINT_HAS_PARAMETER", f"endpoint:{ep}", f"param:{name}", provenance="detection/parameter_intelligence.json")
+    # Source map → endpoint/path (from source_maps/endpoints.txt)
+    try:
+        sm = os.path.join(rd, "source_maps", "endpoints.txt")
+        if os.path.isfile(sm):
+            with open(sm) as fh:
+                for i, line in enumerate(fh):
+                    if i >= 400:
+                        break
+                    ep = line.strip()
+                    if not ep or ep.startswith("#"):
+                        continue
+                    # Keep path-like or URL-like only
+                    if ep.startswith("http") or ep.startswith("/") or "://" in ep or "/" in ep:
+                        add_rel("SOURCE_MAP_TO_ENDPOINT", "sourcemap:found", f"endpoint:{ep[:200]}", provenance="source_maps/endpoints.txt")
+    except Exception:
+        pass
+    # HISTORICAL_URL → seed from wayback (relationship only; not a finding)
+    try:
+        for fname in ("wayback.txt", "gau.txt"):
+            wp = os.path.join(rd, "urls", fname)
+            if not os.path.isfile(wp):
+                continue
+            with open(wp) as fh:
+                for i, line in enumerate(fh):
+                    if i >= 200:
+                        break
+                    u = line.strip().split()[0] if line.strip() else ""
+                    if not u.startswith("http"):
+                        continue
+                    add_rel("HISTORICAL_URL", f"archive:{fname}", f"url:{u[:200]}", provenance=f"urls/{fname}")
+    except Exception:
+        pass
     # V3: JS -> ENDPOINT from linkfinder (lightweight, capped)
     try:
         lf = os.path.join(rd, "js_deep", "linkfinder_endpoints.txt")
@@ -557,6 +602,7 @@ def main():
             "strategy_outcome": "smart-fuzzing/strategy_outcome.json",
             "metrics": "detection/metrics.json",
             "hunter_queue": "detection/hunter_queue.md",
+            "historical_pivots": "info_disclosure/historical_pivots.jsonl",
         },
         "counts": profile.get("counts"),
         "limitations": eng.get("flags") or [],
