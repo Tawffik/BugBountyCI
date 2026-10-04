@@ -118,6 +118,54 @@ def load_smart_fuzzing_interesting(results_dir):
     return entries
 
 
+
+def load_historical_validations(results_dir):
+    """Bounded historical path validation outcomes → hunter seeds.
+
+    Only CURRENTLY_REACHABLE and REDIRECTED become INTERSTING/LEAD-style work
+    items. CURRENTLY_UNREACHABLE / NOT_RUN / ERROR stay as evidence in
+    historical_validations.jsonl and are NOT zero-finding claims.
+    HISTORICAL_PATH_CURRENT_HOST is a candidate, not a dead endpoint.
+    """
+    path = os.path.join(results_dir, "info_disclosure", "historical_validations.jsonl")
+    if not os.path.isfile(path):
+        return []
+    entries = []
+    with open(path, "r", errors="ignore") as f:
+        for line in f:
+            if not line.strip():
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            outcome = row.get("outcome") or ""
+            if outcome not in ("CURRENTLY_REACHABLE", "REDIRECTED"):
+                continue
+            vurl = row.get("validation_url") or row.get("historical_url") or ""
+            if not vurl:
+                continue
+            status = row.get("status")
+            loc = row.get("location") or ""
+            reason = (
+                f"historical path validated current {outcome}"
+                f" (status={status}"
+                + (f", location={loc[:80]}" if loc else "")
+                + "). Evidence only — not a vulnerability. "
+                f"source={row.get('historical_source') or 'archive'}; "
+                f"ladder={row.get('evidence_ladder')}; "
+                f"next={row.get('next_pivot')}"
+            )
+            entries.append({
+                "priority_class": "INTERESTING",
+                "engine": "historical_pivot",
+                "target": f"{vurl} [{status}] ({outcome})",
+                "reason": reason[:500],
+                "stable": None,
+            })
+    return entries
+
+
 def load_surface_context(results_dir):
     """Additive meta context. Never invents findings."""
     meta = os.path.join(results_dir, "meta")
@@ -236,6 +284,7 @@ def main():
         load_detection_evidence(args.results_dir)
         + load_idor_findings(args.results_dir)
         + load_smart_fuzzing_interesting(args.results_dir)
+        + load_historical_validations(args.results_dir)
     )
 
     out_dir = os.path.join(args.results_dir, "detection")

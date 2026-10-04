@@ -603,6 +603,7 @@ def main():
             "metrics": "detection/metrics.json",
             "hunter_queue": "detection/hunter_queue.md",
             "historical_pivots": "info_disclosure/historical_pivots.jsonl",
+            "historical_validations": "info_disclosure/historical_validations.jsonl",
         },
         "counts": profile.get("counts"),
         "limitations": eng.get("flags") or [],

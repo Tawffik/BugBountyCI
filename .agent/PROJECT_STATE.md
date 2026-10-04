@@ -1,21 +1,14 @@
 # BugBountyCI — PROJECT STATE
 
 ## MODE
-INTELLIGENCE EXPANSION — export regression fixed · historical pivot · source-map edges
+HISTORICAL PIVOT CLOSED-LOOP — validation → Hunter
 
-## RELEASES
-| Ver | Status |
-|-----|--------|
-| V1 | RELEASED |
-| V2 | RELEASED (#118) |
-| V3 | LIVE #119 JS_TO_ENDPOINT=400; adaptive tip |
-| V4 | framework partial |
+## TIP
+8a7fb31 + closed-loop: validate_historical_pivots.py → historical_validations.jsonl → hunter
 
-## THIS SLICE
-- FIX: vocabulary export KeyError when word map contains key `terms` (#120 root cause)
-- SOURCE_MAP_TO_ENDPOINT + HISTORICAL_URL relationships
-- historical_404_pivot.py offline correlation → info_disclosure/historical_pivots.jsonl
-- source map path extraction improved in workflow
+## SEMANTICS
+HISTORICAL_PATH_CURRENT_HOST = path in archive on current host, not in current URL corpus.
+≠ dead endpoint ≠ vulnerability. Requires bounded current validation.
 
 ## BOUNDARY
-BugBountyCI recon producer. No SRA.
+BugBountyCI recon producer. No SRA. No new scanner/fuzz engine.

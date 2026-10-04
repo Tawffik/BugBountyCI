@@ -4717,6 +4717,23 @@ jobs:
           python3 scripts/historical_404_pivot.py --results-dir "$RD" --target "${{ env.TARGET }}" || true
           echo "historical_pivots=$(wc -l < "$RD/info_disclosure/historical_pivots.jsonl" 2>/dev/null || echo 0)"
 
+      - name: "🔗 Historical Pivot Bounded Validation → Hunter"
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 5
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          # Close the loop: HISTORICAL_PATH_CURRENT_HOST → bounded GET → evidence
+          # → re-run Hunter Queue so actionable validations appear in detection/hunter_queue.md
+          # Budget keeps this from becoming a request amplifier.
+          python3 scripts/validate_historical_pivots.py --results-dir "$RD" --target "${{ env.TARGET }}" --budget 40 || true
+          if [ -f "$RD/info_disclosure/historical_validation_summary.json" ]; then
+            echo "historical_validation_summary:"
+            cat "$RD/info_disclosure/historical_validation_summary.json"
+          fi
+          python3 pipeline/detection/hunter_queue_builder.py --results-dir "$RD" --target "${{ env.TARGET }}" || true
+          echo "hunter_queue_lines=$(wc -l < "$RD/detection/hunter_queue.md" 2>/dev/null || echo 0)"
+
       - name: "🏥 Pipeline Health Report"
         if: always()
         continue-on-error: true
