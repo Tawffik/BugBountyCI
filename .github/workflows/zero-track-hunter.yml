@@ -213,8 +213,10 @@ defaults:
 jobs:
   full_scan:
     name: "🛡️ Full Autonomous Scan - ${{ inputs.target }}"
-    runs-on: sengi-standard-2-ubuntu-2404
-    timeout-minutes: 358  # sengi-standard-2-ubuntu-2404 runner
+    # TEMP interim: Sengi free minutes exhausted — ubuntu-latest (public free).
+    # NETWORK_MODE stays direct_then_tor (DIRECT primary, Tor fallback). Revert runs-on to sengi when quota resets.
+    runs-on: ubuntu-latest
+    timeout-minutes: 358  # max job bound; public GHA free on this public repo
     # YAML_TR_CR_FIX + BUDGET_REDIST_2026_09: screenshots/nikto/fuzz trimmed; direct-origin/cloud/info bumped
     outputs:
       run_url:       "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
