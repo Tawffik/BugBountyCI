@@ -33,7 +33,10 @@ TIMEOUT_S = 8
 UA = os.environ.get("SCAN_USER_AGENT", "BugBountyCI-RepDiff/1.0")
 
 API_HINT = re.compile(
-    r"(/api/|/v\d+/|/graphql|/rest/|/json|/export|/download|/users|/profile|/account|/admin)",
+    # Path-segment oriented — avoid font false positives (/figtree/v9/...)
+    r"(?:/api(?:/|$|\?)|/graphql(?:/|$|\?)|/rest(?:/|$|\?)"
+    r"|/v\d+/(?:[A-Za-z_])"
+    r"|/(?:export|download|users|profile|account|admin)(?:/|$|\?))",
     re.I,
 )
 SENSITIVE_KEY = re.compile(
@@ -97,6 +100,40 @@ def _pack(status, ctype, body, error):
     }
 
 
+
+def _is_api_hostname(host: str) -> bool:
+    h = (host or "").lower().rstrip(".")
+    if not h:
+        return False
+    first = h.split(".")[0]
+    return first in ("api", "graphql", "rest") or first.startswith("api-")
+
+
+def _bind_hosts(allowed: set[str], target: str) -> list:
+    """Ordered in-scope hosts for relative path binding (prefer target, skip raw IPs)."""
+    ordered = []
+    seen = set()
+
+    def push(h: str):
+        h = (h or "").lower().rstrip(".")
+        if not h or h in seen:
+            return
+        if re.match(r"^\d{1,3}(?:\.\d{1,3}){3}$", h):
+            return
+        seen.add(h)
+        ordered.append(h)
+
+    t = (target or "").lower().strip().lstrip("*.")
+    if t:
+        push(t)
+        push("www." + t)
+        push("api." + t)
+        push("app." + t)
+    for h in sorted(allowed):
+        push(h)
+    return ordered
+
+
 def in_scope_host(u: str, allowed_hosts: set[str]) -> bool:
     """Only same registrable target hosts (no external google/cdn leakage)."""
     if not allowed_hosts:
@@ -126,6 +163,8 @@ def select_candidates(rd: str, cap: int = 40, target: str = "") -> list:
         if t:
             allowed.add(t)
             allowed.add("www." + t)
+            allowed.add("api." + t)
+            allowed.add("app." + t)
     # also collect from live hosts
     for rel in ("live/live.txt", "live/verified.txt"):
         lp = os.path.join(rd, rel)
@@ -152,10 +191,17 @@ def select_candidates(rd: str, cap: int = 40, target: str = "") -> list:
         # skip static assets
         if re.search(r"\.(css|js|png|jpg|jpeg|gif|svg|ico|woff2?|map|mp4)(\?|$)", u, re.I):
             return
-        # Prefer API-looking; allow non-API only if from endpoints with path depth
         path = urlparse(u).path or "/"
-        if not API_HINT.search(u) and path in ("/", ""):
+        host = (urlparse(u).hostname or "").lower()
+        api_path = bool(API_HINT.search(path))
+        api_host = _is_api_hostname(host)
+        # Bare roots only when host itself is an API host (api.target)
+        if not api_path and not api_host and path in ("/", ""):
             return
+        if not api_path and not api_host:
+            # still allow explicit endpoint absolute URLs with meaningful path depth
+            if path.count("/") < 2:
+                return
         seen.add(u)
         out.append({"url": u, "reason_selected": reason})
 
@@ -175,11 +221,19 @@ def select_candidates(rd: str, cap: int = 40, target: str = "") -> list:
                 if path.startswith("http"):
                     add(path, "meta/endpoints.jsonl")
                 elif path.startswith("/") and API_HINT.search(path):
-                    # resolve against live hosts later if needed
-                    pass
+                    # Bind relative API path to ordered in-scope hosts (never external)
+                    bound = False
+                    for h in _bind_hosts(allowed, target):
+                        for scheme in ("https", "http"):
+                            add(f"{scheme}://{h}{path}", "meta/endpoints.jsonl+hostbind")
+                            bound = True
+                            if len(out) >= cap:
+                                return out[:cap]
+                    if not bound:
+                        pass  # no named in-scope host to bind
 
     # urls/all.txt API-looking
-    for rel in ("urls/all.txt", "js_deep/linkfinder_endpoints.txt"):
+    for rel in ("urls/api_urls.txt", "urls/all.txt", "js_deep/linkfinder_endpoints.txt", "js/linkfinder_endpoints.txt"):
         p = os.path.join(rd, rel)
         if not os.path.isfile(p):
             continue
@@ -190,18 +244,18 @@ def select_candidates(rd: str, cap: int = 40, target: str = "") -> list:
                 u = line.strip().split()[0] if line.strip() else ""
                 if not u:
                     continue
-                if u.startswith("http") and API_HINT.search(u):
+                if u.startswith("http") and (
+                    API_HINT.search(urlparse(u).path or "")
+                    or API_HINT.search(u)
+                    or _is_api_hostname(urlparse(u).hostname or "")
+                ):
                     add(u, rel)
                 elif u.startswith("/") and API_HINT.search(u):
-                    # relative — bind to primary live host
-                    live = os.path.join(rd, "live", "live.txt")
-                    if os.path.isfile(live):
-                        with open(live) as lf:
-                            for ll in lf:
-                                base = ll.strip().split()[0] if ll.strip() else ""
-                                if base.startswith("http"):
-                                    add(base.rstrip("/") + u, f"{rel}+live")
-                                    break
+                    for h in _bind_hosts(allowed, target):
+                        for scheme in ("https", "http"):
+                            add(f"{scheme}://{h}{u}", f"{rel}+hostbind")
+                            if len(out) >= cap:
+                                return out[:cap]
                 if len(out) >= cap:
                     return out[:cap]
     return out[:cap]
@@ -372,6 +426,9 @@ def main():
         for row in results:
             f.write(json.dumps(row) + "\n")
 
+    diagnosis = "NO_CANDIDATES"
+    if stats["candidates"] > 0:
+        diagnosis = "CANDIDATES_SELECTED"
     summary = {
         "schema": "bugbountyci.representation_summary.v1",
         "candidates": stats["candidates"],
@@ -379,7 +436,8 @@ def main():
         "not_run": stats["not_run"],
         "kinds": stats["kinds"],
         "budget": args.budget,
-        "note": "candidate ≠ vulnerability; Accept differential is observational",
+        "diagnosis": diagnosis,
+        "note": "candidate ≠ vulnerability; Accept differential is observational; NO_CANDIDATES ≠ clean target",
     }
     with open(os.path.join(out_dir, "representation_summary.json"), "w") as f:
         json.dump(summary, f, indent=2)
