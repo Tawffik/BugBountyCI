@@ -184,25 +184,38 @@ def select_candidates(rd: str, cap: int = 40, target: str = "") -> list:
         u = u.strip().split()[0] if u.strip() else ""
         if not u.startswith("http"):
             return
-        if u in seen:
+        # Dedupe by scheme-agnostic host+path+query
+        try:
+            pu = urlparse(u)
+            dedupe_key = (pu.hostname or "", pu.path or "/", pu.query or "")
+        except Exception:
+            dedupe_key = (u,)
+        if dedupe_key in seen or u in seen:
             return
         if not in_scope_host(u, allowed):
             return
-        # skip static assets
-        if re.search(r"\.(css|js|png|jpg|jpeg|gif|svg|ico|woff2?|map|mp4)(\?|$)", u, re.I):
+        # skip static assets + discovery noise (not Accept-representation surfaces)
+        if re.search(r"\.(css|js|png|jpg|jpeg|gif|svg|ico|woff2?|map|mp4|xml|txt)(\?|$)", u, re.I):
             return
         path = urlparse(u).path or "/"
+        if re.search(r"^/(robots\.txt|sitemap\.xml|favicon\.ico|.*\.xml)$", path, re.I):
+            return
+        if "/.well-known/" in path.lower():
+            return
         host = (urlparse(u).hostname or "").lower()
         api_path = bool(API_HINT.search(path))
         api_host = _is_api_hostname(host)
         # Bare roots only when host itself is an API host (api.target)
         if not api_path and not api_host and path in ("/", ""):
             return
+        # api hostname alone must not promote robots/sitemap-style noise (already filtered)
+        # non-API paths need meaningful depth from endpoint evidence
         if not api_path and not api_host:
-            # still allow explicit endpoint absolute URLs with meaningful path depth
             if path.count("/") < 2:
                 return
+        seen.add(dedupe_key)
         seen.add(u)
+        # Prefer https when adding
         out.append({"url": u, "reason_selected": reason})
 
     # endpoints from parameter intelligence / meta
@@ -257,8 +270,24 @@ def select_candidates(rd: str, cap: int = 40, target: str = "") -> list:
                             if len(out) >= cap:
                                 return out[:cap]
                 if len(out) >= cap:
-                    return out[:cap]
-    return out[:cap]
+                    break
+    # Prefer https URL when both schemes present for same host+path
+    preferred = []
+    seen_hp = set()
+    # pass1 https
+    for item in out:
+        pu = urlparse(item["url"])
+        key = ((pu.hostname or ""), (pu.path or "/"), (pu.query or ""))
+        if pu.scheme == "https" and key not in seen_hp:
+            seen_hp.add(key)
+            preferred.append(item)
+    for item in out:
+        pu = urlparse(item["url"])
+        key = ((pu.hostname or ""), (pu.path or "/"), (pu.query or ""))
+        if key not in seen_hp:
+            seen_hp.add(key)
+            preferred.append(item)
+    return preferred[:cap]
 
 
 def compare(base: dict, alt: dict) -> dict:
@@ -370,8 +399,22 @@ def main():
         time.sleep(0.12)
 
         if base.get("error") and alt.get("error"):
-            outcome = "VALIDATION_ERROR"
-            diff = {"kind": "VALIDATION_ERROR", "signals": [], "sensitive_keys": [], "meaningful": False}
+            transport = {base.get("error"), alt.get("error")}
+            net_errs = {"URLError", "TimeoutError", "socket.timeout", "ConnectionResetError", "OSError"}
+            if transport & net_errs or any(
+                (base.get("error") or "").endswith("Error") and (base.get("status") or 0) == 0
+                for _ in (0,)
+            ):
+                outcome = "NETWORK_ERROR"
+                diff = {
+                    "kind": "NETWORK_ERROR",
+                    "signals": [f"transport base={base.get('error')} alt={alt.get('error')}"],
+                    "sensitive_keys": [],
+                    "meaningful": False,
+                }
+            else:
+                outcome = "VALIDATION_ERROR"
+                diff = {"kind": "VALIDATION_ERROR", "signals": [], "sensitive_keys": [], "meaningful": False}
             ladder, conf = "OBSERVED", "low"
         else:
             diff = compare(base, alt)
