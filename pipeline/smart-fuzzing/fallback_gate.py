@@ -51,6 +51,22 @@ def load_phase_status(path: Optional[PathLike]) -> Tuple[Optional[dict], str]:
         return None, "malformed"
 
 
+
+def load_smart_fuzzing_metrics(results_dir: Optional[PathLike] = None) -> Optional[dict]:
+    """Load smart-fuzzing/metrics.json if present (structured finding_count)."""
+    if not results_dir:
+        return None
+    path = Path(results_dir) / "smart-fuzzing" / "metrics.json"
+    if not path.is_file():
+        return None
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else None
+    except (OSError, json.JSONDecodeError, TypeError, ValueError):
+        return None
+
+
 def should_run_common_txt_fallback(
     phase_status_path: Optional[PathLike] = None,
     *,
@@ -91,6 +107,22 @@ def should_run_common_txt_fallback(
     if status == STATUS_EMPTY:
         return False, "empty_valid"
     if status == STATUS_OK:
+        # Guard: phase file may say ok from legacy header-line counts.
+        # Prefer metrics.json finding_count when available.
+        metrics = None
+        # Infer results dir from phase path when possible
+        if phase_status_path:
+            try:
+                p = Path(phase_status_path)
+                # .../meta/phases/smart_fuzzing.json → results root is parents[2]
+                if p.name.endswith(".json") and p.parent.name == "phases":
+                    metrics = load_smart_fuzzing_metrics(p.parent.parent.parent)
+            except Exception:
+                metrics = None
+        if metrics is not None:
+            fc = int(metrics.get("finding_count") or 0)
+            if fc == 0:
+                return False, "empty_valid_metrics_zero_findings"
         return False, "ok"
     if status == STATUS_ERROR:
         return True, "error"
