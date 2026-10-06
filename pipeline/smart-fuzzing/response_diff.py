@@ -134,6 +134,61 @@ def classify(hit, base, body_available):
     return "NOISE", "close to baseline on status/length/content-type"
 
 
+
+def count_interesting_findings(interesting_path: str) -> int:
+    """Count structured findings in interesting.txt — never header/comment lines."""
+    if not os.path.isfile(interesting_path):
+        return 0
+    n = 0
+    with open(interesting_path, "r", errors="ignore") as f:
+        for line in f:
+            s = line.strip()
+            if not s or s.startswith("#"):
+                continue
+            # Finding lines look like: URL [status] N bytes (CLASS)
+            if s.startswith("http://") or s.startswith("https://"):
+                n += 1
+    return n
+
+
+def aggregate_ffuf_raw(ffuf_json_dir: str) -> dict:
+    """Summarize ffuf JSON outputs. Distinguish 0 files vs 0 matches after -ac."""
+    files = sorted(glob.glob(os.path.join(ffuf_json_dir, "*.json"))) if ffuf_json_dir else []
+    hosts = 0
+    raw_matches = 0
+    hosts_with_matches = 0
+    autocalibration = None
+    for path in files:
+        try:
+            with open(path, "r", errors="ignore") as f:
+                data = json.load(f)
+        except (OSError, json.JSONDecodeError):
+            continue
+        hosts += 1
+        results = data.get("results") or []
+        raw_matches += len(results)
+        if results:
+            hosts_with_matches += 1
+        cfg = data.get("config") or {}
+        if autocalibration is None and "autocalibration" in cfg:
+            autocalibration = bool(cfg.get("autocalibration"))
+    if hosts == 0:
+        state = "NO_FFUF_OUTPUT"
+    elif raw_matches == 0:
+        state = "REQUESTS_EXECUTED_NO_MATCH"
+    else:
+        state = "MATCHES_CAPTURED"
+    return {
+        "ffuf_json_files": len(files),
+        "hosts_fuzzed": hosts,
+        "raw_match_count": raw_matches,
+        "hosts_with_matches": hosts_with_matches,
+        "autocalibration_enabled": autocalibration,
+        "execution_state": state,
+    }
+
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--results-dir", required=True)
@@ -267,12 +322,59 @@ def main():
             else "continue_target_aware"
         ),
     }
+    ffuf_stats = aggregate_ffuf_raw(args.ffuf_json_dir)
+    finding_count = count_interesting_findings(os.path.join(out_dir, "interesting.txt"))
+
+    if ffuf_stats["execution_state"] == "NO_FFUF_OUTPUT":
+        pipeline_state = "NO_FFUF_OUTPUT"
+    elif ffuf_stats["raw_match_count"] == 0:
+        pipeline_state = "REQUESTS_EXECUTED_NO_MATCH"
+    elif len(diffs) == 0:
+        pipeline_state = "MATCHES_CAPTURED_NO_DIFF_ROWS"
+    elif finding_count == 0:
+        pipeline_state = "NO_DIFFERENTIAL_SIGNAL"
+    else:
+        pipeline_state = "DIFFS_GENERATED"
+
+    outcome["ffuf"] = ffuf_stats
+    outcome["finding_count"] = finding_count
+    outcome["pipeline_state"] = pipeline_state
+    # useful_signals must match structured finding count, not header lines
+    outcome["useful_signals"] = finding_count
+
     with open(os.path.join(out_dir, "strategy_outcome.json"), "w") as f:
         json.dump(outcome, f, indent=2)
         f.write("\n")
 
-    print(f"✅ response_diff done: {len(diffs)} hit(s) -> {counts} "
-          f"({len(interesting)} signals written to interesting.txt)")
+    metrics = {
+        "schema": "bugbountyci.smart_fuzzing_metrics.v1",
+        "pipeline_state": pipeline_state,
+        "finding_count": finding_count,
+        "diff_count": len(diffs),
+        "classification_counts": counts,
+        "ffuf": ffuf_stats,
+        "note": (
+            "finding_count counts http(s) result lines only — header/comment lines are not findings. "
+            "REQUESTS_EXECUTED_NO_MATCH means ffuf ran and returned results=[] (often -ac filtering), "
+            "not that the phase was skipped."
+        ),
+    }
+    with open(os.path.join(out_dir, "metrics.json"), "w") as f:
+        json.dump(metrics, f, indent=2)
+        f.write("\n")
+
+    ranking["finding_count"] = finding_count
+    ranking["pipeline_state"] = pipeline_state
+    ranking["ffuf"] = ffuf_stats
+    with open(os.path.join(out_dir, "response_ranking.json"), "w") as f:
+        json.dump(ranking, f, indent=2)
+        f.write("\n")
+
+    print(
+        f"✅ response_diff done: state={pipeline_state} diffs={len(diffs)} "
+        f"findings={finding_count} ffuf_raw_matches={ffuf_stats['raw_match_count']} "
+        f"classes={counts}"
+    )
 
 
 if __name__ == "__main__":
