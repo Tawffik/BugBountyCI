@@ -151,13 +151,72 @@ def count_interesting_findings(interesting_path: str) -> int:
     return n
 
 
-def aggregate_ffuf_raw(ffuf_json_dir: str) -> dict:
-    """Summarize ffuf JSON outputs. Distinguish 0 files vs 0 matches after -ac."""
+def _wordlist_line_count(path: str) -> int:
+    if not path or not os.path.isfile(path):
+        return 0
+    n = 0
+    with open(path, "r", errors="ignore") as f:
+        for line in f:
+            s = line.strip()
+            if not s or s.startswith("#"):
+                continue
+            n += 1
+    return n
+
+
+def _resolve_wordlist_from_config(cfg: dict, results_dir: str = "") -> str:
+    """Map ffuf config wordlist path to a local readable path when possible."""
+    providers = cfg.get("inputproviders") or []
+    for p in providers:
+        if not isinstance(p, dict):
+            continue
+        val = p.get("value") or ""
+        if not val:
+            continue
+        if os.path.isfile(val):
+            return val
+        # CI absolute path ending with smart-fuzzing/target_wordlist.txt
+        base = os.path.basename(val)
+        candidates = []
+        if results_dir:
+            candidates.append(os.path.join(results_dir, "smart-fuzzing", base))
+            candidates.append(os.path.join(results_dir, base))
+        # sibling of ffuf dir handled by caller
+        for c in candidates:
+            if os.path.isfile(c):
+                return c
+        return val
+    return ""
+
+
+def aggregate_ffuf_raw(ffuf_json_dir: str, results_dir: str = "") -> dict:
+    """Summarize ffuf JSON outputs. Distinguish 0 files vs 0 matches after -ac.
+
+    planned_requests ≈ wordlist_entries × hosts_fuzzed (ceiling; -mc/-fs/-ac still apply).
+    post_calibration_match_count = len(results) in ffuf JSON (after -ac matchers).
+    These are NOT the same as "0 requests".
+    """
     files = sorted(glob.glob(os.path.join(ffuf_json_dir, "*.json"))) if ffuf_json_dir else []
     hosts = 0
     raw_matches = 0
     hosts_with_matches = 0
     autocalibration = None
+    wordlist_entries = 0
+    wordlist_path = ""
+    per_host = []
+    # Prefer explicit wordlist_size.txt written by smart_fuzzing.sh
+    if results_dir:
+        wsz = os.path.join(results_dir, "smart-fuzzing", "wordlist_size.txt")
+        if os.path.isfile(wsz):
+            try:
+                wordlist_entries = int(open(wsz).read().strip().split()[0])
+            except (ValueError, OSError, IndexError):
+                wordlist_entries = 0
+        local_wl = os.path.join(results_dir, "smart-fuzzing", "target_wordlist.txt")
+        if wordlist_entries == 0 and os.path.isfile(local_wl):
+            wordlist_entries = _wordlist_line_count(local_wl)
+            wordlist_path = local_wl
+
     for path in files:
         try:
             with open(path, "r", errors="ignore") as f:
@@ -166,25 +225,62 @@ def aggregate_ffuf_raw(ffuf_json_dir: str) -> dict:
             continue
         hosts += 1
         results = data.get("results") or []
-        raw_matches += len(results)
-        if results:
+        nres = len(results)
+        raw_matches += nres
+        if nres:
             hosts_with_matches += 1
         cfg = data.get("config") or {}
         if autocalibration is None and "autocalibration" in cfg:
             autocalibration = bool(cfg.get("autocalibration"))
+        if not wordlist_path:
+            wordlist_path = _resolve_wordlist_from_config(cfg, results_dir)
+            if wordlist_entries == 0 and wordlist_path:
+                # try local smart-fuzzing copy first
+                if results_dir:
+                    alt = os.path.join(results_dir, "smart-fuzzing", os.path.basename(wordlist_path))
+                    if os.path.isfile(alt):
+                        wordlist_entries = _wordlist_line_count(alt)
+                        wordlist_path = alt
+                if wordlist_entries == 0:
+                    wordlist_entries = _wordlist_line_count(wordlist_path)
+        host_label = os.path.splitext(os.path.basename(path))[0]
+        per_host.append({
+            "file": os.path.basename(path),
+            "host_label": host_label,
+            "post_calibration_matches": nres,
+            "wordlist_entries": wordlist_entries,
+            "planned_requests_ceiling": wordlist_entries,
+            "autocalibration": bool(cfg.get("autocalibration")) if "autocalibration" in cfg else autocalibration,
+        })
+
+    planned_total = wordlist_entries * hosts if hosts and wordlist_entries else 0
     if hosts == 0:
         state = "NO_FFUF_OUTPUT"
-    elif raw_matches == 0:
+    elif raw_matches == 0 and planned_total > 0:
         state = "REQUESTS_EXECUTED_NO_MATCH"
+    elif raw_matches == 0 and planned_total == 0:
+        state = "REQUESTS_EXECUTED_NO_MATCH"  # still ran hosts; wordlist unknown
     else:
         state = "MATCHES_CAPTURED"
+
     return {
         "ffuf_json_files": len(files),
         "hosts_fuzzed": hosts,
         "raw_match_count": raw_matches,
+        "post_calibration_match_count": raw_matches,
         "hosts_with_matches": hosts_with_matches,
         "autocalibration_enabled": autocalibration,
+        "wordlist_entries": wordlist_entries,
+        "wordlist_path_basename": os.path.basename(wordlist_path) if wordlist_path else "",
+        "planned_requests_ceiling": planned_total,
+        "match_rate_vs_ceiling": round(raw_matches / planned_total, 6) if planned_total else None,
         "execution_state": state,
+        "per_host": per_host,
+        "note": (
+            "planned_requests_ceiling = wordlist_entries × hosts (upper bound before -mc/-fs/-ac). "
+            "post_calibration_match_count = len(results) in ffuf JSON after -ac. "
+            "0 matches with planned_ceiling > 0 is NOT evidence of 0 HTTP requests."
+        ),
     }
 
 
@@ -322,7 +418,7 @@ def main():
             else "continue_target_aware"
         ),
     }
-    ffuf_stats = aggregate_ffuf_raw(args.ffuf_json_dir)
+    ffuf_stats = aggregate_ffuf_raw(args.ffuf_json_dir, results_dir=args.results_dir)
     finding_count = count_interesting_findings(os.path.join(out_dir, "interesting.txt"))
 
     if ffuf_stats["execution_state"] == "NO_FFUF_OUTPUT":
