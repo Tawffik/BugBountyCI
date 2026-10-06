@@ -1705,6 +1705,11 @@ jobs:
             echo "⚠️ LinkFinder not installed or no JS bodies present - skipping (see logs/tool_install.log)"
           fi
           echo "✅ LinkFinder endpoints: $(wc -l < "$RD/js_deep/linkfinder_endpoints.txt" 2>/dev/null || echo 0)"
+          # Classify raw LinkFinder lines (chunk.js ≠ API endpoint)
+          python3 scripts/normalize_linkfinder.py --results-dir "$RD" --target "${{ env.TARGET }}" || true
+          if [ -f "$RD/js_deep/linkfinder_summary.json" ]; then
+            echo "ℹ️ LinkFinder classified: $(python3 -c "import json; d=json.load(open('$RD/js_deep/linkfinder_summary.json')); print(f\"api={d.get('api_routes',0)} static={d.get('static_assets',0)} web={d.get('web_routes',0)}\")" 2>/dev/null || echo n/a)"
+          fi
 
           # --- SecretFinder: same idea as LinkFinder but tuned for secrets/keys
           # in JS, complementing (not duplicating 1:1) the hand-written regex
