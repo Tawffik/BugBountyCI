@@ -218,7 +218,37 @@ def select_candidates(rd: str, cap: int = 40, target: str = "") -> list:
         # Prefer https when adding
         out.append({"url": u, "reason_selected": reason})
 
-    # endpoints from parameter intelligence / meta
+    def _ingest_endpoint_path(path: str, source: str) -> None:
+        path = (path or "").strip()
+        if not path:
+            return
+        if path.startswith("http"):
+            # Prefer https form for http candidates of same host+path (dedupe handles rest)
+            if path.startswith("http://"):
+                add("https://" + path[len("http://"):], source)
+            add(path, source)
+        elif path.startswith("/") and API_HINT.search(path):
+            for h in _bind_hosts(allowed, target):
+                for scheme in ("https", "http"):
+                    add(f"{scheme}://{h}{path}", f"{source}+hostbind")
+                    if len(out) >= cap:
+                        return
+
+    # Primary: parameter_intelligence.json (exists before write_pipeline_exports)
+    pi = os.path.join(rd, "detection", "parameter_intelligence.json")
+    if os.path.isfile(pi):
+        try:
+            with open(pi, "r", errors="ignore") as f:
+                pi_data = json.load(f)
+            for row in pi_data.get("endpoints") or []:
+                if isinstance(row, dict):
+                    _ingest_endpoint_path(row.get("endpoint") or "", "detection/parameter_intelligence.json")
+                if len(out) >= cap:
+                    break
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    # Secondary: meta/endpoints.jsonl (written later by write_pipeline_exports)
     ep = os.path.join(rd, "meta", "endpoints.jsonl")
     if os.path.isfile(ep):
         with open(ep, "r", errors="ignore") as f:
@@ -229,21 +259,9 @@ def select_candidates(rd: str, cap: int = 40, target: str = "") -> list:
                     row = json.loads(line)
                 except json.JSONDecodeError:
                     continue
-                path = row.get("endpoint") or ""
-                # need absolute URL — try urls
-                if path.startswith("http"):
-                    add(path, "meta/endpoints.jsonl")
-                elif path.startswith("/") and API_HINT.search(path):
-                    # Bind relative API path to ordered in-scope hosts (never external)
-                    bound = False
-                    for h in _bind_hosts(allowed, target):
-                        for scheme in ("https", "http"):
-                            add(f"{scheme}://{h}{path}", "meta/endpoints.jsonl+hostbind")
-                            bound = True
-                            if len(out) >= cap:
-                                return out[:cap]
-                    if not bound:
-                        pass  # no named in-scope host to bind
+                _ingest_endpoint_path(row.get("endpoint") or "", "meta/endpoints.jsonl")
+                if len(out) >= cap:
+                    break
 
     # urls/all.txt API-looking
     for rel in ("urls/api_urls.txt", "urls/all.txt", "js_deep/linkfinder_endpoints.txt", "js/linkfinder_endpoints.txt"):
