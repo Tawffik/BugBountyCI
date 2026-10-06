@@ -1,32 +1,30 @@
 # BugBountyCI Engineering Ledger
 
 ## HEAD
-Latest `main` (LinkFinder normalize + Smart Fuzz observability).
+Latest `main` (nuclei track + LinkFinder export fix). Live verify run in progress on earlier tip.
 
-## CLOSED / PROVEN
-- **Representation Differential** — #128 / 6c702aa
-- **Historical pivot closed loop** — Hunter 40 REDIRECTED
+## Live verification
+- **Run:** https://github.com/Tawffik/BugBountyCI/actions/runs/37421731026
+- **SHA at dispatch:** `c9c8645` (LinkFinder normalize + Smart Fuzz metrics; health/nuclei_track commits landed after dispatch)
+- **Mode:** light · nuva.finance · authorized_open_scan=true
+- **Purpose:** prove metrics.json phase semantics + linkfinder_summary on live artifacts
 
-## Smart Fuzzing — IN PROGRESS (offline P0 + observability)
-- false interesting_lines from headers — fixed
-- planned_requests_ceiling vs post_ac matches — fixed offline (#128: 490 vs 0)
-- Live phase-file verify still optional
+## CLOSED
+- Representation Differential (#128)
+- Historical pivot → Hunter
+- LinkFinder normalize offline + in workflow
+- Smart Fuzz false header-count + planned vs post-ac observability (offline)
 
-## LinkFinder normalize — OFFLINE PROVEN
-- #128: raw **675** → STATIC **673**, API **0**, UNKNOWN **2**
-- `scripts/normalize_linkfinder.py` + summary JSON
-- Workflow invokes after raw LinkFinder
-- Raw `linkfinder_endpoints.txt` preserved
+## Nuclei track
+- `scripts/nuclei_track_summary.py` → `meta/nuclei_track.json`
+- DEGRADED ≠ CLEAN; separate from core intelligence path
+- Wired before `write_pipeline_exports.py`; listed in recon_export.v1
 
-## Environment
-- Sengi quota exhausted → interim `ubuntu-latest`
-- Nuclei DEGRADED (~51% errors) — truthful, not clean
+## Export
+- JS_TO_ENDPOINT from normalized API/WEB only (not chunk.js flood)
+- Artifacts: linkfinder_summary, linkfinder_normalized, smart_fuzzing_metrics, nuclei_track
 
-## Notion reconciliation
-- Fix Control Center was stale (2026-10-03 / 28dd077). Repo ahead.
-- Prefer GitHub + artifacts over Notion live queue.
-
-## Next
-1. One light live verify (Smart Fuzz metrics + LinkFinder summary) when budget allows
-2. Nuclei track separation
-3. Restore Sengi when minutes reset
+## Next after harvest of 37421731026
+1. Forensic audit metrics + linkfinder_summary + phase smart_fuzzing
+2. Mark Smart Fuzz CLOSED if proven
+3. Note commits after dispatch need a later run for health row + nuclei_track live proof
