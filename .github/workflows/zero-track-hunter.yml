@@ -4891,6 +4891,16 @@ jobs:
           row("JS files found via recursive discovery (round 2)", counts["js_discovered"])
           row("Amass raw candidates (passive)", counts["amass_raw"])
           row("LinkFinder endpoints (from JS bodies)", counts["linkfinder_endpoints"])
+          # Prefer classified counts when normalizer ran (raw lines ≠ API routes)
+          try:
+              import json as _json
+              _lfs = _json.load(open(f"{RD}/js_deep/linkfinder_summary.json"))
+              row(
+                  "LinkFinder classified (api/web/static)",
+                  f"api={_lfs.get('api_routes',0)} web={_lfs.get('web_routes',0)} static={_lfs.get('static_assets',0)}",
+              )
+          except Exception:
+              pass
           row("SecretFinder secrets (from JS bodies)", counts["secretfinder_secrets"])
           row("Cariddi findings (endpoints/secrets/extensions)", counts["cariddi_findings"])
           row("TruffleHog findings (JS bodies)", counts["trufflehog_findings"])
