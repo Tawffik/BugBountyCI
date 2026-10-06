@@ -452,18 +452,54 @@ def main():
                     add_rel("HISTORICAL_URL", f"archive:{fname}", f"url:{u[:200]}", provenance=f"urls/{fname}")
     except Exception:
         pass
-    # V3: JS -> ENDPOINT from linkfinder (lightweight, capped)
+    # V3: JS -> ENDPOINT from LinkFinder — prefer normalized API/WEB routes
+    # (raw linkfinder_endpoints.txt is dominated by ./chunk.js STATIC_ASSET noise)
     try:
-        lf = os.path.join(rd, "js_deep", "linkfinder_endpoints.txt")
-        if os.path.isfile(lf):
-            with open(lf) as fh:
-                for i, line in enumerate(fh):
-                    if i >= 400:
+        npath = os.path.join(rd, "js_deep", "linkfinder_normalized.jsonl")
+        added = 0
+        if os.path.isfile(npath):
+            with open(npath) as fh:
+                for line in fh:
+                    if added >= 400:
                         break
-                    ep = line.strip()
-                    if not ep or ep.startswith("#"):
+                    line = line.strip()
+                    if not line:
                         continue
-                    add_rel("JS_TO_ENDPOINT", "js:linkfinder", f"endpoint:{ep[:200]}", provenance="js_deep/linkfinder_endpoints.txt")
+                    try:
+                        rec = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    cls = rec.get("classification")
+                    if cls not in ("API_ROUTE", "WEB_ROUTE"):
+                        continue
+                    ep = rec.get("resolved_url") or rec.get("raw_value") or ""
+                    if not ep:
+                        continue
+                    src_js = rec.get("source_js") or "linkfinder"
+                    add_rel(
+                        "JS_TO_ENDPOINT",
+                        f"js:{src_js[:80]}",
+                        f"endpoint:{ep[:200]}",
+                        provenance="js_deep/linkfinder_normalized.jsonl",
+                        classification=cls,
+                    )
+                    added += 1
+        else:
+            lf = os.path.join(rd, "js_deep", "linkfinder_endpoints.txt")
+            if os.path.isfile(lf):
+                with open(lf) as fh:
+                    for i, line in enumerate(fh):
+                        if i >= 400:
+                            break
+                        ep = line.strip()
+                        if not ep or ep.startswith("#"):
+                            continue
+                        add_rel(
+                            "JS_TO_ENDPOINT",
+                            "js:linkfinder",
+                            f"endpoint:{ep[:200]}",
+                            provenance="js_deep/linkfinder_endpoints.txt",
+                        )
     except Exception:
         pass
     # V3: JS -> API surface from swagger/graphql hits
@@ -605,6 +641,9 @@ def main():
             "historical_pivots": "info_disclosure/historical_pivots.jsonl",
             "historical_validations": "info_disclosure/historical_validations.jsonl",
             "representation_diffs": "info_disclosure/representation_diffs.jsonl",
+            "linkfinder_summary": "js_deep/linkfinder_summary.json",
+            "linkfinder_normalized": "js_deep/linkfinder_normalized.jsonl",
+            "smart_fuzzing_metrics": "smart-fuzzing/metrics.json",
         },
         "counts": profile.get("counts"),
         "limitations": eng.get("flags") or [],
