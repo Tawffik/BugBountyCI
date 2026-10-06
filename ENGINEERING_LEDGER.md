@@ -1,46 +1,41 @@
 # BugBountyCI Engineering Ledger
 
 ## HEAD
-`see latest main` — Representation CLOSED at 6c702aa; catalog/sanitize follow-up
+See latest `main` (smart-fuzzing metrics fix after `ae0f721`).
 
-## Representation Differential — CLOSED (PROVEN)
+## Representation Differential — CLOSED / PROVEN
+Live `#128` / `37408543776` · SHA `6c702aa` · 7 candidates · 5 NO_DIFFERENTIAL · 2 NETWORK_ERROR · Hunter rep=0.
 
-**Live verification:** run `37408543776` (#128) · SHA `6c702aa` · target `nuva.finance` · light · `ubuntu-latest` (Sengi quota exhausted interim)
+## Smart Fuzzing — IN PROGRESS (offline P0 fixed)
 
-| Metric | Value |
-|--------|--------|
-| candidates | 7 |
-| pairs_run | 7 |
-| NO_DIFFERENTIAL / SAME_REPRESENTATION | 5 (app.nuva.finance vaults/referral — real HTTP 200/302) |
-| NETWORK_ERROR | 2 (api.* URLError from GitHub egress) |
-| Hunter representation entries | 0 (correct — no meaningful differential) |
-| Source | `detection/parameter_intelligence.json` primary |
+### Audit findings (#128 artifacts)
+1. `interesting.txt` contained **only header comments** (5 lines).
+2. Phase status was **`ok` with `interesting_lines=5`** — FALSE SUCCESS (headers counted as findings).
+3. All `ffuf_raw/*.json` had **`results: []`** with **`autocalibration: true`** → upstream starvation of response_diff (not a response_diff bug).
+4. `response_diffs.json = []` and empty clusters are **correct** given zero ffuf matches.
+5. Baseline present for hosts; SPA/redirect baselines observed.
 
-**Contract lessons locked in:**
-1. Relative API paths bind to ordered in-scope hosts (never external).
-2. Scope rejects google/cdn.
-3. Discovery noise (robots/sitemap/.well-known) excluded.
-4. Dual transport failure → `NETWORK_ERROR` (not CLEAN).
-5. Must read `parameter_intelligence.json` because Representation runs **before** `write_pipeline_exports` writes `meta/endpoints.jsonl`.
-6. `NO_CANDIDATES` / `NO_DIFFERENTIAL` / `NETWORK_ERROR` are distinct — never collapse to clean.
+### Root cause
+Phase status used `safe_count(interesting.txt)` (physical lines including `#` headers).
+FFUF `-ac` left zero post-calibration matches on this target/run (documented; not removed blindly).
 
-**Historical regression:** still CLOSED — 40 REDIRECTED validations → Hunter Queue.
+### Changes
+- `response_diff.py`: `finding_count`, `aggregate_ffuf_raw`, `metrics.json`, `pipeline_state` taxonomy (`REQUESTS_EXECUTED_NO_MATCH`, etc.)
+- `smart_fuzzing.sh`: phase status from `metrics.json`
+- `fallback_gate.py`: if status=ok but metrics finding_count=0 → treat as empty_valid
+- tests: header≠finding, ffuf states, fallback guard
 
-**Runner:** interim `ubuntu-latest`; preserve `NETWORK_MODE=direct_then_tor`. Revert `runs-on` to `sengi-standard-2-ubuntu-2404` when Sengi minutes reset.
+### Offline verification
+Replay on #128 ffuf_raw → `pipeline_state=REQUESTS_EXECUTED_NO_MATCH`, `finding_count=0`, `raw_match_count=0`.
 
-## Known limitations
-- Target SPA often returns same HTML for Accept html/json → NO_DIFFERENTIAL is expected.
-- `api.*` hosts frequently NETWORK_ERROR from GitHub-hosted runners.
-- `js_deep/linkfinder_endpoints.txt` is mostly relative chunk paths, not HTTP API routes.
-- `response_clusters` empty when `smart-fuzzing/response_diffs.json` is empty.
-- Nuclei PARTIAL (~51% error rate) on GitHub egress — truthful DEGRADED health.
+### Live verification
+**Not launched** (offline-first gate). Next single live run only after remaining calibration observability is accepted.
 
-## Next ready work (priority)
-1. **API catalog / OpenAPI surface** — e.g. `nuva.finance/api-catalog.json` observed in cariddi; strengthen API_HINT for catalog/openapi/swagger (offline first).
-2. **LinkFinder normalization** — parse `[js] path` format into usable absolute in-scope URLs where path is real route, not only `./chunk.js`.
-3. **response_clusters starvation** — why smart-fuzzing emits empty `response_diffs.json` in light mode (offline forensic).
-4. **Nuclei track separation** — keep DEGRADED truthful; avoid blocking core intelligence.
-5. Restore Sengi when quota available (egress quality).
+### Known limitations
+- `-ac` may filter all matches on catch-all/SPA hosts; need request-count evidence from ffuf logs for deeper calibration contract (future).
+- response_clusters remain empty until raw matches exist.
 
-## Anti-pattern note
-Do not debug Representation with serial 2-hour live runs. Prefer offline replay of harvested artifacts + unit tests, then one live verify.
+### Next highest-value gap
+1. FFUF calibration observability (requests attempted vs post-ac matches) without removing `-ac` blindly.
+2. LinkFinder normalization (chunk.js noise).
+3. Nuclei track separation.
