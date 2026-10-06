@@ -1,37 +1,32 @@
 # BugBountyCI Engineering Ledger
 
 ## HEAD
-Latest `main` (FFUF calibration observability after false-OK fix).
+Latest `main` (LinkFinder normalize + Smart Fuzz observability).
 
-## Representation Differential — CLOSED / PROVEN
-#128 · 6c702aa · 7 pairs · 5 NO_DIFFERENTIAL · 2 NETWORK_ERROR
+## CLOSED / PROVEN
+- **Representation Differential** — #128 / 6c702aa
+- **Historical pivot closed loop** — Hunter 40 REDIRECTED
 
-## Smart Fuzzing — IN PROGRESS (P0 + observability offline)
+## Smart Fuzzing — IN PROGRESS (offline P0 + observability)
+- false interesting_lines from headers — fixed
+- planned_requests_ceiling vs post_ac matches — fixed offline (#128: 490 vs 0)
+- Live phase-file verify still optional
 
-### Proven offline on #128 artifacts
-- wordlist_entries = **70**
-- hosts_fuzzed = **7**
-- planned_requests_ceiling = **490**
-- post_calibration_match_count = **0**
-- autocalibration_enabled = **true**
-- pipeline_state = **REQUESTS_EXECUTED_NO_MATCH**
-- finding_count = **0** (headers are not findings)
+## LinkFinder normalize — OFFLINE PROVEN
+- #128: raw **675** → STATIC **673**, API **0**, UNKNOWN **2**
+- `scripts/normalize_linkfinder.py` + summary JSON
+- Workflow invokes after raw LinkFinder
+- Raw `linkfinder_endpoints.txt` preserved
 
-### Interpretation
-FFUF **did run** against a non-empty wordlist. Zero `results[]` means **no post-`-ac` matches**, not "phase skipped" and not "0 HTTP requests".
+## Environment
+- Sengi quota exhausted → interim `ubuntu-latest`
+- Nuclei DEGRADED (~51% errors) — truthful, not clean
 
-### Changes
-1. False interesting-count / phase OK from header lines — fixed
-2. metrics.json + pipeline_state taxonomy — fixed
-3. planned_requests_ceiling vs post_calibration_match_count — added
-4. wordlist_size.txt from smart_fuzzing.sh — added
-5. `-ac` **retained** (no blind removal)
+## Notion reconciliation
+- Fix Control Center was stale (2026-10-03 / 28dd077). Repo ahead.
+- Prefer GitHub + artifacts over Notion live queue.
 
-### Live
-Not run yet. One verification run justified after this lands on main.
-
-### Next
-1. Optional: single live verify metrics/phase semantics
-2. LinkFinder normalization
-3. Nuclei track separation
-4. Sengi when quota returns
+## Next
+1. One light live verify (Smart Fuzz metrics + LinkFinder summary) when budget allows
+2. Nuclei track separation
+3. Restore Sengi when minutes reset
