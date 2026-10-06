@@ -1,41 +1,37 @@
 # BugBountyCI Engineering Ledger
 
 ## HEAD
-See latest `main` (smart-fuzzing metrics fix after `ae0f721`).
+Latest `main` (FFUF calibration observability after false-OK fix).
 
 ## Representation Differential — CLOSED / PROVEN
-Live `#128` / `37408543776` · SHA `6c702aa` · 7 candidates · 5 NO_DIFFERENTIAL · 2 NETWORK_ERROR · Hunter rep=0.
+#128 · 6c702aa · 7 pairs · 5 NO_DIFFERENTIAL · 2 NETWORK_ERROR
 
-## Smart Fuzzing — IN PROGRESS (offline P0 fixed)
+## Smart Fuzzing — IN PROGRESS (P0 + observability offline)
 
-### Audit findings (#128 artifacts)
-1. `interesting.txt` contained **only header comments** (5 lines).
-2. Phase status was **`ok` with `interesting_lines=5`** — FALSE SUCCESS (headers counted as findings).
-3. All `ffuf_raw/*.json` had **`results: []`** with **`autocalibration: true`** → upstream starvation of response_diff (not a response_diff bug).
-4. `response_diffs.json = []` and empty clusters are **correct** given zero ffuf matches.
-5. Baseline present for hosts; SPA/redirect baselines observed.
+### Proven offline on #128 artifacts
+- wordlist_entries = **70**
+- hosts_fuzzed = **7**
+- planned_requests_ceiling = **490**
+- post_calibration_match_count = **0**
+- autocalibration_enabled = **true**
+- pipeline_state = **REQUESTS_EXECUTED_NO_MATCH**
+- finding_count = **0** (headers are not findings)
 
-### Root cause
-Phase status used `safe_count(interesting.txt)` (physical lines including `#` headers).
-FFUF `-ac` left zero post-calibration matches on this target/run (documented; not removed blindly).
+### Interpretation
+FFUF **did run** against a non-empty wordlist. Zero `results[]` means **no post-`-ac` matches**, not "phase skipped" and not "0 HTTP requests".
 
 ### Changes
-- `response_diff.py`: `finding_count`, `aggregate_ffuf_raw`, `metrics.json`, `pipeline_state` taxonomy (`REQUESTS_EXECUTED_NO_MATCH`, etc.)
-- `smart_fuzzing.sh`: phase status from `metrics.json`
-- `fallback_gate.py`: if status=ok but metrics finding_count=0 → treat as empty_valid
-- tests: header≠finding, ffuf states, fallback guard
+1. False interesting-count / phase OK from header lines — fixed
+2. metrics.json + pipeline_state taxonomy — fixed
+3. planned_requests_ceiling vs post_calibration_match_count — added
+4. wordlist_size.txt from smart_fuzzing.sh — added
+5. `-ac` **retained** (no blind removal)
 
-### Offline verification
-Replay on #128 ffuf_raw → `pipeline_state=REQUESTS_EXECUTED_NO_MATCH`, `finding_count=0`, `raw_match_count=0`.
+### Live
+Not run yet. One verification run justified after this lands on main.
 
-### Live verification
-**Not launched** (offline-first gate). Next single live run only after remaining calibration observability is accepted.
-
-### Known limitations
-- `-ac` may filter all matches on catch-all/SPA hosts; need request-count evidence from ffuf logs for deeper calibration contract (future).
-- response_clusters remain empty until raw matches exist.
-
-### Next highest-value gap
-1. FFUF calibration observability (requests attempted vs post-ac matches) without removing `-ac` blindly.
-2. LinkFinder normalization (chunk.js noise).
-3. Nuclei track separation.
+### Next
+1. Optional: single live verify metrics/phase semantics
+2. LinkFinder normalization
+3. Nuclei track separation
+4. Sengi when quota returns
