@@ -34,8 +34,10 @@ UA = os.environ.get("SCAN_USER_AGENT", "BugBountyCI-RepDiff/1.0")
 
 API_HINT = re.compile(
     # Path-segment oriented — avoid font false positives (/figtree/v9/...)
-    r"(?:/api(?:/|$|\?)|/graphql(?:/|$|\?)|/rest(?:/|$|\?)"
+    # Include explicit API catalog / OpenAPI surfaces (not generic "api" substring)
+    r"(?:/api(?:/|$|\?|-catalog)|/graphql(?:/|$|\?)|/rest(?:/|$|\?)"
     r"|/v\d+/(?:[A-Za-z_])"
+    r"|/(?:openapi|swagger)(?:\.json|/|$|\?)"
     r"|/(?:export|download|users|profile|account|admin)(?:/|$|\?))",
     re.I,
 )
@@ -182,6 +184,8 @@ def select_candidates(rd: str, cap: int = 40, target: str = "") -> list:
 
     def add(u: str, reason: str):
         u = u.strip().split()[0] if u.strip() else ""
+        # Strip HTML/attribute garbage from crawled lines (e.g. url">)
+        u = re.sub(r'["\'<>].*$', '', u).rstrip(".,);]")
         if not u.startswith("http"):
             return
         # Dedupe by scheme-agnostic host+path+query
