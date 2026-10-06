@@ -96,6 +96,16 @@ python3 "$PY_DIR/baseline.py" \
 # --- 6. Controlled Fuzzing (existing ffuf engine, target-specific wordlist) ---
 FFUF_JSON_DIR="$OUT_DIR/ffuf_raw"
 mkdir -p "$FFUF_JSON_DIR"
+# Observability: wordlist size for planned_requests_ceiling (not a finding count)
+WORDLIST_N=0
+if [ -n "${WORDLIST:-}" ] && [ -f "$WORDLIST" ]; then
+  WORDLIST_N=$(grep -cve '^[[:space:]]*$' "$WORDLIST" 2>/dev/null || echo 0)
+  # exclude comment-only lines when possible
+  WORDLIST_N=$(grep -cve '^[[:space:]]*\(#\|$\)' "$WORDLIST" 2>/dev/null || echo "$WORDLIST_N")
+fi
+echo "${WORDLIST_N}" > "$OUT_DIR/wordlist_size.txt"
+echo "ℹ️ Smart fuzz wordlist_entries=${WORDLIST_N} (planned ceiling = entries × hosts)"
+
 mode_budget() { case "$MODE" in light) echo 240;; aggressive) echo 900;; *) echo 500;; esac; }
 BUDGET=$(mode_budget)
 PER_HOST=45
@@ -126,7 +136,7 @@ while IFS= read -r host; do
   fi
   t_end=$(date +%s)
   errors_line=$(tail -20 "$RD/logs/smart_ffuf.log" | grep -o "Errors: [0-9]*" | tail -1)
-  echo "[ffuf-diag] host=$host exit=$ffuf_exit duration=$((t_end - t_start))s ${errors_line:-Errors:_not_found_in_log}" >> "$RD/logs/smart_ffuf.log"
+  echo "[ffuf-diag] host=$host exit=$ffuf_exit duration=$((t_end - t_start))s wordlist_entries=${WORDLIST_N:-0} ${errors_line:-Errors:_not_found_in_log}" >> "$RD/logs/smart_ffuf.log"
 done < "$FUZZ_INPUT"
 
 # --- 7. Response Diff (baseline-aware classification, not raw status codes) ---
