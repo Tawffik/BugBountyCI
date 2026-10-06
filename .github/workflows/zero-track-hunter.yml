@@ -5077,6 +5077,7 @@ jobs:
           print(report)
           PYEOF
 
+          python3 scripts/nuclei_track_summary.py --results-dir "results/${{ env.TIMESTAMP }}" || true
           python3 scripts/write_pipeline_exports.py "results/${{ env.TIMESTAMP }}" || true
           [ -f scripts/validate_pipeline_exports.py ] && python3 scripts/validate_pipeline_exports.py "results/${{ env.TIMESTAMP }}" || true
 
