@@ -67,3 +67,20 @@ class FallbackGateMetricsTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class CalibrationObservabilityTests(unittest.TestCase):
+    def test_planned_vs_post_ac(self):
+        td = tempfile.mkdtemp()
+        os.makedirs(os.path.join(td, "smart-fuzzing"), exist_ok=True)
+        with open(os.path.join(td, "smart-fuzzing", "wordlist_size.txt"), "w") as f:
+            f.write("70\n")
+        fd = os.path.join(td, "ffuf")
+        os.makedirs(fd)
+        with open(os.path.join(fd, "a.json"), "w") as f:
+            json.dump({"results": [], "config": {"autocalibration": True}}, f)
+        with open(os.path.join(fd, "b.json"), "w") as f:
+            json.dump({"results": [], "config": {"autocalibration": True}}, f)
+        s = rd.aggregate_ffuf_raw(fd, results_dir=td)
+        self.assertEqual(s["planned_requests_ceiling"], 140)
+        self.assertEqual(s["post_calibration_match_count"], 0)
+        self.assertEqual(s["execution_state"], "REQUESTS_EXECUTED_NO_MATCH")
