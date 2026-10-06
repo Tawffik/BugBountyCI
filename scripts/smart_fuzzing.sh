@@ -142,13 +142,22 @@ echo "✅ Smart Fuzzing V1 complete — see $OUT_DIR/interesting.txt"
 # live_host_probing.sh/url_collection.sh already use — do not invent a
 # second status mechanism.
 if type write_phase_status >/dev/null 2>&1; then
-  interesting_n=$(safe_count "$OUT_DIR/interesting.txt" 2>/dev/null || echo 0)
+  # Prefer structured metrics from response_diff.py (finding_count ignores # headers).
+  # NEVER use wc -l / safe_count on interesting.txt — header-only files are not findings.
+  finding_n=0
+  pipeline_state="UNKNOWN"
+  raw_matches=0
+  if [ -f "$OUT_DIR/metrics.json" ]; then
+    finding_n=$(python3 -c "import json; d=json.load(open('$OUT_DIR/metrics.json')); print(int(d.get('finding_count') or 0))" 2>/dev/null || echo 0)
+    pipeline_state=$(python3 -c "import json; d=json.load(open('$OUT_DIR/metrics.json')); print(d.get('pipeline_state') or 'UNKNOWN')" 2>/dev/null || echo UNKNOWN)
+    raw_matches=$(python3 -c "import json; d=json.load(open('$OUT_DIR/metrics.json')); print(int((d.get('ffuf') or {}).get('raw_match_count') or 0))" 2>/dev/null || echo 0)
+  fi
   if [ "$FAIL" = "1" ]; then
     write_phase_status "$RD" "smart_fuzzing" "error" "one or more stages (target_profile/vocabulary/wolf_selector/wordlist_builder) failed — see logs/smart_ffuf.log"
-  elif [ "${interesting_n:-0}" -eq 0 ]; then
-    write_phase_status "$RD" "smart_fuzzing" "empty" "ran to completion, 0 interesting responses — this is EMPTY_VALID, not a failure; do not let this alone trigger the common.txt fallback (Gap D)"
+  elif [ "${finding_n:-0}" -eq 0 ]; then
+    write_phase_status "$RD" "smart_fuzzing" "empty" "state=${pipeline_state} findings=0 raw_matches=${raw_matches} — EMPTY_VALID or NO_MATCH (not header-line counts); do not treat as SUCCESS_WITH_FINDINGS"
   else
-    write_phase_status "$RD" "smart_fuzzing" "ok" "interesting_lines=${interesting_n}"
+    write_phase_status "$RD" "smart_fuzzing" "ok" "state=${pipeline_state} findings=${finding_n} raw_matches=${raw_matches}"
   fi
 fi
 
