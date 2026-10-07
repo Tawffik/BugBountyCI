@@ -161,6 +161,52 @@ def load_smart_fuzzing_interesting(results_dir):
 
 
 
+
+def load_linkfinder_api_routes(results_dir, limit=25):
+    """API_ROUTE rows from LinkFinder normalize → INTERESTING hunter seeds.
+
+    Does NOT claim vulnerabilities. Surfaces JS-discovered API paths that
+    would otherwise only live in js_deep/ and relationships (capital.com #133
+    had 32 API routes with zero Hunter visibility beyond SSRF/historical).
+    """
+    path = os.path.join(results_dir, "js_deep", "linkfinder_normalized.jsonl")
+    if not os.path.isfile(path):
+        return []
+    entries = []
+    seen = set()
+    with open(path, "r", errors="ignore") as f:
+        for line in f:
+            if len(entries) >= limit:
+                break
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if rec.get("classification") != "API_ROUTE":
+                continue
+            ep = (rec.get("resolved_url") or rec.get("raw_value") or "").strip().rstrip("\\")
+            if not ep or ep in seen:
+                continue
+            # skip obvious static leftovers
+            if ep.lower().endswith((".js", ".css", ".map", ".mjs")):
+                continue
+            seen.add(ep)
+            src = rec.get("source_js") or "linkfinder"
+            entries.append({
+                "priority_class": "INTERESTING",
+                "engine": "linkfinder_api",
+                "target": ep,
+                "reason": (
+                    f"JS-discovered API_ROUTE (source={src[:80]}). "
+                    f"Surface candidate for auth/object/parameter analysis — not a vulnerability."
+                ),
+                "stable": None,
+            })
+    return entries
+
 def load_historical_validations(results_dir):
     """Bounded historical path validation outcomes → hunter seeds.
 
@@ -365,6 +411,7 @@ def main():
         + load_smart_fuzzing_interesting(args.results_dir)
         + load_historical_validations(args.results_dir)
         + load_representation_diffs(args.results_dir)
+        + load_linkfinder_api_routes(args.results_dir)
     )
 
     out_dir = os.path.join(args.results_dir, "detection")
