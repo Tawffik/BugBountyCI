@@ -452,16 +452,15 @@ def main():
                     add_rel("HISTORICAL_URL", f"archive:{fname}", f"url:{u[:200]}", provenance=f"urls/{fname}")
     except Exception:
         pass
-    # V3: JS -> ENDPOINT from LinkFinder — prefer normalized API/WEB routes
-    # (raw linkfinder_endpoints.txt is dominated by ./chunk.js STATIC_ASSET noise)
+    # V3: JS -> ENDPOINT from LinkFinder — API_ROUTE first, then WEB_ROUTE (cap 400)
+    # Prioritize API so a WEB-heavy corpus cannot starve the relationship export.
     try:
         npath = os.path.join(rd, "js_deep", "linkfinder_normalized.jsonl")
         added = 0
         if os.path.isfile(npath):
+            records = []
             with open(npath) as fh:
                 for line in fh:
-                    if added >= 400:
-                        break
                     line = line.strip()
                     if not line:
                         continue
@@ -472,18 +471,26 @@ def main():
                     cls = rec.get("classification")
                     if cls not in ("API_ROUTE", "WEB_ROUTE"):
                         continue
-                    ep = rec.get("resolved_url") or rec.get("raw_value") or ""
+                    ep = (rec.get("resolved_url") or rec.get("raw_value") or "").strip().rstrip("\\")
                     if not ep:
                         continue
-                    src_js = rec.get("source_js") or "linkfinder"
-                    add_rel(
-                        "JS_TO_ENDPOINT",
-                        f"js:{src_js[:80]}",
-                        f"endpoint:{ep[:200]}",
-                        provenance="js_deep/linkfinder_normalized.jsonl",
-                        classification=cls,
-                    )
-                    added += 1
+                    records.append(rec)
+            # API_ROUTE before WEB_ROUTE
+            records.sort(key=lambda r: 0 if r.get("classification") == "API_ROUTE" else 1)
+            for rec in records:
+                if added >= 400:
+                    break
+                cls = rec.get("classification")
+                ep = (rec.get("resolved_url") or rec.get("raw_value") or "").strip().rstrip("\\")
+                src_js = rec.get("source_js") or "linkfinder"
+                add_rel(
+                    "JS_TO_ENDPOINT",
+                    f"js:{src_js[:80]}",
+                    f"endpoint:{ep[:200]}",
+                    provenance="js_deep/linkfinder_normalized.jsonl",
+                    classification=cls,
+                )
+                added += 1
         else:
             lf = os.path.join(rd, "js_deep", "linkfinder_endpoints.txt")
             if os.path.isfile(lf):
