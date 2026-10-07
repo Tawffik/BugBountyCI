@@ -29,8 +29,19 @@ import argparse
 import json
 import os
 import re
+from urllib.parse import urlparse
 
 PRIORITY_ORDER = {"HIGH_SIGNAL": 0, "CONFIRMED": 0, "IDOR-CANDIDATE": 1, "LEAD": 2, "INTERESTING": 3}
+# Within same priority_class, prefer research-dense engines over low-value noise.
+ENGINE_TIER = {
+    "ssrf-v1": 0,
+    "access-control": 0,
+    "open-redirect": 0,
+    "linkfinder_api": 1,
+    "smart-fuzzing/response_diff": 2,
+    "representation_differential": 2,
+    "historical_pivot": 4,
+}
 
 
 def _load_oob_confirmed_labels(results_dir):
@@ -207,6 +218,33 @@ def load_linkfinder_api_routes(results_dir, limit=25):
             })
     return entries
 
+
+def _is_scheme_only_redirect(validation_url: str, location: str) -> bool:
+    """True when redirect only upgrades http↔https (or :443) on same host+path.
+
+    capital.com #134: all 40 REDIRECTED hunter entries were scheme-only 301s.
+    Those remain valid evidence in historical_validations.jsonl but are low
+    value as Hunter INTERESTING items relative to API/SSRF candidates.
+    """
+    if not validation_url or not location:
+        return False
+    try:
+        a, b = urlparse(validation_url), urlparse(location)
+    except Exception:
+        return False
+    host_a = (a.hostname or "").lower()
+    host_b = (b.hostname or "").lower()
+    if not host_a or host_a != host_b:
+        return False
+    path_a = (a.path or "/").rstrip("/") or "/"
+    path_b = (b.path or "/").rstrip("/") or "/"
+    if path_a != path_b:
+        return False
+    # same host+path; different scheme (or explicit :443 on https netloc) counts as scheme-only
+    if a.scheme != b.scheme:
+        return True
+    return False
+
 def load_historical_validations(results_dir):
     """Bounded historical path validation outcomes → hunter seeds.
 
@@ -235,6 +273,9 @@ def load_historical_validations(results_dir):
                 continue
             status = row.get("status")
             loc = row.get("location") or ""
+            # Keep scheme-only redirects out of Hunter (still in validations artifact)
+            if outcome == "REDIRECTED" and _is_scheme_only_redirect(vurl, loc):
+                continue
             reason = (
                 f"historical path validated current {outcome}"
                 f" (status={status}"
@@ -331,17 +372,33 @@ def load_surface_context(results_dir):
 
 
 def render_markdown(entries, target_name, context=None):
-    entries_sorted = sorted(entries, key=lambda e: PRIORITY_ORDER.get(e["priority_class"], 99))
+    entries_sorted = sorted(
+        entries,
+        key=lambda e: (
+            PRIORITY_ORDER.get(e["priority_class"], 99),
+            ENGINE_TIER.get(e.get("engine") or "", 5),
+            e.get("target") or "",
+        ),
+    )
 
+    run_id = os.environ.get("GITHUB_RUN_ID") or os.environ.get("BBCI_RUN_ID") or ""
+    engine_counts = {}
+    for e in entries_sorted:
+        eng = e.get("engine") or "unknown"
+        engine_counts[eng] = engine_counts.get(eng, 0) + 1
     lines = [
         "# Hunter Queue",
         "",
         f"Target: {target_name}" if target_name else "",
+        f"Run: {run_id}" if run_id else "",
+        f"Entries: {len(entries_sorted)} (" + ", ".join(f"{k}={v}" for k, v in sorted(engine_counts.items())) + ")" if entries_sorted else "",
         "",
         "> A changed response is a signal, not a vulnerability. "
         "IDOR-CANDIDATE entries are enumeration evidence, not confirmed "
         "cross-user authorization bypasses. All entries need manual "
         "investigation before being treated as findings.",
+        "> Scheme-only historical redirects (http→https same host/path) stay in "
+        "historical_validations.jsonl and are not promoted to this queue.",
         "",
     ]
 
