@@ -11,6 +11,58 @@
 
 ---
 
+## CYCLE — 2026-10-08 — #134 live + SI-0 Secret Intelligence Audit
+
+### HEAD
+`5b8941d` (OOB honesty + LinkFinder API Hunter seeds; #134 ran on this SHA)
+
+### LIVE — capital.com #134 / `37660905816` / success ~173m
+| Contract | Actual |
+|---|---|
+| OOB honesty | `OOB_NOT_SEEN`×2; probe FIRED; zero "callback registered"; `oob_findings.txt` empty |
+| linkfinder_api → Hunter | **25** INTERESTING |
+| Hunter total | **68** (40 historical + 25 API + 2 ssrf + 1 smart-fuzz) |
+| LinkFinder | API~30 · WEB~897 · STATIC~1789 |
+| Smart Fuzz | DIFFS_GENERATED · findings=1 · post_ac=4 |
+| nuclei_track | PARTIAL ~45.8% errors — not CLEAN |
+| recon_export index | nuclei_track + linkfinder_summary + smart_fuzzing_metrics present |
+
+**Status:** OOB + API-Hunter gaps **CLOSED / LIVE VERIFIED**. Do not reopen without regression.
+
+### SI-0 — Secret detector audit (repo + #134 artifacts) — COMPLETE
+
+**Do not build a new secret scanner.** Behavior is known from evidence:
+
+| Detector | Artifact | #134 capital.com | Hunter? | Notes |
+|---|---|---:|---|---|
+| SecretFinder | `js_deep/secretfinder_secrets.txt` | 108 lines | No | Heavy FP pattern classes: possible_Creds 39, Heroku API KEY 35 (UUID-shaped), authorization_api 25, twilio_account_sid 7 |
+| Gitleaks | `js_deep/gitleaks_findings.json` | 1 | No | `generic-api-key` on JS `MODAL_KEYS` identifier — **false positive** |
+| TruffleHog | `js_deep/trufflehog_findings.jsonl` | 0 | No | Empty this run |
+| Mantra | `js_deep/mantra_findings.txt` | 8 | No | Mix of empty tokens / public-looking captcha / noise |
+| Cariddi | `js_deep/cariddi_findings.txt` | 100 | No | Mostly **URL discovery** (robots/sitemap), not secret intelligence |
+
+**Root gaps (evidence-backed, not implemented this cycle):**
+1. No canonical secret candidate schema / dedupe across detectors
+2. No FP resistance for UUID/Heroku/generic-api-key on JS identifiers
+3. No Hunter promotion path (correct for now — would flood queue)
+4. No phase/health file for secret sub-pipeline (counts only in funnel text)
+5. Cariddi output is not "secrets" — naming/consumer mismatch
+
+**SI-0 exit condition met:** exact current behavior known from repository + #134 artifacts.
+
+**Next READY (only if continuing secret track):** SI-1 deterministic sanitized fixtures + baseline metrics (TP/FP/dup/provenance) — *not* a new detector.
+
+### Protected contracts (still hold)
+ERROR≠EMPTY · PARTIAL≠CLEAN · OOB_NOT_SEEN≠OOB_CONFIRMED · HIGH_SIGNAL≠CONFIRMED · INTERESTING≠VULNERABILITY · LinkFinder raw≠API · Historical/Representation closed unless regression
+
+### Environment
+Sengi quota exhausted historically → ubuntu-latest interim; not an architecture rewrite.
+
+### Anti-loop decision
+Reliability/intelligence honesty slices for OOB+API are verified. Secret path is audited (SI-0). Further secret work must start at SI-1 benchmark, not SI-7 queue flood.
+
+---
+
 ## 0. The one thing to hold onto
 
 **This is not a tool collection. It is one pipeline whose only job is:
