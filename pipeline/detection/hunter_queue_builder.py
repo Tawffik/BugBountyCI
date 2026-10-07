@@ -33,6 +33,42 @@ import re
 PRIORITY_ORDER = {"HIGH_SIGNAL": 0, "CONFIRMED": 0, "IDOR-CANDIDATE": 1, "LEAD": 2, "INTERESTING": 3}
 
 
+def _load_oob_confirmed_labels(results_dir):
+    """Labels that OOB Check actually observed (not merely probed)."""
+    confirmed = set()
+    path = os.path.join(results_dir, "ai_agent", "oob_findings.txt")
+    if not os.path.isfile(path):
+        return confirmed
+    try:
+        with open(path, "r", errors="ignore") as f:
+            text = f.read()
+    except OSError:
+        return confirmed
+    for m in re.findall(r"\b([a-f0-9]{12})\b", text, re.I):
+        confirmed.add(m.lower())
+    return confirmed
+
+
+def _annotate_oob_status(reason, details, confirmed_labels):
+    """Clarify OOB probe vs confirmed using oob_findings.txt."""
+    details = details or {}
+    label = str(details.get("oob_label") or "").lower()
+    if not label:
+        return reason
+    if label in confirmed_labels:
+        if "OOB_CONFIRMED" not in reason:
+            reason = reason + f"; OOB_CONFIRMED label={label}"
+        return reason
+    reason = reason.replace(
+        "OOB callback registered",
+        "OOB probe fired (not confirmed)",
+    )
+    if "OOB_NOT_SEEN" not in reason:
+        reason = reason + f"; OOB_NOT_SEEN label={label} (differential-only until oob_findings matches)"
+    return reason
+
+
+
 def load_detection_evidence(results_dir):
     """From detection/engine_results.json — Access-Control + Open Redirect
     (and any future engine that plugs into the same framework)."""
@@ -45,6 +81,7 @@ def load_detection_evidence(results_dir):
     except (OSError, json.JSONDecodeError):
         return []
 
+    confirmed_labels = _load_oob_confirmed_labels(results_dir)
     entries = []
     for engine_result in data:
         engine_name = engine_result.get("engine", "unknown-engine")
@@ -52,11 +89,16 @@ def load_detection_evidence(results_dir):
             cls = ev.get("classification")
             if cls not in ("LEAD", "HIGH_SIGNAL", "CONFIRMED"):
                 continue  # NOISE/UNKNOWN/DUPLICATE never reach the hunter queue
+            reason = _annotate_oob_status(
+                ev.get("reason", "") or "",
+                ev.get("details") or {},
+                confirmed_labels,
+            )
             entries.append({
                 "priority_class": cls,
                 "engine": engine_name,
                 "target": ev.get("candidate", {}).get("target", "?"),
-                "reason": ev.get("reason", ""),
+                "reason": reason,
                 "stable": ev.get("stable"),
             })
     return entries
