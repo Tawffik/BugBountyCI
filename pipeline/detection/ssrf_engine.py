@@ -303,10 +303,12 @@ class SSRFEngine(DetectionEngine):
         self._fetch(candidate.target, oob_payload)  # fire-and-forget; OOB Check reads the result later
 
         detect_evidence.details["oob_label"] = label
+        detect_evidence.details["oob_probe_fired"] = True
+        detect_evidence.details["oob_confirmed"] = False  # OOB Check step may flip later
         detect_evidence.reason += (
-            f"; OOB callback registered (label={label}) against the pipeline's shared "
-            f"interactsh session — see ai_agent/oob_findings.txt after the 'OOB Check' "
-            f"step for a confirmed (not just differential) result"
+            f"; OOB probe FIRED (label={label}) on shared interactsh session — "
+            f"NOT confirmed until ai_agent/oob_findings.txt lists this label after "
+            f"'OOB Check' (empty oob_findings = differential-only, not OOB-confirmed)"
         )
         return detect_evidence
 
@@ -335,7 +337,7 @@ class SSRFEngine(DetectionEngine):
         evidence.stable = stable
         if stable:
             evidence.classification = "HIGH_SIGNAL"
-            evidence.reason += "; stable across 2 replays — HIGH_SIGNAL (still requires manual OOB confirmation before reporting)"
+            evidence.reason += "; stable across 2 replays — HIGH_SIGNAL (differential only unless oob_findings confirms label)"
         else:
             evidence.reason += "; unstable across replay — NOT promoted, confidence lowered"
         return evidence
