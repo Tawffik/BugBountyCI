@@ -1,5 +1,29 @@
 ---
 
+## CYCLE — 2026-10-08 — LIVE VERIFY scheme-only Hunter filter (IN PROGRESS)
+
+### Reconcile
+- HEAD at dispatch: `b3564ec`
+- Code contains `_is_scheme_only_redirect` + ENGINE_TIER (`9b3aa3a`)
+- #134 was last success on `5b8941d` (pre-filter code for hunter builder)
+
+### Action
+Dispatched light authorized Zero Track on **capital.com**:
+- **Run:** https://github.com/Tawffik/BugBountyCI/actions/runs/37693581179
+- **Purpose:** LIVE prove Hunter omits scheme-only historical REDIRECTED; retains SSRF/API/smart-fuzz signals
+- **Expected:** historical_pivot count in hunter_queue ≈ 0 for scheme-only; linkfinder_api + ssrf present if surface allows
+
+### Status
+LIVE VERIFICATION **IN PROGRESS** — not yet VERIFIED
+
+### Independent offline
+Unit tests for scheme-only + OOB/API hunter contracts executed in agent environment during wait.
+
+### Next after harvest
+Compare expected vs actual → close LIVE VERIFICATION PENDING or fix → dependency sweep (not auto SI-1)
+
+---
+
 ## CYCLE — 2026-10-08 — Track A Review of 28 Hunter candidates (NO additional code fix)
 
 ### Artifact
