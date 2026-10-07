@@ -77,7 +77,7 @@ def build_allowed(target: str, results_dir: str) -> set[str]:
 
 def classify_path(path: str, allowed: set[str]) -> tuple[str, str | None, str]:
     """Return (classification, resolved_url_or_none, note)."""
-    raw = (path or "").strip()
+    raw = (path or "").strip().rstrip("\\").rstrip()
     if not raw or len(raw) > 2000:
         return "INVALID", None, "empty_or_too_long"
 
