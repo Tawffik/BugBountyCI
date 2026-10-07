@@ -11,6 +11,43 @@
 
 ---
 
+## CYCLE — 2026-10-08 — Track A Hunter usefulness (scheme-only historical)
+
+### Decision (reconcile first)
+- **Not** auto SI-1 (secret track not higher-value than Hunter product surface)
+- **Not** reopen OOB/API/Representation/SmartFuzz
+- **Track A:** #134 Hunter had 40/68 entries = scheme-only http→https REDIRECTED (same host/path)
+
+### Problem
+Hunter product surface diluted: research priority list dominated by low-value scheme upgrades.
+
+### Evidence
+`info_disclosure/historical_validations.jsonl` on #134: 40 REDIRECTED, all scheme_only.
+
+### Fix
+`9b3aa3a` `hunter_queue_builder.py`:
+- skip scheme-only REDIRECTED in queue (artifact retained)
+- ENGINE_TIER: ssrf/API above historical
+- header: Run id + engine counts
+
+### Offline replay (#134 artifacts)
+Before: 68 entries (40 historical)
+After: **28** (2 ssrf HIGH_SIGNAL + 25 linkfinder_api + 1 smart-fuzz)
+
+### Tests
+`tests/test_hunter_scheme_only_redirect.py`
+
+### Status
+IMPLEMENTED + TESTED + ARTIFACT REPLAY VERIFIED
+LIVE VERIFICATION PENDING (optional light run — behavior deterministic from validations.jsonl)
+
+### Next READY
+- Optional live light to pack new hunter semantics in CI artifact
+- SI-1 only if secret track chosen deliberately
+- Human review of remaining 28 capital candidates
+
+---
+
 ## CYCLE — 2026-10-08 — #134 live + SI-0 Secret Intelligence Audit
 
 ### HEAD
