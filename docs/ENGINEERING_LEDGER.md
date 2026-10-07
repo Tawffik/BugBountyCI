@@ -1,3 +1,39 @@
+---
+
+## CYCLE — 2026-10-08 — Track A Review of 28 Hunter candidates (NO additional code fix)
+
+### Artifact
+Replay of `hunter_queue_builder` @ `9b3aa3a` on #134 results (`37660905816` / capital.com).
+Queue path: `detection/hunter_queue.md` → **28 entries**.
+
+### Classification summary
+| Class | Count | Notes |
+|---|---:|---|
+| A Actionable research surface | ~14 | auth/trading/user/ums API paths |
+| B Useful + needs manual validation | ~6 | SSRF×2 (differential only), api-website roots/sync, some auth |
+| C Low value | ~6 | bare `/api`, country.*, sentiment, cmp/test-cmp, smart-fuzz IP:8443 |
+| D Derivative | 1 pair | SSRF http vs https same `page` param — treat as one research thread |
+| E Noise / should not be in Hunter | 0 | after scheme-only filter |
+
+**HIGH_SIGNAL ≠ CONFIRMED.** Both SSRF show OOB probe language / OOB_NOT_SEEN; `oob_findings.txt` empty.
+
+### Provenance
+- Run id in header when `GITHUB_RUN_ID` set (replay: 37660905816)
+- linkfinder_api: source JS hash present; **20/25 targets are host-relative** — human must bind host
+- historical scheme-only: excluded from queue; retained in `historical_validations.jsonl`
+- smart-fuzz: short evidence line (status delta only)
+
+### Decision
+**NO FIX** — no further code change from this review.
+Remaining limitations are researcher-consumable, not queue-breaking noise.
+
+**LIVE VERIFICATION PENDING** for `9b3aa3a` scheme-only exclusion (deterministic offline only so far).
+
+**SI-1 not started.**
+
+### Next READY (single)
+Optional: one light authorized live run to confirm Hunter omits scheme-only historical and retains SSRF/API — **or** human research on the ~14–20 actionable API/auth candidates. Not automatic SI-1.
+
 # ENGINEERING LEDGER — BugBountyCI / Zero Track
 
 > **Read this file first, before touching any code.** This is not a
