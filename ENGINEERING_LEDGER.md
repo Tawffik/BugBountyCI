@@ -1,30 +1,30 @@
 # BugBountyCI Engineering Ledger
 
 ## HEAD
-Latest `main` after capital.com tip-SHA harvest + export/linkfinder fixes.
+Post-#133 honesty + Hunter API seeds (infinite loop cycle).
 
-## LIVE — tip SHA (#133) capital.com
-- **Run:** 37443762040 · SHA `8defe15` · success
-- **recon_export.v1:** includes nuclei_track, linkfinder_summary, smart_fuzzing_metrics (**LIVE proven**)
-- **nuclei_track:** PARTIAL (timeout, error_rate~44.9) — not CLEAN
-- **LinkFinder:** raw 2908 → API 32 · WEB 1216 · STATIC 1519 · EXTERNAL 90
-- **Smart Fuzz:** phase empty · state NO_DIFFERENTIAL_SIGNAL · post_ac matches=36 · ceiling 4818
-- **Historical:** 40 REDIRECTED → Hunter
-- **Hunter:** 44 entries — **4 HIGH_SIGNAL ssrf-v1** (differential; OOB file empty = not confirmed) + 40 historical
-- **Representation:** 1 NETWORK_ERROR
+## LIVE VERIFIED
+| Run | Target | SHA | Notes |
+|---|---|---|---|
+| 37443762040 #133 | capital.com | 8defe15 | tip export index; 32 API; 4 SSRF HIGH_SIGNAL; OOB file empty |
+| 37421731026 #129 | nuva.finance | c9c8645 | Smart Fuzz empty honesty; LinkFinder static-only |
 
-## LIVE — #129 nuva.finance (c9c8645)
-Smart Fuzz empty honesty + LinkFinder static-only proven earlier.
+## THIS CYCLE (after #133 forensic)
+### Gap: SSRF Hunter overstated OOB
+- **Symptom:** reason said "OOB callback registered" while `oob_findings.txt` empty
+- **Fix:** `96057ca` ssrf_engine probe-fired language; `3b42cb5` hunter annotates OOB_NOT_SEEN / OOB_CONFIRMED from oob_findings
+- **Test:** `tests/test_hunter_oob_and_api_seeds.py`
 
-## Fixes after #133 harvest
-- `5d32c7e` JS_TO_ENDPOINT prioritizes API_ROUTE (32/32 vs previous 2/32 under WEB flood)
-- linkfinder strip trailing `\\` so `.min.js\\` is STATIC not API
+### Gap: LinkFinder API invisible to Hunter
+- **Symptom:** capital 32 API_ROUTE only in js_deep/relationships
+- **Fix:** `2690fad` load_linkfinder_api_routes → INTERESTING (cap 25)
+- **Offline:** 25 seeds from capital normalized file
 
-## CLOSED contracts
-Representation · Historical→Hunter · Smart Fuzz phase honesty · LinkFinder classify · Export artifact index on tip SHA
+## CLOSED (prior)
+Representation · Historical→Hunter · Smart Fuzz metrics · LinkFinder classify · tip export artifact paths · API-priority JS_TO_ENDPOINT
 
-## Results path (not fix loop)
-1. Human verify capital.com SSRF HIGH_SIGNAL (OOB empty — differential only until confirmed)
-2. Consume API routes from linkfinder_normalized (auth/trading endpoints)
-3. Richer targets when authorized
+## NEXT HIGHEST-VALUE GAPS
+1. Live verify OOB annotation + API seeds on authorized tip-SHA run (light)
+2. Human verify capital SSRF differentials (not auto-confirm)
+3. Optional: parameter_intelligence ingest of linkfinder API hosts
 4. Sengi when quota returns
