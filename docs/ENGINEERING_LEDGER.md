@@ -1,5 +1,36 @@
 ---
 
+## CYCLE — 2026-10-09 — Evidence-based step timeouts (full cycle)
+
+### Problem
+Live #139/#140: multiple steps `conclusion=success` but duration ≈ timeout → work **truncated**, not complete.
+
+### Evidence
+| Step | Hit | Old limit |
+|---|---|---|
+| Info Disclosure | 16.2m | 16m |
+| AI Infrastructure | 12.0m | 12m |
+| Extended Recon | 7.9m | 8m |
+| API Discovery | 10.0m | 10m |
+| Security Analysis | 10.0m | 10m |
+| Nuclei | 40.2m | 40m |
+| JS Analysis (#140) | 12.2m | 12m |
+| Source Map (#140) | 10.2m | 10m |
+| AI Phase 1 | risk | 5m |
+
+### Change (full-cycle budget, not infinite)
+JS Analysis 12→20, Targeted 18→25, InfoDisc 16→28, SourceMap 10→18,
+AI Infra 12→20, Extended Recon 8→15, API 10→20, Security 10→20,
+Nuclei 40→55, AI Phase1 5→15, Hunter 3→6, Hist validation 5→10,
+RepDiff 5→10, Pipeline Health 3→8.
+
+Job timeout remains 358m (public GHA bound).
+
+### Applies to
+New runs after this commit. #139/#140 already in flight keep old limits.
+
+---
+
 ## CYCLE — 2026-10-08 — LIVE VERIFY path for 4ae2fc9 + hosts export fixes
 
 ### HEAD

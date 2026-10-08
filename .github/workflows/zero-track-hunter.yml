@@ -1392,7 +1392,7 @@ jobs:
 
       - name: "📦 JavaScript Analysis"
         continue-on-error: true
-        timeout-minutes: 12
+        timeout-minutes: 20
         run: |
           RD="results/${{ env.TIMESTAMP }}"
           INPUT="$RD/urls/all.txt"
@@ -1798,7 +1798,7 @@ jobs:
 
       - name: "🎯 Targeted Vulnerability Scanners (Dalfox + Corsy + wafw00f + Subzy + CRLFuzz + Arjun)"
         continue-on-error: true
-        timeout-minutes: 18
+        timeout-minutes: 25
         run: |
           # Deterministic, purpose-built scanners as a hard backstop to the
           # AI-driven injection testing elsewhere in this pipeline. The AI
@@ -1954,7 +1954,7 @@ jobs:
       - name: "🔓 Information Disclosure Scan (Git, Backups, Configs)"
         if: ${{ env.ENABLE_GIT_EXPOSURE == 'true' }}
         continue-on-error: true
-        timeout-minutes: 16
+        timeout-minutes: 28
         run: |
           RD="results/${{ env.TIMESTAMP }}"
           INPUT="$RD/live/expensive_targets.txt"
@@ -2039,7 +2039,7 @@ jobs:
       - name: "🗺️ Source Map Analysis"
         if: ${{ env.ENABLE_SOURCE_MAPS == 'true' }}
         continue-on-error: true
-        timeout-minutes: 10
+        timeout-minutes: 18
         run: |
           RD="results/${{ env.TIMESTAMP }}"
           : > "$RD/source_maps/found.txt"
@@ -2071,7 +2071,7 @@ jobs:
 
       - name: "🤖 AI Infrastructure Reconnaissance (Strix Methodology)"
         continue-on-error: true
-        timeout-minutes: 12
+        timeout-minutes: 20
         run: |
           RD="results/${{ env.TIMESTAMP }}"
           mkdir -p "$RD/ai_infra"
@@ -2216,7 +2216,7 @@ jobs:
 
       - name: "🕵️ Extended Recon (GitHub / VHosts / Cloud Storage)"
         continue-on-error: true
-        timeout-minutes: 8
+        timeout-minutes: 15
         run: |
           RD="results/${{ env.TIMESTAMP }}"
           TARGET="${{ env.TARGET }}"
@@ -2667,7 +2667,7 @@ jobs:
 
       - name: "🔌 API Discovery"
         continue-on-error: true
-        timeout-minutes: 10
+        timeout-minutes: 20
         run: |
           RD="results/${{ env.TIMESTAMP }}"
           INPUT="$RD/live/expensive_targets.txt"
@@ -2715,7 +2715,7 @@ jobs:
 
       - name: "🛡️ Security Analysis"
         continue-on-error: true
-        timeout-minutes: 10
+        timeout-minutes: 20
         run: |
           RD="results/${{ env.TIMESTAMP }}"
           INPUT="$RD/live/expensive_targets.txt"
@@ -2868,7 +2868,7 @@ jobs:
 
       - name: "☢️ Nuclei Vulnerability Scan"
         continue-on-error: true
-        timeout-minutes: 40
+        timeout-minutes: 55
         run: |
           if [ "${SKIP_HEAVY_SCAN:-false}" = "true" ]; then
             echo "⏭️ Skipping Nuclei — live surface starved (not a clean-target claim)"
@@ -3278,7 +3278,7 @@ jobs:
 
       - name: "🧠 AI Agent Phase 1: Target Intelligence"
         continue-on-error: true
-        timeout-minutes: 5
+        timeout-minutes: 15
         run: |
           python3 << 'PYEOF'
           import json, os, sys, urllib.request, urllib.error, re, time
@@ -4066,7 +4066,7 @@ jobs:
 
       - name: "📋 Hunter Queue (Unified V1)"
         continue-on-error: true
-        timeout-minutes: 3
+        timeout-minutes: 6
         run: |
           RD="results/${{ env.TIMESTAMP }}"
           # Merges Access-Control + Open Redirect (detection/engine_results.json),
@@ -4733,7 +4733,7 @@ jobs:
       - name: "🔗 Historical Pivot Bounded Validation → Hunter"
         if: always()
         continue-on-error: true
-        timeout-minutes: 5
+        timeout-minutes: 10
         run: |
           RD="results/${{ env.TIMESTAMP }}"
           # Close the loop: HISTORICAL_PATH_CURRENT_HOST → bounded GET → evidence
@@ -4750,7 +4750,7 @@ jobs:
       - name: "🔀 Representation Differential (Accept html vs json)"
         if: always()
         continue-on-error: true
-        timeout-minutes: 5
+        timeout-minutes: 10
         run: |
           RD="results/${{ env.TIMESTAMP }}"
           # Intelligence-driven candidates only; bounded budget; not a second fuzz engine.
@@ -4764,7 +4764,7 @@ jobs:
       - name: "🏥 Pipeline Health Report"
         if: always()
         continue-on-error: true
-        timeout-minutes: 3
+        timeout-minutes: 8
         run: |
           # Phase status summary (quality gates / starvation — not tool blame)
           RD="results/${{ env.TIMESTAMP }}"
