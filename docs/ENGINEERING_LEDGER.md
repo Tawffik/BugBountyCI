@@ -1,5 +1,35 @@
 ---
 
+## CYCLE — 2026-10-08 — SRA handoff projection (finish-line dependency)
+
+### Context after #135
+Scheme-only Hunter filter LIVE VERIFIED. No multi-hour reconfirm.
+Highest finish-line gap: BBCI `recon_export.v1` is producer-shaped; SRA
+`ReconResultAdapter` expects consumer fixture shape (`primary_host`, `endpoints[]`).
+
+### Implementation (BBCI only — boundary preserved)
+- `scripts/export_sra_handoff.py` → `meta/sra_handoff.json` (`bugbountyci.sra_handoff.v1`)
+- Workflow emits handoff after pipeline exports
+- `recon_export` artifact index declares `sra_handoff`
+- Tests: `tests/test_sra_handoff.py`
+
+### Offline evidence (#135 capital results)
+- primary_host=capital.com
+- endpoints=27 (endpoints.jsonl + linkfinder API_ROUTE)
+- minimal contract_ok=True
+
+### Status
+IMPLEMENTED + TESTED + ARTIFACT REPLAY
+NOT full E2E with security-research-agent process (that remains SRA-side offline_bbci_episode).
+This closes the **BBCI-side handoff artifact** gap only.
+
+### Next READY
+1. Optional: SRA-side offline episode against `meta/sra_handoff.json` (other repo)
+2. SI-1 only if chosen over handoff/E2E
+3. Do not re-run long Zero Track solely for this deterministic projector
+
+---
+
 ## CYCLE — 2026-10-08 — scheme-only Hunter filter LIVE VERIFIED (#135)
 
 ### Run
