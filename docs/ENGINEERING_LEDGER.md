@@ -1,5 +1,27 @@
 ---
 
+## CYCLE — 2026-10-08 — Cross-engine relationships (historical∩JS, secret→file)
+
+### Selection (non-SI)
+Whole-project reassessment: SI bookkeeping closed; highest READY = **relationship correlation**.
+
+### Change
+`write_pipeline_exports.py`:
+- `HISTORICAL_PATH_AND_JS_API` — path in wayback/gau/historical_pivots ∩ LinkFinder WEB/API routes
+- `SECRET_CANDIDATE_TO_JS_FILE` — SI candidate fingerprint → JS file (not Hunter)
+
+### #134 replay
+```
+HISTORICAL_PATH_AND_JS_API = 6
+SECRET_CANDIDATE_TO_JS_FILE = 14
+relationships total ≈ 610
+```
+
+### Status
+**REAL-ARTIFACT VERIFIED** · no Hunter promotion · no SRA import
+
+---
+
 ## CYCLE — 2026-10-08 — SI bookkeeping 115=14+101 + export index
 
 ### Bookkeeping

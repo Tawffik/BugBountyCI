@@ -6,6 +6,15 @@ Does not replace raw evidence.
 import json, glob, os, re, sys
 from urllib.parse import urlparse
 
+def _count_secret_candidates(path):
+    try:
+        with open(path) as fh:
+            data = json.load(fh)
+        return len(data.get("candidates") or [])
+    except Exception:
+        return 0
+
+
 def main():
     rd = sys.argv[1] if len(sys.argv) > 1 else f"results/{os.environ.get('TIMESTAMP','')}"
     target = os.environ.get("TARGET", "")
@@ -52,6 +61,7 @@ def main():
     with open(os.path.join(rd, "meta", "engine_health.json"), "w") as fh:
         json.dump(eng, fh, indent=2)
         fh.write("\n")
+
 
     def nlines(p):
         try:
@@ -550,6 +560,99 @@ def main():
                     add_rel("URL_TO_RESPONSE_CLASS", f"url:{url[:200]}", f"class:{cls}", provenance="smart-fuzzing/response_diffs.json")
     except Exception:
         pass
+
+    # Cross-engine: HISTORICAL path ∩ LinkFinder API_ROUTE (same path identity)
+    # Not a finding — relationship only for research prioritization.
+    try:
+        hist_paths = set()
+        for fname in ("wayback.txt", "gau.txt", "waybackurls.txt"):
+            wp = os.path.join(rd, "urls", fname)
+            if not os.path.isfile(wp):
+                continue
+            with open(wp) as fh:
+                for i, line in enumerate(fh):
+                    if i >= 5000:
+                        break
+                    line = line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    try:
+                        from urllib.parse import urlparse
+                        path = urlparse(line if "://" in line else "https://x" + (line if line.startswith("/") else "/" + line)).path or "/"
+                    except Exception:
+                        path = line.split("?")[0] if line.startswith("/") else "/"
+                    if path and path != "/":
+                        hist_paths.add(path.rstrip("/") or path)
+        api_paths = set()
+        npath = os.path.join(rd, "js_deep", "linkfinder_normalized.jsonl")
+        if os.path.isfile(npath):
+            with open(npath) as fh:
+                for line in fh:
+                    try:
+                        row = json.loads(line)
+                    except Exception:
+                        continue
+                    cls = (row.get("classification") or row.get("class") or "").upper()
+                    if cls not in ("API_ROUTE", "WEB_ROUTE"):
+                        continue
+                    path = row.get("path") or row.get("endpoint") or ""
+                    if not path:
+                        u = row.get("url") or row.get("raw") or row.get("raw_value") or ""
+                        if u.startswith("http"):
+                            try:
+                                path = urlparse(u).path or ""
+                            except Exception:
+                                path = ""
+                        elif u.startswith("/"):
+                            path = u.split("?")[0]
+                    path = (path or "").split("?")[0]
+                    if path and path != "/" and not path.startswith("/ROOT/"):
+                        api_paths.add(path.rstrip("/") or path)
+        # also historical_pivots.jsonl if present
+        hp = os.path.join(rd, "info_disclosure", "historical_pivots.jsonl")
+        if os.path.isfile(hp):
+            with open(hp) as fh:
+                for line in fh:
+                    try:
+                        row = json.loads(line)
+                    except Exception:
+                        continue
+                    path = row.get("path") or ""
+                    if path and path != "/":
+                        hist_paths.add(path.rstrip("/") or path)
+        overlap = hist_paths & api_paths
+        for path in sorted(overlap)[:300]:
+            add_rel(
+                "HISTORICAL_PATH_AND_JS_API",
+                f"historical_path:{path[:200]}",
+                f"js_api:{path[:200]}",
+                provenance="urls/*+js_deep/linkfinder_normalized.jsonl",
+                engines=["historical", "linkfinder"],
+            )
+    except Exception:
+        pass
+    # Secret candidate → JS file (fingerprint only; not Hunter promotion)
+    try:
+        scp = os.path.join(rd, "meta", "secret_candidates_si4.json")
+        if not os.path.isfile(scp):
+            scp = os.path.join(rd, "meta", "secret_candidates.json")
+        if os.path.isfile(scp):
+            with open(scp) as fh:
+                sc = json.load(fh)
+            for c in (sc.get("candidates") or [])[:200]:
+                f = c.get("file") or ""
+                cid = c.get("candidate_id") or ""
+                if f and cid:
+                    add_rel(
+                        "SECRET_CANDIDATE_TO_JS_FILE",
+                        f"secret:{cid}",
+                        f"js_file:{f[:200]}",
+                        provenance="meta/secret_candidates*.json",
+                        classification=c.get("classification") or "LEAD",
+                    )
+    except Exception:
+        pass
+
     with open(os.path.join(rd, "meta", "relationships.jsonl"), "w") as fh:
         for r in rels[:5000]:
             fh.write(json.dumps(r) + "\n")
