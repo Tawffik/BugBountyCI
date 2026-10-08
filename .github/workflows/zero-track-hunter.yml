@@ -1790,7 +1790,10 @@ jobs:
           fi
           echo "✅ Mantra findings: $(wc -l < "$RD/js_deep/mantra_findings.txt" 2>/dev/null || echo 0)"
           # SI-2: canonicalize js_deep secret detectors → meta/secret_candidates.json (no Hunter)
-          python3 scripts/si2_from_js_deep.py --results-dir "$RD" || true
+          python3 scripts/si2_from_js_deep.py --results-dir "$RD" --out "$RD/meta/secret_candidates.json" || true
+          if [ -f "$RD/meta/secret_candidates.json" ]; then
+            python3 scripts/si4_classify.py --input "$RD/meta/secret_candidates.json" --out "$RD/meta/secret_candidates_si4.json" || true
+          fi
 
 
       - name: "🎯 Targeted Vulnerability Scanners (Dalfox + Corsy + wafw00f + Subzy + CRLFuzz + Arjun)"

@@ -1,5 +1,46 @@
 ---
 
+## CYCLE — 2026-10-08 — SI-4 Context/Classification on #134 LEADs
+
+### Evidence source
+Real artifact #134 capital `js_deep` → SI-2 (52 LEAD) → SI-4
+
+### Measured after SI-4
+```
+n=52
+LEAD=22
+LIKELY_BENIGN=30
+HIGH_SIGNAL=0
+CONFIRMED=0
+
+by_candidate_type:
+  code_fragment=28          # possible_Creds long JS snippets
+  provider_shaped_identifier=7  # Twilio-shaped (often public SID class)
+  credential_shaped=10
+  token_like=5              # Mantra
+  public_client_identifier=2 # google reCAPTCHA site key
+```
+
+### Implementation
+- `scripts/si4_classify.py` — explainable context signals + benign indicators
+- Never CONFIRMED; no currentness/capability claims
+- Workflow writes `meta/secret_candidates_si4.json` after SI-2
+- Tests: `tests/test_si4_classify.py`
+
+### Usefulness
+Analyst-facing: 52 undifferentiated LEADs → **22 LEAD + 30 LIKELY_BENIGN** with reasons.
+Still **not Hunter-connected**.
+
+### Status
+**OFFLINE VERIFIED on LIVE ARTIFACT** (#134 replay)
+
+### Next READY (sweep)
+Optional: SI-5 currentness only with authorized validation contract
+Or improve possible_Creds suppression at SI-2 parse (long fragments) — higher filter value
+Hunter remains blocked until promotion criteria exist
+
+---
+
 ## CYCLE — 2026-10-08 — LIVE-ARTIFACT REPLAY (#134 capital js_deep)
 
 ### Artifact
