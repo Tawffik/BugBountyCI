@@ -652,6 +652,7 @@ def main():
             "linkfinder_normalized": "js_deep/linkfinder_normalized.jsonl",
             "smart_fuzzing_metrics": "smart-fuzzing/metrics.json",
             "nuclei_track": "meta/nuclei_track.json",
+            "sra_handoff": "meta/sra_handoff.json",
         },
         "counts": profile.get("counts"),
         "limitations": eng.get("flags") or [],
