@@ -1,5 +1,22 @@
 ---
 
+## CYCLE — 2026-10-08 — SI-2 Canonical secret candidates (dedupe + provenance)
+
+### Implementation
+- `scripts/si2_canonicalize.py` — merge multi-detector observations into one candidate
+- classification LEAD → HIGH_SIGNAL on corroboration; **never CONFIRMED** from pattern alone
+- `tests/test_si2_canonicalize.py`
+
+### Status
+**SI-2 OFFLINE VERIFIED** (unit)
+NOT wired to live Hunter Queue (would flood; requires SI classification gates)
+
+### Next READY
+Optional: map live `js_deep/*` detector outputs → SI-2 offline on harvested artifact
+Do not auto-promote to Hunter without FP gates from SI-1 classes
+
+---
+
 ## CYCLE — 2026-10-08 — SI-1 Deterministic Secret Intelligence Benchmark
 
 ### Decision
