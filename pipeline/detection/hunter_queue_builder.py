@@ -31,7 +31,7 @@ import os
 import re
 from urllib.parse import urlparse
 
-PRIORITY_ORDER = {"HIGH_SIGNAL": 0, "CONFIRMED": 0, "IDOR-CANDIDATE": 1, "LEAD": 2, "INTERESTING": 3}
+PRIORITY_ORDER = {"HIGH_SIGNAL": 0, "CONFIRMED": 0, "IDOR-CANDIDATE": 1, "LEAD": 2, "INTERESTING": 3, "RESEARCH_CONTEXT": 5}
 # Within same priority_class, prefer research-dense engines over low-value noise.
 ENGINE_TIER = {
     "ssrf-v1": 0,
@@ -41,6 +41,7 @@ ENGINE_TIER = {
     "smart-fuzzing/response_diff": 2,
     "representation_differential": 2,
     "historical_pivot": 4,
+    "relationship_cross_engine": 5,
 }
 
 
@@ -332,6 +333,57 @@ def load_representation_diffs(results_dir):
     return entries
 
 
+
+def load_cross_engine_relationships(results_dir, limit=20):
+    """Surface HISTORICAL∩JS relationships as research context — not findings.
+
+    Does NOT load SECRET_CANDIDATE edges (SI Hunter promotion remains off).
+    """
+    path = os.path.join(results_dir, "meta", "relationships.jsonl")
+    if not os.path.isfile(path):
+        return []
+    out = []
+    try:
+        with open(path, "r", errors="ignore") as f:
+            for line in f:
+                if len(out) >= limit:
+                    break
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    row = json.loads(line)
+                except Exception:
+                    continue
+                if row.get("type") != "HISTORICAL_PATH_AND_JS_API":
+                    continue
+                path_label = (row.get("from") or "").replace("historical_path:", "")
+                if not path_label:
+                    continue
+                out.append({
+                    "target": path_label[:200],
+                    "engine": "relationship_cross_engine",
+                    "priority_class": "RESEARCH_CONTEXT",
+                    "reason": (
+                        "Cross-engine relationship: historical archive path also appears "
+                        "in JS/LinkFinder routes. Not a vulnerability — research context only. "
+                        f"engines={row.get('engines')}; provenance={row.get('provenance')}. "
+                        "Suggested next: compare current vs historical behaviour for this path "
+                        "within authorized scope."
+                    ),
+                    "stable": None,
+                    "details": {
+                        "relationship_type": "HISTORICAL_PATH_AND_JS_API",
+                        "from": row.get("from"),
+                        "to": row.get("to"),
+                        "provenance": row.get("provenance"),
+                    },
+                })
+    except Exception:
+        return []
+    return out
+
+
 def load_surface_context(results_dir):
     """Additive meta context. Never invents findings."""
     meta = os.path.join(results_dir, "meta")
@@ -469,6 +521,7 @@ def main():
         + load_historical_validations(args.results_dir)
         + load_representation_diffs(args.results_dir)
         + load_linkfinder_api_routes(args.results_dir)
+        + load_cross_engine_relationships(args.results_dir)
     )
 
     out_dir = os.path.join(args.results_dir, "detection")

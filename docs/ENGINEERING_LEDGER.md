@@ -1,5 +1,24 @@
 ---
 
+## CYCLE — 2026-10-08 — Hunter RESEARCH_CONTEXT for HISTORICAL∩JS edges
+
+### Selection
+After whole-project reassessment: highest READY = present cross-engine relationships in Hunter as **research context**, not findings.
+
+### Change
+`pipeline/detection/hunter_queue_builder.py`
+- `load_cross_engine_relationships()`
+- priority `RESEARCH_CONTEXT` (lowest)
+- **only** `HISTORICAL_PATH_AND_JS_API` (SI secret edges excluded)
+
+### Measure (#134)
+RESEARCH_CONTEXT entries from relationships when present.
+
+### Status
+**TESTED + REPLAY-capable** · SI→Hunter still off · not a vulnerability claim
+
+---
+
 ## CYCLE — 2026-10-08 — Cross-engine relationships (historical∩JS, secret→file)
 
 ### Selection (non-SI)
