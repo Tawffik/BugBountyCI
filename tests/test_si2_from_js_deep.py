@@ -43,3 +43,32 @@ class JSDeepSI2Adapter(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class PossibleCredsJSFragmentFilter(unittest.TestCase):
+    def test_drops_long_js_snippet(self):
+        from pathlib import Path
+        import tempfile
+        td = Path(tempfile.mkdtemp()) / "js_deep"
+        td.mkdir()
+        # long possible_Creds with JS markers — must drop
+        noisy = "password" + "x" * 50 + ";let a=1;var b=2"
+        (td / "secretfinder_secrets.txt").write_text(
+            f"[app.js] possible_Creds\t->\t{noisy}\n"
+            f"[app.js] possible_Creds\t->\tsecretvalue12345\n"  # short, preserve
+            f"[app.js] AWS Access Key\t->\tAKIAIOSFODNN7EXAMPLE\n"
+        )
+        (td / "gitleaks_findings.json").write_text("[]")
+        (td / "trufflehog_findings.jsonl").write_text("")
+        (td / "mantra_findings.txt").write_text("")
+        obs = adapter.collect_js_deep(td.parent)
+        rules = [o.get("rule","") for o in obs]
+        self.assertNotIn("possible_Creds", [r for r,o in zip(rules,obs) if "possible" in r.lower() and "AKIA" in str(o)])
+        # short possible_Creds preserved
+        pc = [o for o in obs if "possible" in (o.get("rule") or "").lower()]
+        self.assertEqual(len(pc), 1)
+        # AWS preserved
+        self.assertTrue(any("AWS" in (o.get("rule") or "") for o in obs))
+
+    def test_preserves_short_possible_creds(self):
+        self.assertFalse(adapter._is_js_code_fragment("shortsecret12"))
+        self.assertTrue(adapter._is_js_code_fragment("pass" + "x"*100 + ";let a=1"))

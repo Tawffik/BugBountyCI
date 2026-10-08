@@ -25,6 +25,23 @@ PLACEHOLDER_RE = re.compile(
 )
 HEROKU_UUID_LABEL = re.compile(r"(?i)heroku\s*api\s*key")
 
+def _is_js_code_fragment(val: str) -> bool:
+    """True when SecretFinder possible_Creds matched a minified JS snippet, not an isolated secret.
+
+    Evidence from capital #134: long values with JS syntax (let/var/;/{} /function/=>).
+    Narrow: only applied to possible_Creds by the caller.
+    """
+    if len(val) < 40:
+        return False
+    if len(val) >= 80 and (";" in val or "{" in val or "}" in val):
+        return True
+    if re.search(r"\b(let|var|const|function)\b", val) or "=>" in val:
+        return True
+    if val.count(";") >= 2:
+        return True
+    return False
+
+
 
 def _fp(*parts: str) -> str:
     return hashlib.sha256("|".join(parts).encode("utf-8", errors="replace")).hexdigest()[:24]
@@ -57,6 +74,8 @@ def parse_secretfinder(path: Path) -> list[dict]:
         if UUID_RE.match(val) and (
             HEROKU_UUID_LABEL.search(typ) or "possible_cred" in typ.lower()
         ):
+            continue
+        if "possible_cred" in (typ or "").lower() and _is_js_code_fragment(val):
             continue
         if PLACEHOLDER_RE.search(val):
             continue

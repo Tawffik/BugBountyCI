@@ -1,5 +1,44 @@
 ---
 
+## CYCLE — 2026-10-08 — SI-2 possible_Creds JS-fragment suppression
+
+### Symptom
+SI-4 showed 28/52 `code_fragment` = long SecretFinder `possible_Creds` matching minified JS (pass*/;let/var).
+
+### Root cause
+SI-2 passed JS snippets as observations; SI-4 only re-labeled them.
+
+### Fix
+`_is_js_code_fragment()` applied **only** to `possible_Creds`:
+- len≥80 with `;`/`{}` OR
+- JS keywords let/var/const/function/`=>` OR
+- ≥2 semicolons
+Short/medium non-JS possible_Creds preserved.
+
+### #134 before → after
+| Metric | Before | After |
+|---|---:|---:|
+| observations | 52 | **21** |
+| code_fragment (SI-4) | 28 | **0** |
+| LEAD (SI-4) | 22 | **19** |
+| LIKELY_BENIGN | 30 | **2** (recaptcha) |
+| credential_shaped | 10 | **7** |
+| multi-detector dropped | 0 | 0 |
+
+### Tests
+`PossibleCredsJSFragmentFilter` + full SI suite — 10+ passed
+
+### Status
+**LIVE-ARTIFACT VERIFIED** (#134 replay)
+Hunter still **NOT CONNECTED**
+
+### Global sweep next READY
+Remaining LEADs are Twilio-shaped / short credential_shaped / Mantra — SI-5 currentness not READY without auth validation.
+Higher product value may be: stop inventing SI phases; protect contracts; optional Twilio public-SID heuristic at SI-2.
+No mandatory engine switch proven without dependency audit beyond SI noise.
+
+---
+
 ## CYCLE — 2026-10-08 — SI-4 Context/Classification on #134 LEADs
 
 ### Evidence source
