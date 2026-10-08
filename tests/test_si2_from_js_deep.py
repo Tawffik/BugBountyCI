@@ -72,3 +72,24 @@ class PossibleCredsJSFragmentFilter(unittest.TestCase):
     def test_preserves_short_possible_creds(self):
         self.assertFalse(adapter._is_js_code_fragment("shortsecret12"))
         self.assertTrue(adapter._is_js_code_fragment("pass" + "x"*100 + ";let a=1"))
+
+class TwilioSidShapeFilter(unittest.TestCase):
+    def test_drops_non_ac_twilio_shaped(self):
+        from pathlib import Path
+        import tempfile
+        td = Path(tempfile.mkdtemp()) / "js_deep"
+        td.mkdir()
+        fake = "ace-" + "x" * 30  # 34 chars, not AC...
+        real = "AC" + ("a" * 32)
+        (td / "secretfinder_secrets.txt").write_text(
+            f"[a.js] twilio_account_sid\t->\t{fake}\n"
+            f"[b.js] twilio_account_sid\t->\t{real}\n"
+        )
+        (td / "gitleaks_findings.json").write_text("[]")
+        (td / "trufflehog_findings.jsonl").write_text("")
+        (td / "mantra_findings.txt").write_text("")
+        obs = adapter.collect_js_deep(td.parent)
+        tw = [o for o in obs if "twilio" in (o.get("rule") or "").lower()]
+        self.assertEqual(len(tw), 1)
+        # real SID preserved via fingerprint path
+        self.assertTrue(any(o.get("file") == "b.js" for o in tw))

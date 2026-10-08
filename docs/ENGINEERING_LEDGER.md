@@ -1,5 +1,35 @@
 ---
 
+## CYCLE — 2026-10-08 — Twilio SID shape filter (SI-2)
+
+### Evidence
+#134 Twilio-shaped hits were 34-char strings with prefixes `ace-`/`Acti`/`actS` — **not** `AC` + 32 hex (real Twilio Account SID).
+
+### Fix
+`TWILIO_SID_RE = ^AC[0-9a-fA-F]{32}$` — drop non-matching `twilio*` SecretFinder rules only.
+
+### #134 cumulative SI-2 (raw 115)
+| Stage | observations |
+|---|---:|
+| after prior filters + possible_Creds JS | 21 |
+| after Twilio shape | **14** |
+| dropped cumulative | **101** |
+
+SI-4 on 14: LEAD=12, LIKELY_BENIGN=2 (recaptcha), code_fragment=0, provider_shaped=0
+
+### Tests
+`TwilioSidShapeFilter` + suite **14 passed**
+
+### Global sweep
+- SI-5 / Hunter: **NOT READY**
+- SQLi/SSTI: present in workflow but not selected (no new proven correctness gap this cycle)
+- Remaining LEADs: short credential_shaped + Mantra — low promotion priority
+
+### Status
+**LIVE-ARTIFACT VERIFIED** · Hunter **NOT CONNECTED**
+
+---
+
 ## CYCLE — 2026-10-08 — SI-2 possible_Creds JS-fragment suppression
 
 ### Symptom

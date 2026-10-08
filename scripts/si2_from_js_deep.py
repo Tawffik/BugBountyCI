@@ -24,6 +24,7 @@ PLACEHOLDER_RE = re.compile(
     r"(?i)(your_api_key_here|changeme|\bxxx\b|example_public|placeholder|not_a_real|do_not_use)"
 )
 HEROKU_UUID_LABEL = re.compile(r"(?i)heroku\s*api\s*key")
+TWILIO_SID_RE = re.compile(r"^AC[0-9a-fA-F]{32}$")
 
 def _is_js_code_fragment(val: str) -> bool:
     """True when SecretFinder possible_Creds matched a minified JS snippet, not an isolated secret.
@@ -76,6 +77,9 @@ def parse_secretfinder(path: Path) -> list[dict]:
         ):
             continue
         if "possible_cred" in (typ or "").lower() and _is_js_code_fragment(val):
+            continue
+        # Twilio Account SID is AC + 32 hex; other 34-char strings are SecretFinder FPs (capital #134)
+        if "twilio" in (typ or "").lower() and not TWILIO_SID_RE.match(val.strip()):
             continue
         if PLACEHOLDER_RE.search(val):
             continue
