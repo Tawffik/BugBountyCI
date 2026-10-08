@@ -1,5 +1,36 @@
 ---
 
+## CYCLE — 2026-10-08 — Signal-loss audit + SI-2 quarantine journal
+
+### Question
+Where did 101/#134 "dropped" go? Was signal destroyed?
+
+### Answer
+1. **Raw detector files intact** (`js_deep/secretfinder_secrets.txt` etc. still authoritative; SI-2 never deletes them).
+2. Suppression was **in-memory only** → recoverable by re-run / re-parse.
+3. Added **quarantine**: `meta/secret_suppressed.jsonl` — fingerprint + drop_reason, **no raw secrets**.
+
+### #134 drop_reason breakdown (100 suppressed + 14 candidates ≈ 115)
+```
+uuid_possible_creds_or_heroku: 35
+possible_creds_js_code_fragment: 32
+short_authorization_api: 25
+twilio_sid_shape_mismatch: 7
+modal_keys: 1
+```
+
+### Policy
+```
+contextualize > quarantine > suppress
+```
+Hard-delete of raw evidence is **not** used.
+
+### Status
+**SIGNAL-LOSS AUDIT COMPLETE** · quarantine **IMPLEMENTED + REPLAYED**
+Hunter still **NOT CONNECTED** · SI-5 still **NOT READY**
+
+---
+
 ## CYCLE — 2026-10-08 — Twilio SID shape filter (SI-2)
 
 ### Evidence

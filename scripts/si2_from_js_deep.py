@@ -53,7 +53,8 @@ def _safe_ref(kind: str, value: str) -> str:
     return f"{kind}:len={len(v)}:fp={_fp(kind, v)}"
 
 
-def parse_secretfinder(path: Path) -> list[dict]:
+
+def parse_secretfinder(path: Path, suppressed: list | None = None) -> list[dict]:
     if not path.is_file():
         return []
     out = []
@@ -70,21 +71,40 @@ def parse_secretfinder(path: Path) -> list[dict]:
             typ, val = parts[0].strip(), parts[1].strip()
         else:
             typ, val = "unknown", rest
+
+        def _suppress(reason: str) -> None:
+            if suppressed is not None:
+                suppressed.append(
+                    {
+                        "detector": "SecretFinder",
+                        "rule": typ or "secretfinder",
+                        "file": src,
+                        "match_ref": _safe_ref(typ or "sf", val),
+                        "fingerprint": _fp("content", val),
+                        "drop_reason": reason,
+                        "layer": "si2_filter",
+                    }
+                )
+
         if MODAL_KEYS_RE.search(line):
+            _suppress("modal_keys")
             continue
         if UUID_RE.match(val) and (
             HEROKU_UUID_LABEL.search(typ) or "possible_cred" in typ.lower()
         ):
+            _suppress("uuid_possible_creds_or_heroku")
             continue
         if "possible_cred" in (typ or "").lower() and _is_js_code_fragment(val):
+            _suppress("possible_creds_js_code_fragment")
             continue
-        # Twilio Account SID is AC + 32 hex; other 34-char strings are SecretFinder FPs (capital #134)
         if "twilio" in (typ or "").lower() and not TWILIO_SID_RE.match(val.strip()):
+            _suppress("twilio_sid_shape_mismatch")
             continue
         if PLACEHOLDER_RE.search(val):
+            _suppress("placeholder")
             continue
-        # Short authorization_api tokens (often "Bearer "+short) are low-value noise on capital-class JS
         if "authorization" in (typ or "").lower() and len(val) < 24:
+            _suppress("short_authorization_api")
             continue
         out.append(
             {
@@ -98,7 +118,7 @@ def parse_secretfinder(path: Path) -> list[dict]:
     return out
 
 
-def parse_gitleaks(path: Path) -> list[dict]:
+def parse_gitleaks(path: Path, suppressed: list | None = None) -> list[dict]:
     if not path.is_file():
         return []
     try:
@@ -116,10 +136,16 @@ def parse_gitleaks(path: Path) -> list[dict]:
         secret = str(item.get("Secret") or item.get("Match") or "")
         match = str(item.get("Match") or "")
         if MODAL_KEYS_RE.search(match) or MODAL_KEYS_RE.search(secret):
+            if suppressed is not None:
+                suppressed.append({"detector":"Gitleaks","rule":rule,"file":file,"match_ref":_safe_ref(rule, secret),"fingerprint":_fp("content", secret),"drop_reason":"modal_keys","layer":"si2_filter"})
             continue
         if UUID_RE.match(secret.strip()):
+            if suppressed is not None:
+                suppressed.append({"detector":"Gitleaks","rule":rule,"file":file,"match_ref":_safe_ref(rule, secret),"fingerprint":_fp("content", secret),"drop_reason":"uuid","layer":"si2_filter"})
             continue
         if PLACEHOLDER_RE.search(secret):
+            if suppressed is not None:
+                suppressed.append({"detector":"Gitleaks","rule":rule,"file":file,"match_ref":_safe_ref(rule, secret),"fingerprint":_fp("content", secret),"drop_reason":"placeholder","layer":"si2_filter"})
             continue
         out.append(
             {
@@ -193,11 +219,13 @@ def parse_mantra(path: Path) -> list[dict]:
     return out
 
 
-def collect_js_deep(results_dir: Path) -> list[dict]:
+def collect_js_deep(results_dir: Path, suppressed: list | None = None) -> list[dict]:
     jd = results_dir / "js_deep"
+    if suppressed is None:
+        suppressed = []
     obs: list[dict] = []
-    obs.extend(parse_secretfinder(jd / "secretfinder_secrets.txt"))
-    obs.extend(parse_gitleaks(jd / "gitleaks_findings.json"))
+    obs.extend(parse_secretfinder(jd / "secretfinder_secrets.txt", suppressed))
+    obs.extend(parse_gitleaks(jd / "gitleaks_findings.json", suppressed))
     obs.extend(parse_trufflehog(jd / "trufflehog_findings.jsonl"))
     obs.extend(parse_mantra(jd / "mantra_findings.txt"))
     return obs
@@ -209,7 +237,8 @@ def main() -> int:
     ap.add_argument("--out", default="")
     args = ap.parse_args()
     rd = Path(args.results_dir)
-    obs = collect_js_deep(rd)
+    suppressed: list[dict] = []
+    obs = collect_js_deep(rd, suppressed)
     cands = canonicalize(obs)
     jd = rd / "js_deep"
     def _nlines(name, pred=None):
@@ -251,8 +280,19 @@ def main() -> int:
     out = Path(args.out) if args.out else rd / "meta" / "secret_candidates.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, indent=2) + "\n")
+    # Quarantine: suppressed observations (fingerprint only) — raw detector files remain authoritative
+    qpath = out.parent / "secret_suppressed.jsonl"
+    with qpath.open("w") as qf:
+        for row in suppressed:
+            qf.write(json.dumps(row) + "\n")
+    report["suppressed_count"] = len(suppressed)
+    report["suppressed_path"] = str(qpath)
+    # rewrite report with suppressed_count
+    out.write_text(json.dumps(report, indent=2) + "\n")
+    from collections import Counter
+    reasons = Counter(r.get("drop_reason") for r in suppressed)
     print(
-        f"js_deep_obs={len(obs)} canonical={len(cands)} classes={report['by_class']} -> {out}"
+        f"js_deep_obs={len(obs)} canonical={len(cands)} suppressed={len(suppressed)} reasons={dict(reasons)} classes={report['by_class']} -> {out}"
     )
     return 0
 
