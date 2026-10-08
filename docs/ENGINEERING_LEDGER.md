@@ -1,5 +1,24 @@
 ---
 
+## CYCLE — 2026-10-09 — Nuclei + Subdomain Monitor → VulnRadar
+
+### Decision
+Bulk Nuclei inside Zero Track produced months of `matched=0`, ~45% errors, timeout mid-scan.
+Subdomain Monitor (`01.yml`) is a separate continuous baseline job — better owned with CVE-scoped nuclei.
+
+### Actions
+1. **Zero Track**: `Nuclei Vulnerability Scan` step replaced with `NOT_RUN` / `MOVED_TO_VULNRADAR` (no bulk `-severity critical,high` campaign).
+2. **01.yml**: marked DEPRECATED — migrate to VulnRadar `pipeline/monitor` + planned `vulnradar-monitor.yml`.
+3. Takeover-tagged nuclei one-liner (if any) may remain; full campaign does not.
+
+### Owner
+Tawffik/VulnRadar — CVE `nuclei -id` + subdomain baseline monitor.
+
+### Honesty
+`findings=0` from bulk nuclei was never a clean-target claim; phase is now explicit NOT_RUN external track.
+
+---
+
 ## CYCLE — 2026-10-09 — Evidence-based step timeouts (full cycle)
 
 ### Problem

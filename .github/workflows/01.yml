@@ -1,3 +1,8 @@
+# DEPRECATED (2026-10-09): Subdomain Monitor is migrating to Tawffik/VulnRadar
+# (docs/SUBDOMAIN_MONITOR_AND_NUCLEI.md). Do not expand this workflow.
+# Prefer VulnRadar targets/*.yaml + pipeline/monitor baseline.
+# This file remains temporarily for historical runs / manual use until VulnRadar monitor workflow ships.
+
 name: "Subdomain Monitor"
 
 on:
