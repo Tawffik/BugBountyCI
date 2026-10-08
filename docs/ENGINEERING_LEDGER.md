@@ -1,5 +1,28 @@
 ---
 
+## CYCLE — 2026-10-08 — hosts/urls export UnboundLocalError (urlparse shadow)
+
+### Symptom
+#136/#137: `hosts_modeled=0`, `urls_modeled=0` despite live/verified and urls/all.txt present.
+
+### Root cause
+Local `from urllib.parse import urlparse` inside `main()` made `urlparse` a local for the whole function → early host/url loops raised UnboundLocalError (caught per-iteration → empty).
+
+### Fix
+Remove shadowed local import; use module-level `urlparse`.
+
+### Replay #136 after fix
+| Metric | Before | After |
+|---|---:|---:|
+| hosts.jsonl | 0 | **14375** |
+| urls.jsonl | 0 | **209** |
+| relationships | 622 | **1007** |
+
+### Live
+#138 capital.com light on `4ae2fc9` still running (pre-this-fix for hosts). Next live must include this fix.
+
+---
+
 ## FORENSIC — Live #136 capital.com + #137 superdrug.com
 
 ### Runs

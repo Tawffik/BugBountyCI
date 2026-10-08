@@ -617,7 +617,6 @@ def main():
                     if not line or line.startswith("#"):
                         continue
                     try:
-                        from urllib.parse import urlparse
                         path = urlparse(line if "://" in line else "https://x" + (line if line.startswith("/") else "/" + line)).path or "/"
                     except Exception:
                         path = line.split("?")[0] if line.startswith("/") else "/"
