@@ -1,5 +1,39 @@
 ---
 
+## CYCLE — 2026-10-08 — Cross-repo BBCI → SRA handoff OFFLINE VERIFIED
+
+### Problem
+BBCI-side `meta/sra_handoff.json` alone does not prove SRA consumption.
+
+### SRA work (security-research-agent)
+- HEAD: `6880654`
+- `bbci_contract.normalize_bbci_artifact` recognizes `bugbountyci.sra_handoff.v1`
+- Endpoint **host** preserved on normalize
+- Fixture: `examples/fixtures/bbci/capital_sra_handoff.json` (from #135 capital)
+- Tests: `tests/test_sra_handoff_adapt.py` (2 passed)
+- `run_offline_sra_handoff_adapt()` — adapt stage, no live HTTP
+
+### Evidence
+```
+primary_host=capital.com
+n_endpoints>=5
+contract_ok=True
+stages.adaptation=True
+```
+
+### Status
+**OFFLINE VERIFIED** (cross-repo contract + ReconResultAdapter)
+NOT live research episode (ClosedLoop) against capital — would be SRA runtime, not required to prove producer→adapter path.
+NOT PROJECT_COMPLETE (full finish line still includes broader product gates).
+
+### BBCI side
+Handoff projector remains CLOSED (deterministic). No multi-hour re-run required for this contract proof.
+
+### Next READY (auto-select by finish-line impact)
+Evaluate remaining: SI track vs full offline ClosedLoop on handoff vs documentation freeze — only if still required by Master Architecture finish line.
+
+---
+
 ## CYCLE — 2026-10-08 — SRA handoff projection (finish-line dependency)
 
 ### Context after #135
