@@ -1,5 +1,21 @@
 ---
 
+## CYCLE — 2026-10-08 — finishing pass (ranking + handoff + live run)
+
+### Commits
+- `0de17fc` — Hunter RESEARCH_CONTEXT prefer historical, dedupe, cap 40
+- `6baf7ba` — sra_handoff relationship type counts + SI artifact paths
+
+### Live run
+Dispatched Zero Track light / capital.com / authorized_open_scan=true
+Run: **37723656028** on SHA `0de17fc` (in progress during session)
+
+### Status
+NOT PROJECT_COMPLETE — awaiting full live harvest of #37723656028
+SI→Hunter still OFF · SI-5 still NOT READY
+
+---
+
 ## CYCLE — 2026-10-08 — Hunter RESEARCH_CONTEXT ranking + dedupe
 
 ### Change
