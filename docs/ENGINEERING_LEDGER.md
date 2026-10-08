@@ -1,5 +1,28 @@
 ---
 
+## CYCLE — 2026-10-08 — LIVE VERIFY path for 4ae2fc9 + hosts export fixes
+
+### HEAD
+`2995a26` (after `c49fbd0` hosts fix + IP cap)
+
+### Ordering fix (4ae2fc9)
+Hunter rebuild after exports — offline #136: RESEARCH_CONTEXT=9. **Live proof pending** on run **#139**.
+
+### Export correctness
+- `urlparse` UnboundLocalError fixed → hosts/urls populate
+- IP LIVE hosts capped at 200; all VERIFIED kept → #136 replay hosts **259**
+
+### Live runs
+| Run | SHA | Status |
+|---|---|---|
+| #138 37824750766 | 4ae2fc9 | cancel requested (superseded) |
+| **#139** 37825023152 | c49fbd0 | **in_progress** capital.com light — verifies RESEARCH_CONTEXT + hosts export |
+
+### Not PROJECT_COMPLETE
+Await #139 harvest: RESEARCH_CONTEXT>0 same-run, hosts_modeled>0, urls_modeled>0.
+
+---
+
 ## CYCLE — 2026-10-08 — hosts/urls export UnboundLocalError (urlparse shadow)
 
 ### Symptom
