@@ -1,5 +1,28 @@
 ---
 
+## CYCLE — 2026-10-08 — LinkFinder API→endpoint model + JS∩live relationships
+
+### #134 real-artifact chain
+Hunter RESEARCH_CONTEXT for HISTORICAL∩JS: **6 verified** (full export→hunter).
+
+### Next slice (post reassessment)
+1. Merge LinkFinder `API_ROUTE` into `meta/endpoints.jsonl` (dedupe)
+2. Relationship `JS_API_AND_LIVE_ENDPOINT`
+3. Hunter RESEARCH_CONTEXT includes both relationship types (limit 20)
+
+### Measured (#134)
+| Metric | Before | After |
+|---|---:|---:|
+| endpoints modeled | 9 | **29** |
+| JS_API_AND_LIVE_ENDPOINT | 0 | **20** |
+| HISTORICAL_PATH_AND_JS_API | 6 | 6 |
+| Hunter RESEARCH_CONTEXT | 6 | **20** (cap) |
+| relationships total | ~610 | **~650** |
+
+SI→Hunter still OFF. Not findings.
+
+---
+
 ## CYCLE — 2026-10-08 — Hunter RESEARCH_CONTEXT for HISTORICAL∩JS edges
 
 ### Selection

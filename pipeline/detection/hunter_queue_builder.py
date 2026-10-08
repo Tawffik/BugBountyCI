@@ -355,9 +355,13 @@ def load_cross_engine_relationships(results_dir, limit=20):
                     row = json.loads(line)
                 except Exception:
                     continue
-                if row.get("type") != "HISTORICAL_PATH_AND_JS_API":
+                rtype = row.get("type") or ""
+                if rtype not in ("HISTORICAL_PATH_AND_JS_API", "JS_API_AND_LIVE_ENDPOINT"):
                     continue
-                path_label = (row.get("from") or "").replace("historical_path:", "")
+                if rtype == "HISTORICAL_PATH_AND_JS_API":
+                    path_label = (row.get("from") or "").replace("historical_path:", "")
+                else:
+                    path_label = (row.get("from") or "").replace("js_path:", "") or (row.get("to") or "").replace("endpoint:", "")
                 if not path_label:
                     continue
                 out.append({
@@ -365,15 +369,21 @@ def load_cross_engine_relationships(results_dir, limit=20):
                     "engine": "relationship_cross_engine",
                     "priority_class": "RESEARCH_CONTEXT",
                     "reason": (
-                        "Cross-engine relationship: historical archive path also appears "
-                        "in JS/LinkFinder routes. Not a vulnerability — research context only. "
+                        (
+                            "Cross-engine relationship: historical archive path also appears "
+                            "in JS/LinkFinder routes. "
+                            if rtype == "HISTORICAL_PATH_AND_JS_API"
+                            else "Cross-engine relationship: JS/LinkFinder route also appears "
+                            "in the modeled endpoint surface. "
+                        )
+                        + "Not a vulnerability — research context only. "
                         f"engines={row.get('engines')}; provenance={row.get('provenance')}. "
-                        "Suggested next: compare current vs historical behaviour for this path "
+                        "Suggested next: compare current behaviour for this path "
                         "within authorized scope."
                     ),
                     "stable": None,
                     "details": {
-                        "relationship_type": "HISTORICAL_PATH_AND_JS_API",
+                        "relationship_type": rtype,
                         "from": row.get("from"),
                         "to": row.get("to"),
                         "provenance": row.get("provenance"),

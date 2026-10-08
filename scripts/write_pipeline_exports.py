@@ -331,6 +331,46 @@ def main():
                 })
         except Exception:
             pass
+    # Merge LinkFinder API_ROUTE into endpoint surface (dedupe by path)
+    try:
+        seen_ep = {(r.get("endpoint") or "").rstrip("/") for r in endpoints_rows}
+        npath = os.path.join(rd, "js_deep", "linkfinder_normalized.jsonl")
+        if os.path.isfile(npath):
+            with open(npath) as fh:
+                for line in fh:
+                    try:
+                        row = json.loads(line)
+                    except Exception:
+                        continue
+                    if (row.get("classification") or "").upper() != "API_ROUTE":
+                        continue
+                    path = row.get("path") or ""
+                    if not path:
+                        u = row.get("raw_value") or ""
+                        if u.startswith("/"):
+                            path = u.split("?")[0]
+                        elif u.startswith("http"):
+                            try:
+                                path = urlparse(u).path or ""
+                            except Exception:
+                                path = ""
+                    path = (path or "").split("?")[0]
+                    key = path.rstrip("/") or path
+                    if not key or key == "/" or key.startswith("/ROOT/") or key in seen_ep:
+                        continue
+                    seen_ep.add(key)
+                    endpoints_rows.append({
+                        "schema": "bugbountyci.endpoint.v1",
+                        "run_id": run_id,
+                        "target": target,
+                        "endpoint": path,
+                        "parameter_count": 0,
+                        "provenance": "js_deep/linkfinder_normalized.jsonl",
+                        "classification": "API_ROUTE",
+                        "source_js": row.get("source_js"),
+                    })
+    except Exception:
+        pass
     with open(os.path.join(rd, "meta", "endpoints.jsonl"), "w") as fh:
         for row in endpoints_rows:
             fh.write(json.dumps(row) + "\n")
@@ -650,6 +690,50 @@ def main():
                         provenance="meta/secret_candidates*.json",
                         classification=c.get("classification") or "LEAD",
                     )
+    except Exception:
+        pass
+
+
+    # Cross-engine: LinkFinder/JS API or WEB route path also modeled as live endpoint
+    try:
+        live_eps = set()
+        for row in endpoints_rows[:2000]:
+            ep = (row.get("endpoint") or row.get("path") or "").split("?")[0]
+            if ep and ep != "/":
+                live_eps.add(ep.rstrip("/") or ep)
+        js_paths = set()
+        npath = os.path.join(rd, "js_deep", "linkfinder_normalized.jsonl")
+        if os.path.isfile(npath):
+            with open(npath) as fh:
+                for line in fh:
+                    try:
+                        row = json.loads(line)
+                    except Exception:
+                        continue
+                    cls = (row.get("classification") or "").upper()
+                    if cls not in ("API_ROUTE", "WEB_ROUTE"):
+                        continue
+                    path = row.get("path") or ""
+                    if not path:
+                        u = row.get("raw_value") or ""
+                        if u.startswith("/"):
+                            path = u.split("?")[0]
+                        elif u.startswith("http"):
+                            try:
+                                path = urlparse(u).path or ""
+                            except Exception:
+                                path = ""
+                    path = (path or "").split("?")[0]
+                    if path and path != "/" and not path.startswith("/ROOT/"):
+                        js_paths.add(path.rstrip("/") or path)
+        for path in sorted(js_paths & live_eps)[:200]:
+            add_rel(
+                "JS_API_AND_LIVE_ENDPOINT",
+                f"js_path:{path[:200]}",
+                f"endpoint:{path[:200]}",
+                provenance="js_deep/linkfinder_normalized.jsonl+meta/endpoints.jsonl",
+                engines=["linkfinder", "endpoint_model"],
+            )
     except Exception:
         pass
 
