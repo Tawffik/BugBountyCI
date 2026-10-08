@@ -14,17 +14,16 @@
       "id": "tp_aws",
       "path": "tp/aws_key.js",
       "label": "TP",
-      "class": "cloud_credential",
       "hits": [
         {
           "rule": "aws_access_key",
           "match_ref": "aws_access_key:20",
-          "offset": 87
+          "offset": 3
         },
         {
-          "rule": "aws_secret",
-          "match_ref": "aws_secret:64",
-          "offset": 112
+          "rule": "aws_access_key",
+          "match_ref": "aws_access_key:20",
+          "offset": 43
         }
       ],
       "outcome": "TP"
@@ -33,12 +32,16 @@
       "id": "tp_gh",
       "path": "tp/github_pat.txt",
       "label": "TP",
-      "class": "github_token",
       "hits": [
         {
           "rule": "github_pat",
-          "match_ref": "github_pat:44",
-          "offset": 16
+          "match_ref": "github_pat:42",
+          "offset": 2
+        },
+        {
+          "rule": "github_pat",
+          "match_ref": "github_pat:42",
+          "offset": 51
         }
       ],
       "outcome": "TP"
@@ -47,12 +50,16 @@
       "id": "tp_jwt",
       "path": "tp/jwt_bearer.json",
       "label": "TP",
-      "class": "bearer_jwt",
       "hits": [
         {
           "rule": "jwt",
-          "match_ref": "jwt:108",
-          "offset": 26
+          "match_ref": "jwt:72",
+          "offset": 9
+        },
+        {
+          "rule": "jwt",
+          "match_ref": "jwt:72",
+          "offset": 92
         }
       ],
       "outcome": "TP"
@@ -61,12 +68,16 @@
       "id": "tp_stripe",
       "path": "tp/stripe_sk.js",
       "label": "TP",
-      "class": "stripe_key",
       "hits": [
         {
           "rule": "stripe_sk",
-          "match_ref": "stripe_sk:32",
-          "offset": 34
+          "match_ref": "stripe_sk:36",
+          "offset": 3
+        },
+        {
+          "rule": "stripe_sk",
+          "match_ref": "stripe_sk:36",
+          "offset": 51
         }
       ],
       "outcome": "TP"
@@ -75,12 +86,16 @@
       "id": "tp_slack",
       "path": "tp/slack_token.env",
       "label": "TP",
-      "class": "slack_token",
       "hits": [
         {
           "rule": "slack_token",
-          "match_ref": "slack_token:55",
-          "offset": 16
+          "match_ref": "slack_token:52",
+          "offset": 2
+        },
+        {
+          "rule": "slack_token",
+          "match_ref": "slack_token:52",
+          "offset": 61
         }
       ],
       "outcome": "TP"
@@ -89,7 +104,6 @@
       "id": "fp_uuid",
       "path": "fp/uuid.js",
       "label": "FP",
-      "class": "uuid",
       "hits": [],
       "outcome": "TN"
     },
@@ -97,7 +111,6 @@
       "id": "fp_sri",
       "path": "fp/sri_hash.html",
       "label": "FP",
-      "class": "sri_hash",
       "hits": [],
       "outcome": "TN"
     },
@@ -105,7 +118,6 @@
       "id": "fp_modal",
       "path": "fp/modal_keys.js",
       "label": "FP",
-      "class": "js_identifier",
       "hits": [],
       "outcome": "TN"
     },
@@ -113,7 +125,6 @@
       "id": "fp_placeholder",
       "path": "fp/placeholder.env",
       "label": "FP",
-      "class": "placeholder",
       "hits": [],
       "outcome": "TN"
     },
@@ -121,7 +132,6 @@
       "id": "fp_docs",
       "path": "fp/public_example.md",
       "label": "FP",
-      "class": "documentation",
       "hits": [],
       "outcome": "TN"
     },
@@ -129,7 +139,6 @@
       "id": "fp_hash",
       "path": "fp/version_hash.js",
       "label": "FP",
-      "class": "content_hash",
       "hits": [],
       "outcome": "TN"
     },
@@ -137,12 +146,11 @@
       "id": "ctx_min_tp",
       "path": "context/minified_tp.js",
       "label": "TP",
-      "class": "cloud_credential_minified",
       "hits": [
         {
           "rule": "aws_access_key",
           "match_ref": "aws_access_key:20",
-          "offset": 27
+          "offset": 3
         }
       ],
       "outcome": "TP"
@@ -151,10 +159,8 @@
       "id": "ctx_comment",
       "path": "context/comment_fp.js",
       "label": "FP",
-      "class": "comment_placeholder",
       "hits": [],
       "outcome": "TN"
     }
-  ],
-  "note": "Offline SI-1 oracle gate: FP=0 and FN=0 required for baseline"
+  ]
 }

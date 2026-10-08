@@ -1,84 +1,122 @@
 {
   "schema": "bugbountyci.si1_oracle.v1",
-  "purpose": "SI-1 deterministic benchmark for existing detector families",
+  "inject": {
+    "AWS": {
+      "parts": [
+        "AKIA",
+        "IOSFODNN7EXAMPLE"
+      ],
+      "join": ""
+    },
+    "AWS_MIN": {
+      "parts": [
+        "AKIA",
+        "IOSFODNN7EXAMPLE"
+      ],
+      "join": ""
+    },
+    "GITHUB": {
+      "parts": [
+        "ghp_",
+        "abcdefghijklmnopqrstuvwxyz0123456789AB"
+      ],
+      "join": ""
+    },
+    "JWT": {
+      "parts": [
+        "eyJhbGciOiJub25lIn0",
+        "eyJzdWIiOiJzaTEifQ",
+        "sigfixture00000000000000000000001"
+      ],
+      "join": "."
+    },
+    "STRIPE": {
+      "parts": [
+        "sk_",
+        "test_",
+        "SI1FIXTURE000000000000000000"
+      ],
+      "join": ""
+    },
+    "SLACK": {
+      "parts": [
+        "xoxb",
+        "-000000000000-000000000000-si1fixturetoken000000"
+      ],
+      "join": ""
+    }
+  },
   "cases": [
     {
       "id": "tp_aws",
       "path": "tp/aws_key.js",
       "label": "TP",
-      "class": "cloud_credential"
+      "inject": "AWS"
     },
     {
       "id": "tp_gh",
       "path": "tp/github_pat.txt",
       "label": "TP",
-      "class": "github_token"
+      "inject": "GITHUB"
     },
     {
       "id": "tp_jwt",
       "path": "tp/jwt_bearer.json",
       "label": "TP",
-      "class": "bearer_jwt"
+      "inject": "JWT"
     },
     {
       "id": "tp_stripe",
       "path": "tp/stripe_sk.js",
       "label": "TP",
-      "class": "stripe_key"
+      "inject": "STRIPE"
     },
     {
       "id": "tp_slack",
       "path": "tp/slack_token.env",
       "label": "TP",
-      "class": "slack_token"
+      "inject": "SLACK"
     },
     {
       "id": "fp_uuid",
       "path": "fp/uuid.js",
-      "label": "FP",
-      "class": "uuid"
+      "label": "FP"
     },
     {
       "id": "fp_sri",
       "path": "fp/sri_hash.html",
-      "label": "FP",
-      "class": "sri_hash"
+      "label": "FP"
     },
     {
       "id": "fp_modal",
       "path": "fp/modal_keys.js",
-      "label": "FP",
-      "class": "js_identifier"
+      "label": "FP"
     },
     {
       "id": "fp_placeholder",
       "path": "fp/placeholder.env",
-      "label": "FP",
-      "class": "placeholder"
+      "label": "FP"
     },
     {
       "id": "fp_docs",
       "path": "fp/public_example.md",
-      "label": "FP",
-      "class": "documentation"
+      "label": "FP"
     },
     {
       "id": "fp_hash",
       "path": "fp/version_hash.js",
-      "label": "FP",
-      "class": "content_hash"
+      "label": "FP"
     },
     {
       "id": "ctx_min_tp",
       "path": "context/minified_tp.js",
       "label": "TP",
-      "class": "cloud_credential_minified"
+      "inject": "AWS_MIN"
     },
     {
       "id": "ctx_comment",
       "path": "context/comment_fp.js",
-      "label": "FP",
-      "class": "comment_placeholder"
+      "label": "FP"
     }
   ]
 }

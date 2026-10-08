@@ -1,1 +1,2 @@
-!function(){var a={awsKey:"AKIAIOSFODNN7EXAMPLE",secret:"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"};}();
+// SI1_ORACLE_INJECT:AWS_MIN
+var a={x:1};

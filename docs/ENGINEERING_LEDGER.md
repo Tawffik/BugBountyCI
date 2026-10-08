@@ -1,5 +1,27 @@
 ---
 
+## CYCLE — 2026-10-08 — SI-1 Deterministic Secret Intelligence Benchmark
+
+### Decision
+Protected contracts remain CLOSED. Highest-value READY work: SI-1 offline oracle benchmark.
+
+### Design constraint
+Fixtures never store contiguous provider-shaped secrets (GitHub push protection).
+Oracle `inject.parts` joined only in memory during `si1_benchmark.py`.
+
+### Measured
+```
+tp=6 fp=0 tn=7 fn=0 precision=1.0 recall=1.0
+```
+
+### Status
+**SI-1 OFFLINE VERIFIED**
+
+### Next READY
+SI-2 canonical multi-detector candidate + provenance (no Hunter flood)
+
+---
+
 ## FINAL GATE — 2026-10-08 — V1→V4 finish audit (cross-repo)
 
 ### Gate status (evidence-based)

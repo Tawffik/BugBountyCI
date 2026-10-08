@@ -1,1 +1,2 @@
-export GH_TOKEN=ghp_abcdefghijklmnopqrstuvwxyz0123456789ABCD
+# SI1_ORACLE_INJECT:GITHUB
+TOKEN=PLACEHOLDER
