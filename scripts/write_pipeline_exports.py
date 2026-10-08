@@ -111,6 +111,9 @@ def main():
 
     hosts = []
     seen = set()
+    # Prefer verified HTTP hostnames; cap pure-IP LIVE hosts to limit export noise.
+    IP_HOST_CAP = 200
+    ip_hosts_kept = 0
     for u in live_urls:
         try:
             p = urlparse(u if "://" in u else "http://" + u)
@@ -119,12 +122,17 @@ def main():
         host = (p.hostname or "").lower()
         if not host or host in seen:
             continue
-        seen.add(host)
         is_ip = bool(re.fullmatch(r"\d{1,3}(?:\.\d{1,3}){3}", host))
-        host_ports = sorted(ports_by_ip.get(host, [])) if is_ip else []
-        host_class = "VERIFIED_HTTP" if any(
+        is_verified = any(
             (urlparse(v).hostname or "").lower() == host for v in verified
-        ) else "LIVE_HTTP"
+        )
+        if is_ip and not is_verified:
+            if ip_hosts_kept >= IP_HOST_CAP:
+                continue
+            ip_hosts_kept += 1
+        seen.add(host)
+        host_ports = sorted(ports_by_ip.get(host, [])) if is_ip else []
+        host_class = "VERIFIED_HTTP" if is_verified else "LIVE_HTTP"
         hosts.append({
             "schema": "bugbountyci.host.v1",
             "run_id": run_id,
