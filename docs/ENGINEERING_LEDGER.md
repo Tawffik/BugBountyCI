@@ -1,5 +1,24 @@
 ---
 
+## CYCLE — 2026-10-08 — SI bookkeeping 115=14+101 + export index
+
+### Bookkeeping
+Resolved 115 ≠ 100+14: one Mantra `[+]` empty-token line was filtered without quarantine.
+Fix: quarantine `empty_token`. Replay: **14 + 101 = 115**.
+
+### Export
+`recon_export.v1` / target_profile counts now index:
+- meta/secret_candidates.json
+- meta/secret_candidates_si4.json  
+- meta/secret_suppressed.jsonl
+
+No Hunter promotion. Raw js_deep remains authoritative.
+
+### Global reassessment
+SI tunnel stopped for further filters. Export indexing is the highest-value READY non-filter improvement for signal handoff.
+
+---
+
 ## CYCLE — 2026-10-08 — Signal-loss audit + SI-2 quarantine journal
 
 ### Question

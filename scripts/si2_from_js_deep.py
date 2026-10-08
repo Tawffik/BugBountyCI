@@ -194,7 +194,7 @@ def parse_trufflehog(path: Path) -> list[dict]:
     return out
 
 
-def parse_mantra(path: Path) -> list[dict]:
+def parse_mantra(path: Path, suppressed: list | None = None) -> list[dict]:
     if not path.is_file():
         return []
     out = []
@@ -204,8 +204,12 @@ def parse_mantra(path: Path) -> list[dict]:
             continue
         body = line[3:].strip()
         if PLACEHOLDER_RE.search(body):
+            if suppressed is not None:
+                suppressed.append({"detector":"Mantra","rule":"mantra","file":"","match_ref":_safe_ref("mantra", body),"fingerprint":_fp("content", body),"drop_reason":"placeholder","layer":"si2_filter"})
             continue
         if re.search(r"\[\w+=\]\s*$", body):
+            if suppressed is not None:
+                suppressed.append({"detector":"Mantra","rule":"mantra","file":body.split()[0] if body else "","match_ref":_safe_ref("mantra", body),"fingerprint":_fp("content", body),"drop_reason":"empty_token","layer":"si2_filter"})
             continue
         out.append(
             {
@@ -227,7 +231,7 @@ def collect_js_deep(results_dir: Path, suppressed: list | None = None) -> list[d
     obs.extend(parse_secretfinder(jd / "secretfinder_secrets.txt", suppressed))
     obs.extend(parse_gitleaks(jd / "gitleaks_findings.json", suppressed))
     obs.extend(parse_trufflehog(jd / "trufflehog_findings.jsonl"))
-    obs.extend(parse_mantra(jd / "mantra_findings.txt"))
+    obs.extend(parse_mantra(jd / "mantra_findings.txt", suppressed))
     return obs
 
 
