@@ -1,5 +1,43 @@
 ---
 
+## FINAL GATE — 2026-10-08 — V1→V4 finish audit (cross-repo)
+
+### Gate status (evidence-based)
+
+| Gate | Status | Evidence |
+|---|---|---|
+| **V1 reliability / truthfulness** | **SATISFIED** | ERROR≠EMPTY, OOB_NOT_SEEN≠CONFIRMED, PARTIAL≠CLEAN; #134/#135 live |
+| **V2 export / Hunter / observations** | **SATISFIED** | recon_export.v1, Hunter 27 after scheme-only filter LIVE #135 |
+| **V3 intelligence loops** | **SATISFIED** | Historical, Representation, Smart Fuzz honesty, LinkFinder API — live closed earlier |
+| **V4 integration / handoff / freeze** | **SATISFIED (offline E2E)** | BBCI `sra_handoff.json` → SRA `372ff70` ClosedLoop offline episode |
+
+### Cross-repo path
+```
+BBCI producer (meta/sra_handoff.json)
+  → SRA normalize_bbci_artifact (sra_handoff.v1)
+  → ReconResultAdapter
+  → OpportunityEngine
+  → ClosedLoopRunner (offline lab scenario)
+```
+SRA HEAD: `372ff70`  
+Tests: `test_sra_handoff_adapt.py` + offline E2E suite green offline.
+
+### Explicitly NOT claimed
+- Live SRA research episode against capital.com HTTP
+- SI-1…SI-9 mature secret intelligence product (SI-0 audit only; not required for V1 product finish)
+- Sengi runner restoration (environment)
+- Nuclei error_rate ≈0 (remains DEGRADED/PARTIAL — truthful)
+
+### Protected contracts
+Unchanged and verified by latest live #135 + offline SRA path.
+
+### PROJECT_COMPLETE criteria
+Approved BBCI V1 product finish line (recon→evidence→Hunter→export→adapter handoff) is met with offline cross-repo E2E proof. Remaining items are optional expansion or environment, not open REQUIRED product dependencies.
+
+**Declaration:** PROJECT_COMPLETE for approved BugBountyCI V1 finish line + offline adapter handoff.
+
+---
+
 ## CYCLE — 2026-10-08 — Cross-repo BBCI → SRA handoff OFFLINE VERIFIED
 
 ### Problem
