@@ -1,5 +1,38 @@
 ---
 
+## CYCLE — 2026-10-08 — js_deep → SI-2 real-data adapter
+
+### Problem
+SI-2 was offline-only; live `js_deep/*` shapes were not consumed.
+
+### Implementation
+- `scripts/si2_from_js_deep.py` — parse SecretFinder / Gitleaks / TruffleHog / Mantra
+- Hard-negative filters: MODAL_KEYS, Heroku UUID, possible_Creds UUID, placeholders
+- Content fingerprint merges multi-detector hits
+- Output: `meta/secret_candidates.json` — **no raw secrets**, **not Hunter**
+- Fixtures: `tests/fixtures/js_deep_results/`
+- Tests: `tests/test_si2_from_js_deep.py` (3 passed)
+- Workflow: runs after Mantra in Zero Track
+
+### Measured (live-shaped fixture)
+```
+obs=5 → canonical=3
+HIGH_SIGNAL=1 (AWS ×3 detectors)
+LEAD=2
+raw AKIA never in output
+```
+
+### Status
+**OFFLINE VERIFIED** (live-shaped)
+NOT LIVE VERIFIED on capital artifact this cycle
+NOT SI-7 Hunter integration
+
+### Next READY
+Optional: offline replay on harvested js_deep from a past run when artifacts available
+SI-4 context only after measured live-shaped value
+
+---
+
 ## CYCLE — 2026-10-08 — SI-2 Canonical secret candidates (dedupe + provenance)
 
 ### Implementation

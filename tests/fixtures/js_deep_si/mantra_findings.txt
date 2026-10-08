@@ -1,0 +1,3 @@
+			   [Coded by Brosck]
+[+] https://cdn.example.com/a.js [ZENDESK_TOKEN=]
+[+] https://cdn.example.com/b.js [authToken:t]

@@ -1789,6 +1789,9 @@ jobs:
             : > "$RD/js_deep/mantra_findings.txt"
           fi
           echo "✅ Mantra findings: $(wc -l < "$RD/js_deep/mantra_findings.txt" 2>/dev/null || echo 0)"
+          # SI-2: canonicalize js_deep secret detectors → meta/secret_candidates.json (no Hunter)
+          python3 scripts/si2_from_js_deep.py --results-dir "$RD" || true
+
 
       - name: "🎯 Targeted Vulnerability Scanners (Dalfox + Corsy + wafw00f + Subzy + CRLFuzz + Arjun)"
         continue-on-error: true

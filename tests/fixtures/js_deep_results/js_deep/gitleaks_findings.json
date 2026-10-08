@@ -1,0 +1,4 @@
+[
+  {"RuleID": "aws-access-key", "File": "app.js", "Secret": "AKIAIOSFODNN7EXAMPLE", "Match": "AKIAIOSFODNN7EXAMPLE", "Fingerprint": "app.js:aws-access-key:1"},
+  {"RuleID": "generic-api-key", "File": "modal.js", "Secret": "d=i.MODAL_KEYS.DEPOSIT", "Match": "i.MODAL_KEYS.AUTH_SUCCESS,d=i.MODAL_KEYS.DEPOSIT;", "Fingerprint": "modal.js:generic-api-key:1"}
+]
