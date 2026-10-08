@@ -1,5 +1,46 @@
 ---
 
+## CYCLE — 2026-10-08 — LIVE-ARTIFACT REPLAY (#134 capital js_deep)
+
+### Artifact
+GitHub Actions results **11509197923** / run **37660905816** (#134) capital.com
+
+### Replay
+`scripts/si2_from_js_deep.py` on real `js_deep/*`
+
+| Metric | Value |
+|---|---:|
+| raw_total (SF+GL+TH+Mantra) | **115** |
+| post-filter observations | **52** |
+| canonical candidates | **52** |
+| hard_negative_or_noise_dropped | **63** (~55%) |
+| HIGH_SIGNAL | **0** (no multi-detector corroboration on this artifact) |
+| LEAD | **52** |
+| CONFIRMED | **0** |
+| multi-detector merges | **0** |
+
+### Quality notes
+- Gitleaks sole hit was MODAL_KEYS class → filtered (correct)
+- Heroku UUID / possible_Creds UUID → filtered
+- Short authorization_api (<24 chars) treated as noise
+- Twilio-shaped SIDs remain LEAD (single detector; may be public client IDs)
+- **No raw secrets** in `secret_candidates.json` (no AKIA/ghp/xox contiguous)
+
+### Usefulness vs raw
+Analyst-facing surface: 115 noisy lines → 52 LEAD fingerprints with provenance.  
+Not yet Hunter-ready (no HIGH_SIGNAL, no context/currentness).
+
+### Change this cycle
+Tighten short `authorization_api` filter + emit `raw_line_counts` / `hard_negative_or_noise_dropped` in report.
+
+### Status
+**LIVE-ARTIFACT REPLAY VERIFIED** (offline processing of real run artifact)
+
+### Next READY
+**SI-4 context** on real LEAD classes (e.g. twilio_account_sid vs public client id heuristics) — still **no Hunter**
+
+---
+
 ## CYCLE — 2026-10-08 — js_deep → SI-2 real-data adapter
 
 ### Problem

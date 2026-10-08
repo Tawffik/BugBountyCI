@@ -60,6 +60,9 @@ def parse_secretfinder(path: Path) -> list[dict]:
             continue
         if PLACEHOLDER_RE.search(val):
             continue
+        # Short authorization_api tokens (often "Bearer "+short) are low-value noise on capital-class JS
+        if "authorization" in (typ or "").lower() and len(val) < 24:
+            continue
         out.append(
             {
                 "detector": "SecretFinder",
@@ -185,11 +188,36 @@ def main() -> int:
     rd = Path(args.results_dir)
     obs = collect_js_deep(rd)
     cands = canonicalize(obs)
+    jd = rd / "js_deep"
+    def _nlines(name, pred=None):
+        path = jd / name
+        if not path.is_file():
+            return 0
+        lines = path.read_text(errors="ignore").splitlines()
+        if pred is None:
+            return sum(1 for l in lines if l.strip())
+        return sum(1 for l in lines if pred(l))
+    raw_line_counts = {
+        "secretfinder": _nlines("secretfinder_secrets.txt"),
+        "gitleaks": _nlines("gitleaks_findings.json"),  # file may be JSON array; approximate
+        "trufflehog": _nlines("trufflehog_findings.jsonl"),
+        "mantra": _nlines("mantra_findings.txt", lambda l: l.strip().startswith("[+]")),
+    }
+    try:
+        import json as _json
+        glp = jd / "gitleaks_findings.json"
+        if glp.is_file():
+            raw_line_counts["gitleaks"] = len(_json.loads(glp.read_text() or "[]"))
+    except Exception:
+        pass
     report = {
         "schema": "bugbountyci.secret_candidates.v1",
         "source": "js_deep",
+        "raw_line_counts": raw_line_counts,
+        "raw_total": sum(raw_line_counts.values()),
         "observation_count": len(obs),
         "canonical_count": len(cands),
+        "hard_negative_or_noise_dropped": sum(raw_line_counts.values()) - len(obs),
         "by_class": {},
         "candidates": cands,
         "note": "No raw secrets stored; fingerprints only. Not fed to Hunter Queue.",
