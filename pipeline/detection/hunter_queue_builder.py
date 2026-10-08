@@ -334,20 +334,21 @@ def load_representation_diffs(results_dir):
 
 
 
-def load_cross_engine_relationships(results_dir, limit=20):
-    """Surface HISTORICAL∩JS relationships as research context — not findings.
+def load_cross_engine_relationships(results_dir, limit=40, exclude_targets=None):
+    """Surface cross-engine relationships as research context — not findings.
 
+    Prefer HISTORICAL_PATH_AND_JS_API over JS_API_AND_LIVE_ENDPOINT.
     Does NOT load SECRET_CANDIDATE edges (SI Hunter promotion remains off).
+    Drops targets already present in higher-priority queue entries when exclude_targets given.
     """
     path = os.path.join(results_dir, "meta", "relationships.jsonl")
     if not os.path.isfile(path):
         return []
-    out = []
+    exclude = set(exclude_targets or [])
+    hist, live = [], []
     try:
         with open(path, "r", errors="ignore") as f:
             for line in f:
-                if len(out) >= limit:
-                    break
                 line = line.strip()
                 if not line:
                     continue
@@ -362,9 +363,9 @@ def load_cross_engine_relationships(results_dir, limit=20):
                     path_label = (row.get("from") or "").replace("historical_path:", "")
                 else:
                     path_label = (row.get("from") or "").replace("js_path:", "") or (row.get("to") or "").replace("endpoint:", "")
-                if not path_label:
+                if not path_label or path_label in exclude:
                     continue
-                out.append({
+                entry = {
                     "target": path_label[:200],
                     "engine": "relationship_cross_engine",
                     "priority_class": "RESEARCH_CONTEXT",
@@ -388,9 +389,23 @@ def load_cross_engine_relationships(results_dir, limit=20):
                         "to": row.get("to"),
                         "provenance": row.get("provenance"),
                     },
-                })
+                }
+                if rtype == "HISTORICAL_PATH_AND_JS_API":
+                    hist.append(entry)
+                else:
+                    live.append(entry)
     except Exception:
         return []
+    # Prefer historical; dedupe by target within this layer
+    seen, out = set(), []
+    for e in hist + live:
+        t = e["target"]
+        if t in seen:
+            continue
+        seen.add(t)
+        out.append(e)
+        if len(out) >= limit:
+            break
     return out
 
 
@@ -524,15 +539,16 @@ def main():
     ap.add_argument("--target", default="")
     args = ap.parse_args()
 
-    entries = (
+    base_entries = (
         load_detection_evidence(args.results_dir)
         + load_idor_findings(args.results_dir)
         + load_smart_fuzzing_interesting(args.results_dir)
         + load_historical_validations(args.results_dir)
         + load_representation_diffs(args.results_dir)
         + load_linkfinder_api_routes(args.results_dir)
-        + load_cross_engine_relationships(args.results_dir)
     )
+    already = {e.get("target") for e in base_entries if e.get("target")}
+    entries = base_entries + load_cross_engine_relationships(args.results_dir, exclude_targets=already)
 
     out_dir = os.path.join(args.results_dir, "detection")
     os.makedirs(out_dir, exist_ok=True)

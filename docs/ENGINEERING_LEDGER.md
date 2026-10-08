@@ -1,5 +1,17 @@
 ---
 
+## CYCLE — 2026-10-08 — Hunter RESEARCH_CONTEXT ranking + dedupe
+
+### Change
+- Prefer HISTORICAL_PATH_AND_JS_API before JS_API_AND_LIVE_ENDPOINT
+- Cap 40 (was 20)
+- Exclude targets already present in higher-priority queue entries
+
+### Status
+**TESTED** · SI→Hunter still OFF · not findings
+
+---
+
 ## CYCLE — 2026-10-08 — LinkFinder API→endpoint model + JS∩live relationships
 
 ### #134 real-artifact chain
