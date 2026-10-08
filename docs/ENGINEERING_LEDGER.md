@@ -1,5 +1,36 @@
 ---
 
+## CYCLE — 2026-10-08 — scheme-only Hunter filter LIVE VERIFIED (#135)
+
+### Run
+- **ID:** 37693581179
+- **SHA:** `b3564ec` (includes `9b3aa3a` filter)
+- **Target:** capital.com · light · **success** · ~171 min
+
+### Expected vs actual
+| Check | Expected | Actual |
+|---|---|---|
+| scheme-only REDIRECTED in `historical_validations.jsonl` | present (evidence retained) | **40 REDIRECTED**, all scheme-only |
+| `historical_pivot` in Hunter | **0** for scheme-only | **0** |
+| Useful engines retained | SSRF / API / smart-fuzz if surface allows | **27** = 1 ssrf HIGH_SIGNAL + 25 linkfinder_api + 1 smart-fuzz |
+| OOB honesty | NOT_SEEN if oob empty | OOB_NOT_SEEN ×1 · oob_findings empty |
+| Export index | nuclei_track + linkfinder + smart metrics | present |
+
+### Status
+**FIXED+LIVE VERIFIED** — scheme-only historical redirects excluded from Hunter; evidence kept in validations artifact.
+
+### Protected contracts
+No regression observed on OOB / API→Hunter / export / DEGRADED health (Arjun ERROR + Nuclei PARTIAL truthful).
+
+### Next READY (dependency sweep)
+Not PROJECT_COMPLETE. Highest remaining finish-line directions (pick by evidence, no feature invent):
+1. Human consumption of remaining Hunter (auth/trading API + SSRF differential)
+2. SI-1 only if Secret Intelligence chosen as next track
+3. ReconResultAdapter handoff verification (outside pure BBCI scanner work)
+4. Environment: Sengi quota when available
+
+---
+
 ## CYCLE — 2026-10-08 — LIVE VERIFY scheme-only Hunter filter (IN PROGRESS)
 
 ### Reconcile
