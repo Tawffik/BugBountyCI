@@ -155,6 +155,16 @@ def build_handoff(results_dir: str) -> dict:
         if isinstance(v, list):
             technologies.extend(str(x) for x in v)
 
+    # Additive BBCI intelligence summary (not SRA schema requirements)
+    rel_counts: dict[str, int] = {}
+    for row in _load_jsonl(os.path.join(rd, "meta", "relationships.jsonl"), limit=5000):
+        rt = str(row.get("type") or "UNKNOWN")
+        rel_counts[rt] = rel_counts.get(rt, 0) + 1
+    sc = _load_json(os.path.join(rd, "meta", "secret_candidates_si4.json")) or _load_json(
+        os.path.join(rd, "meta", "secret_candidates.json")
+    ) or {}
+    secret_n = len(sc.get("candidates") or [])
+
     handoff = {
         "schema": "bugbountyci.sra_handoff.v1",
         "recon_id": run_id or f"bbci-{target}",
@@ -173,6 +183,14 @@ def build_handoff(results_dir: str) -> dict:
             "recon_export": "meta/recon_export.json",
             "target_profile": "meta/target_profile.json",
             "hunter_queue": "detection/hunter_queue.md",
+            "relationships": "meta/relationships.jsonl",
+            "secret_candidates_si4": "meta/secret_candidates_si4.json",
+            "secret_suppressed": "meta/secret_suppressed.jsonl",
+        },
+        "bbci_intelligence_summary": {
+            "relationship_type_counts": rel_counts,
+            "secret_candidates": secret_n,
+            "note": "Summary only; not vulnerability claims; SI not promoted to Hunter",
         },
     }
     return handoff
