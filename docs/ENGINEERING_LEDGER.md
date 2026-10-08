@@ -1,5 +1,41 @@
 ---
 
+## FORENSIC — Live #136 capital.com + #137 superdrug.com
+
+### Runs
+| Run | SHA | Target | Conclusion |
+|---|---|---|---|
+| **#136** `37723656028` | `0de17fc` | capital.com | success |
+| **#137** `37729786191` | `c89f3e9` | superdrug.com | success |
+
+### #136 capital.com (key numbers)
+- Health: **DEGRADED** (Nuclei PARTIAL error_rate≈45.9%)
+- Surface: resolved=84, verified=97, urls=209, endpoints_modeled=21 (1 PI + 20 LinkFinder API)
+- Relationships=622: JS_TO_ENDPOINT=400, HISTORICAL_URL=153, **JS_API_AND_LIVE=20**, **HISTORICAL∩JS=6**, SECRET→JS=14
+- SI: raw≈113 → candidates=14 (LEAD=12, LIKELY_BENIGN=2), suppressed=99
+- Historical validations: REDIRECTED=40, NOT_RUN=63
+- Smart fuzz: INTERESTING=2, DUPLICATE=5
+- Hunter **as written during run**: 28 entries (ssrf HIGH_SIGNAL=1, linkfinder=25, smartfuzz=2) — **RESEARCH_CONTEXT=0**
+
+### #137 superdrug.com
+- Health: **DEGRADED** (Nuclei PARTIAL)
+- URLs=96262, LinkFinder raw high, SI raw=272 → candidates=174 (LEAD=93, HIGH_SIGNAL=81), suppressed=17
+- Relationships: SECRET→JS=174; **no HISTORICAL∩JS / JS∩live** in export summary types of interest
+- Historical: REDIRECTED=36, BLOCKED=4, NOT_RUN=353
+- Hunter during run: 9 (linkfinder=2, smartfuzz=7) — **RESEARCH_CONTEXT=0**
+
+### Root cause (RESEARCH_CONTEXT missing on both live runs)
+`write_pipeline_exports.py` (creates HISTORICAL_PATH_AND_JS_API / JS_API_AND_LIVE_ENDPOINT) runs in **Pipeline Health Report** *after* the last `hunter_queue_builder` call (post representation differential).
+
+### Fix
+Rebuild Hunter **after** write_pipeline_exports + export_sra_handoff.
+
+### Offline proof after fix (rebuild on harvested artifacts)
+- #136 gains RESEARCH_CONTEXT from existing relationship edges
+- SI→Hunter still OFF
+
+---
+
 ## CYCLE — 2026-10-08 — finishing pass (ranking + handoff + live run)
 
 ### Commits

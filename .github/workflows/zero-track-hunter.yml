@@ -5087,6 +5087,10 @@ jobs:
           python3 scripts/write_pipeline_exports.py "results/${{ env.TIMESTAMP }}" || true
           python3 scripts/export_sra_handoff.py --results-dir "results/${{ env.TIMESTAMP }}" || true
           [ -f scripts/validate_pipeline_exports.py ] && python3 scripts/validate_pipeline_exports.py "results/${{ env.TIMESTAMP }}" || true
+          # Rebuild Hunter AFTER relationships/endpoints export so RESEARCH_CONTEXT
+          # (HISTORICAL∩JS, JS∩live endpoint) is present — previous rebuilds run too early.
+          python3 pipeline/detection/hunter_queue_builder.py --results-dir "results/${{ env.TIMESTAMP }}" --target "${{ env.TARGET }}" || true
+          echo "hunter_queue_post_export_lines=$(wc -l < "results/${{ env.TIMESTAMP }}/detection/hunter_queue.md" 2>/dev/null || echo 0)"
 
       - name: "📋 Triage & Prioritization"
         id: triage
