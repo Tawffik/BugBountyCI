@@ -1,5 +1,15 @@
 ---
 
+## CYCLE — 2026-10-09 — Full-system audit document
+
+See `docs/FULL_SYSTEM_AUDIT_2026-10-09.md`.
+
+Baseline live: #141 on `6ac4433`. HEAD `cc51e84` adds workflow-wide hostname_targets.
+#142/#143 still in progress on `6ac4433` — not a verify of HEAD.
+Status: **CONTINUE**.
+
+---
+
 ## CYCLE — 2026-10-09 — Root fix: hostname_targets for entire workflow
 
 ### Root cause (workflow-wide)
