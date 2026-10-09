@@ -1281,7 +1281,8 @@ jobs:
         run: |
           RD="results/${{ env.TIMESTAMP }}"
           # Cap: 76 hosts x many headers x Tor = 15min waste (superdrug 907s). Apex+www enough for header probe.
-          INPUT="$RD/live/live.txt"
+          INPUT="$RD/live/hostname_targets.txt"
+          [ -s "$INPUT" ] || INPUT="$RD/live/live.txt"
           [ -s "$INPUT" ] || { echo "https://${{ env.TARGET }}" > /tmp/fallback.txt; INPUT=/tmp/fallback.txt; }
           head -8 "$INPUT" > /tmp/waf_hosts.txt
           INPUT=/tmp/waf_hosts.txt
@@ -1733,7 +1734,8 @@ jobs:
           # not a duplicate of it.
           # cariddi reads targets from STDIN (no -l flag). Invalid flags print full
           # help to stdout and zero findings (confirmed superdrug run).
-          CARIDDI_LIST="$RD/live/expensive_targets.txt"
+          CARIDDI_LIST="$RD/live/hostname_targets.txt"
+          [ -s "$CARIDDI_LIST" ] || CARIDDI_LIST="$RD/live/expensive_targets.txt"
           [ -s "$CARIDDI_LIST" ] || CARIDDI_LIST="$RD/live/scan_order.txt"
           [ -s "$CARIDDI_LIST" ] || CARIDDI_LIST="$RD/live/live.txt"
           if command -v cariddi >/dev/null 2>&1 && [ -s "$CARIDDI_LIST" ]; then
@@ -1828,9 +1830,9 @@ jobs:
           # categorization above, which can only ever see params that were
           # already present somewhere in urls/all.txt.
           : > "$RD/targeted/arjun_params.txt"
-          ARJUN_INPUT="$RD/live/expensive_targets.txt"
+          ARJUN_INPUT="$RD/live/hostname_targets.txt"
+          [ -s "$ARJUN_INPUT" ] || ARJUN_INPUT="$RD/live/expensive_targets.txt"
           [ -s "$ARJUN_INPUT" ] || ARJUN_INPUT="$RD/live/scan_order.txt"
-          [ -s "$ARJUN_INPUT" ] || ARJUN_INPUT="$RD/live/live.txt"
           if command -v arjun >/dev/null 2>&1 && [ -s "$ARJUN_INPUT" ]; then
             echo "🔍 Running Arjun against prioritized HTTPS hostnames (cap 15)..."
             # #141 capital.com: PARTIAL because head -30 of expensive_targets mixed
@@ -1932,7 +1934,7 @@ jobs:
           # complements (and cross-checks) the hand-rolled bash CORS probe
           # elsewhere in this pipeline rather than replacing it.
           : > "$RD/targeted/corsy_findings.txt"
-          CORSY_LIST="$RD/live/expensive_targets.txt"; [ -s "$CORSY_LIST" ] || CORSY_LIST="$RD/live/scan_order.txt"; [ -s "$CORSY_LIST" ] || CORSY_LIST="$RD/live/live.txt"
+          CORSY_LIST="$RD/live/hostname_targets.txt"; [ -s "$CORSY_LIST" ] || CORSY_LIST="$RD/live/expensive_targets.txt"; [ -s "$CORSY_LIST" ] || CORSY_LIST="$RD/live/scan_order.txt"
           if [ -f /tmp/Corsy/corsy.py ] && [ -s "$CORSY_LIST" ]; then
             echo "🌐 Running Corsy against prioritized hosts..."
             proxychains4 -q python3 /tmp/Corsy/corsy.py -i "$CORSY_LIST" -o /tmp/corsy_out.json 2>>"$RD/logs/corsy.log" || true
@@ -1977,7 +1979,7 @@ jobs:
           # live hosts - a class this pipeline had no dedicated coverage for
           # at all before this step.
           : > "$RD/targeted/crlfuzz_findings.txt"
-          CRLF_LIST="$RD/live/expensive_targets.txt"; [ -s "$CRLF_LIST" ] || CRLF_LIST="$RD/live/scan_order.txt"; [ -s "$CRLF_LIST" ] || CRLF_LIST="$RD/live/live.txt"
+          CRLF_LIST="$RD/live/hostname_targets.txt"; [ -s "$CRLF_LIST" ] || CRLF_LIST="$RD/live/expensive_targets.txt"; [ -s "$CRLF_LIST" ] || CRLF_LIST="$RD/live/scan_order.txt"
           if command -v crlfuzz >/dev/null 2>&1 && [ -s "$CRLF_LIST" ]; then
             echo "✂️ Running CRLFuzz against prioritized hosts..."
             proxychains4 -q crlfuzz -l "$CRLF_LIST" -o "$RD/targeted/crlfuzz_findings.txt" 2>>"$RD/logs/crlfuzz.log" || true
@@ -1996,9 +1998,9 @@ jobs:
           # cross-product (hosts×paths×proxychains). Budget died with little signal.
           RD="results/${{ env.TIMESTAMP }}"
           mkdir -p "$RD/info_disclosure" "$RD/meta/phases" "$RD/logs"
-          RAW="$RD/live/expensive_targets.txt"
+          RAW="$RD/live/hostname_targets.txt"
+          [ -s "$RAW" ] || RAW="$RD/live/expensive_targets.txt"
           [ -s "$RAW" ] || RAW="$RD/live/scan_order.txt"
-          [ -s "$RAW" ] || RAW="$RD/live/live.txt"
           [ -s "$RAW" ] || { echo "https://${{ env.TARGET }}" > /tmp/fallback.txt; RAW=/tmp/fallback.txt; }
 
           INPUT=/tmp/info_disc_targets.txt
@@ -2180,7 +2182,8 @@ jobs:
         run: |
           RD="results/${{ env.TIMESTAMP }}"
           mkdir -p "$RD/ai_infra"
-          INPUT="$RD/live/scan_order.txt"
+          INPUT="$RD/live/hostname_targets.txt"
+          [ -s "$INPUT" ] || INPUT="$RD/live/scan_order.txt"
           [ -s "$INPUT" ] || INPUT="$RD/live/live.txt"
           [ -s "$INPUT" ] || { echo "https://${{ env.TARGET }}" > /tmp/fallback.txt; INPUT=/tmp/fallback.txt; }
 
@@ -2686,9 +2689,9 @@ jobs:
             else
               echo "ℹ️ Smart fuzzing produced no results (gate=${_gate_reason:-missing_phase_status}) - falling back to common.txt"
               curl -sL --max-time 15 "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/common.txt" -o /tmp/content_wordlist.txt 2>/dev/null || true
-              FUZZ_INPUT="$RD/live/expensive_targets.txt"
+              FUZZ_INPUT="$RD/live/hostname_targets.txt"
+              [ -s "$FUZZ_INPUT" ] || FUZZ_INPUT="$RD/live/expensive_targets.txt"
               [ -s "$FUZZ_INPUT" ] || FUZZ_INPUT="$RD/live/scan_order.txt"
-              [ -s "$FUZZ_INPUT" ] || FUZZ_INPUT="$RD/live/live.txt"
               if [ -s /tmp/content_wordlist.txt ] && [ -s "$FUZZ_INPUT" ] && command -v ffuf >/dev/null; then
                 mode="${HUNTING_MODE:-normal}"
                 budget=$({ [ "$mode" = "light" ] && echo 240; } || { [ "$mode" = "aggressive" ] && echo 900; } || echo 500)
@@ -2775,9 +2778,9 @@ jobs:
         timeout-minutes: 20
         run: |
           RD="results/${{ env.TIMESTAMP }}"
-          INPUT="$RD/live/expensive_targets.txt"
+          INPUT="$RD/live/hostname_targets.txt"
+          [ -s "$INPUT" ] || INPUT="$RD/live/expensive_targets.txt"
           [ -s "$INPUT" ] || INPUT="$RD/live/scan_order.txt"
-          [ -s "$INPUT" ] || INPUT="$RD/live/live.txt"
           [ -s "$INPUT" ] || { echo "https://${{ env.TARGET }}" > /tmp/fallback.txt; INPUT=/tmp/fallback.txt; }
           : > "$RD/js/swagger.txt"
           for path in "/swagger.json" "/v2/api-docs" "/v3/api-docs" "/openapi.json" "/api/docs" "/swagger-ui.html"; do
@@ -2823,9 +2826,9 @@ jobs:
         timeout-minutes: 20
         run: |
           RD="results/${{ env.TIMESTAMP }}"
-          INPUT="$RD/live/expensive_targets.txt"
+          INPUT="$RD/live/hostname_targets.txt"
+          [ -s "$INPUT" ] || INPUT="$RD/live/expensive_targets.txt"
           [ -s "$INPUT" ] || INPUT="$RD/live/scan_order.txt"
-          [ -s "$INPUT" ] || INPUT="$RD/live/live.txt"
           [ -s "$INPUT" ] || { echo "https://${{ env.TARGET }}" > /tmp/fallback.txt; INPUT=/tmp/fallback.txt; }
           : > "$RD/cors/vulnerable.txt"
           for origin in "https://evil.com" "null" "https://evil.${{ env.TARGET }}"; do
@@ -2944,7 +2947,7 @@ jobs:
         run: |
           RD="results/${{ env.TIMESTAMP }}"
           mkdir -p "$RD/screenshots"
-          SCREEN_LIST="$RD/live/scan_order.txt"; [ -s "$SCREEN_LIST" ] || SCREEN_LIST="$RD/live/live.txt"
+          SCREEN_LIST="$RD/live/hostname_targets.txt"; [ -s "$SCREEN_LIST" ] || SCREEN_LIST="$RD/live/scan_order.txt"; [ -s "$SCREEN_LIST" ] || SCREEN_LIST="$RD/live/live.txt"
           if [ -s "$SCREEN_LIST" ] && command -v gowitness >/dev/null; then
             mode="${HUNTING_MODE:-normal}"
             budget=$({ [ "$mode" = "light" ] && echo 240; } || { [ "$mode" = "aggressive" ] && echo 900; } || echo 500)
@@ -3009,7 +3012,7 @@ jobs:
           fi
           RD="results/${{ env.TIMESTAMP }}"
           : > "$RD/nuclei/nikto_findings.txt"
-          NIKTO_LIST="$RD/live/expensive_targets.txt"; [ -s "$NIKTO_LIST" ] || NIKTO_LIST="$RD/live/scan_order.txt"; [ -s "$NIKTO_LIST" ] || NIKTO_LIST="$RD/live/live.txt"
+          NIKTO_LIST="$RD/live/hostname_targets.txt"; [ -s "$NIKTO_LIST" ] || NIKTO_LIST="$RD/live/expensive_targets.txt"; [ -s "$NIKTO_LIST" ] || NIKTO_LIST="$RD/live/scan_order.txt"
           if ! command -v nikto >/dev/null 2>&1; then
             echo "⚠️ nikto not installed, skipping"
           elif [ -s "$NIKTO_LIST" ]; then

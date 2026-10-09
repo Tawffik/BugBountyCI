@@ -1,5 +1,25 @@
 ---
 
+## CYCLE — 2026-10-09 — Root fix: hostname_targets for entire workflow
+
+### Root cause (workflow-wide)
+`expensive_targets` / `live.txt` mix pure IPs + scheme duplicates. Any step that
+does host×path×proxychains over that list can burn its full GHA timeout
+(proven: Info-disclosure #142/#143 = 1681s).
+
+### Systemic fix
+1. `scripts/hostname_targets.py` — unique `https://hostname`, skip pure IPs
+2. `scripts/port_scan.sh` writes `live/hostname_targets.txt` (limit 30) after ranking/seeds
+3. All expensive HTTP consumers prefer `hostname_targets.txt` first:
+   Cariddi, Arjun, Corsy, CRLF, Info-disclosure, Fuzz, API Discovery, Security Analysis,
+   AI Infra, Nikto, WAF, Screenshots, url_collection (katana/hak/gospider/html/seed), smart_fuzzing
+
+### Status
+IMPLEMENTED + unit tests. LIVE on next full run after this commit.
+IP lists remain in live.txt for port/origin work — not deleted.
+
+---
+
 ## CYCLE — 2026-10-09 — Information Disclosure timeout waste (#142/#143)
 
 ### Case study

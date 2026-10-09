@@ -153,7 +153,7 @@ else
 fi
 echo "ℹ️ waymore URLs: $(wc -l < "$RD/urls/waymore.txt" 2>/dev/null || echo 0)"
 echo "🔍 Katana..."
-KATANA_LIST="$RD/live/expensive_targets.txt"; [ -s "$KATANA_LIST" ] || KATANA_LIST="$RD/live/scan_order.txt"; [ -s "$KATANA_LIST" ] || KATANA_LIST="$RD/live/live.txt"
+KATANA_LIST="$RD/live/hostname_targets.txt"; [ -s "$KATANA_LIST" ] || KATANA_LIST="$RD/live/expensive_targets.txt"; [ -s "$KATANA_LIST" ] || KATANA_LIST="$RD/live/scan_order.txt"
 {
   cat "$KATANA_LIST" 2>/dev/null
   cat "$RD/live/critical_seeds.txt" 2>/dev/null
@@ -172,7 +172,7 @@ if [ "${katana_n:-0}" -lt 50 ] && [ -s /tmp/katana_in.txt ]; then
 fi
 echo "ℹ️ katana URLs: $(wc -l < "$RD/urls/katana.txt" 2>/dev/null || echo 0)"
 echo "🔍 Hakrawler (independent crawler - different JS/link parser than katana, catches URLs katana's config misses)..."
-HAK_LIST="$RD/live/expensive_targets.txt"; [ -s "$HAK_LIST" ] || HAK_LIST="$RD/live/scan_order.txt"; [ -s "$HAK_LIST" ] || HAK_LIST="$RD/live/live.txt"
+HAK_LIST="$RD/live/hostname_targets.txt"; [ -s "$HAK_LIST" ] || HAK_LIST="$RD/live/expensive_targets.txt"; [ -s "$HAK_LIST" ] || HAK_LIST="$RD/live/scan_order.txt"
 {
   cat "$HAK_LIST" 2>/dev/null
   cat "$RD/live/critical_seeds.txt" 2>/dev/null
@@ -192,7 +192,7 @@ fi
 echo "ℹ️ hakrawler URLs: $(wc -l < "$RD/urls/hakrawler.txt" 2>/dev/null || echo 0)"
 echo "🔍 Gospider..."
 : > "$RD/urls/gospider.txt"
-GS_LIST="$RD/live/expensive_targets.txt"; [ -s "$GS_LIST" ] || GS_LIST="$RD/live/scan_order.txt"; [ -s "$GS_LIST" ] || GS_LIST="$RD/live/live.txt"
+GS_LIST="$RD/live/hostname_targets.txt"; [ -s "$GS_LIST" ] || GS_LIST="$RD/live/expensive_targets.txt"; [ -s "$GS_LIST" ] || GS_LIST="$RD/live/scan_order.txt"
 {
   cat "$GS_LIST" 2>/dev/null
   cat "$RD/live/critical_seeds.txt" 2>/dev/null
@@ -243,7 +243,7 @@ echo "ℹ️ OTX URLs: $(wc -l < "$RD/urls/otx.txt" 2>/dev/null || echo 0)"
 # bundles via <script src> on HTML pages — scrape those from top hosts.
 echo "🔍 HTML endpoint/JS extraction from prioritized hosts..."
 : > "$RD/urls/html_extract.txt"
-HTML_LIST="$RD/live/expensive_targets.txt"
+HTML_LIST="$RD/live/hostname_targets.txt"; [ -s "$HTML_LIST" ] || HTML_LIST="$RD/live/expensive_targets.txt"
 [ -s "$HTML_LIST" ] || HTML_LIST="$RD/live/scan_order.txt"
 [ -s "$HTML_LIST" ] || HTML_LIST="$RD/live/live.txt"
 if [ -s "$HTML_LIST" ]; then
@@ -308,7 +308,7 @@ sort -u -o /tmp/urls_merged.txt /tmp/urls_merged.txt 2>/dev/null || true
 # regression: 549→0), at least put live host roots into all.txt so JS
 # discovery and downstream param hunting are not totally starved.
 # Always add prioritized host roots (additive) so active surface is never missing
-SEED_LIST="$RD/live/expensive_targets.txt"
+SEED_LIST="$RD/live/hostname_targets.txt"; [ -s "$SEED_LIST" ] || SEED_LIST="$RD/live/expensive_targets.txt"
 [ -s "$SEED_LIST" ] || SEED_LIST="$RD/live/scan_order.txt"
 [ -s "$SEED_LIST" ] || SEED_LIST="$RD/live/live.txt"
 if [ -s "$SEED_LIST" ]; then

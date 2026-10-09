@@ -372,5 +372,24 @@ sort -u "$RD/live/critical_seeds.txt" -o "$RD/live/critical_seeds.txt" 2>/dev/nu
 } | awk 'NF && !seen[$0]++' > /tmp/live_merged.txt
 [ -s /tmp/live_merged.txt ] && mv /tmp/live_merged.txt "$RD/live/live.txt"
 echo "critical_seeds=$(wc -l < "$RD/live/critical_seeds.txt" 2>/dev/null || echo 0)" > "$RD/meta/critical_seeds_note.txt"
+
+# --- Hostname-only list for expensive HTTP probes (2026-10-09) ---
+# Root fix: downstream steps must NOT iterate pure IPs / scheme duplicates
+# from expensive_targets or live.txt (Info-disclosure burned 28m on #142/#143).
+if command -v python3 >/dev/null 2>&1 && [ -f scripts/hostname_targets.py ]; then
+  python3 scripts/hostname_targets.py \
+    "$RD/live/critical_seeds.txt" \
+    "$RD/live/scan_order.txt" \
+    "$RD/live/expensive_targets.txt" \
+    "$RD/live/live.txt" \
+    -o "$RD/live/hostname_targets.txt" \
+    --limit 30 \
+    2>/dev/null || true
+  echo "hostname_targets=$(wc -l < "$RD/live/hostname_targets.txt" 2>/dev/null | tr -d ' ' || echo 0)"
+else
+  # Fallback without python: take scan_order lines that look like hostnames
+  grep -E 'https?://[A-Za-z]' "$RD/live/scan_order.txt" 2>/dev/null | head -30 > "$RD/live/hostname_targets.txt" || : > "$RD/live/hostname_targets.txt"
+fi
+
 echo "✅ Critical seeds injected: $(wc -l < "$RD/live/critical_seeds.txt") URLs (live now $(wc -l < "$RD/live/live.txt"))"
 

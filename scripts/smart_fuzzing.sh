@@ -76,7 +76,8 @@ if [ "$FAIL" = "1" ] || [ ! -s "$WORDLIST" ]; then
 fi
 
 # --- Host selection (same priority order as the existing fuzzing step) ---
-FUZZ_INPUT="$RD/live/expensive_targets.txt"
+FUZZ_INPUT="$RD/live/hostname_targets.txt"
+[ -s "$FUZZ_INPUT" ] || FUZZ_INPUT="$RD/live/expensive_targets.txt"
 [ -s "$FUZZ_INPUT" ] || FUZZ_INPUT="$RD/live/scan_order.txt"
 [ -s "$FUZZ_INPUT" ] || FUZZ_INPUT="$RD/live/live.txt"
 if [ ! -s "$FUZZ_INPUT" ]; then
