@@ -1,5 +1,45 @@
 ---
 
+## CYCLE — 2026-10-09 — LIVE UNIFIED VERIFICATION #141
+
+### Run
+- **#141** / `37875044705`
+- **Target:** capital.com (light, authorized_open_scan)
+- **SHA:** `6ac4433`
+- **Conclusion:** success
+
+### Acceptance criteria — all met on ONE revision
+
+| Criterion | Expected | Actual |
+|-----------|----------|--------|
+| Nuclei bulk | NOT_RUN / MOVED_TO_VULNRADAR | phase status=NOT_RUN; skipped.txt=MOVED_TO_VULNRADAR; **not** in health flags |
+| Hosts export | populated + IP-capped | hosts_modeled=**245** (204 LIVE_IP + 41 VERIFIED); was 14378 on #139 |
+| URLs export | populated | urls_modeled=**227** |
+| Hunter post-export | RESEARCH_CONTEXT > 0 | **RC=13** (relationship_cross_engine) |
+| Scheme-pair dedupe | single SSRF HIGH_SIGNAL | **HIGH_SIGNAL=1** (https only); was 2 on #139 |
+| SI → Hunter OFF | SI not in hunter engines | SI candidates present; engines: ssrf, AC, linkfinder, smart-fuzz, relationship only |
+| SI preservation | candidates + suppressed | secret_candidates present; suppressed=**101** |
+| Health honesty | no fake clean Nuclei | overall DEGRADED — **only** Arjun PARTIAL flag |
+
+### Hunter snapshot (#141)
+- HIGH_SIGNAL: 1 (ssrf-v1 https)
+- LEAD: 7 (access-control-v1)
+- INTERESTING: 27 (linkfinder 25 + smart-fuzz 2)
+- RESEARCH_CONTEXT: 13
+
+### Memory hygiene
+- Root `ENGINEERING_LEDGER.md` is a **redirect only** → this file is canonical.
+- Notion Fix Control Center / Autonomous Engine pages must cite HEAD `6ac4433` and #141 — not stale `a72698b` / #133-only state.
+- SI counts are **per-run**: do not mix #134 (115 raw) with #141 (14 candidates / 101 suppressed).
+
+### Status of this slice
+**LIVE CLOSED** for the 6ac4433 verification gate.
+
+### Still not PROJECT_COMPLETE
+Higher-value READY work may remain (e.g. Arjun reliability, API/auth relationship depth, VulnRadar ownership outside this repo). Infinite loop continues via dependency sweep — not by reopening closed gates.
+
+---
+
 ## CYCLE — 2026-10-09 — Post-#139/#140 project reconciliation
 
 ### HEAD at reconciliation
