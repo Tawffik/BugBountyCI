@@ -81,6 +81,61 @@ def _annotate_oob_status(reason, details, confirmed_labels):
 
 
 
+
+def _target_host_path_key(target: str) -> str:
+    """Identity for scheme-pair dedupe: host + path (+ query template), ignore scheme."""
+    from urllib.parse import urlparse
+    raw = (target or "").strip()
+    if not raw or raw == "?":
+        return raw
+    try:
+        u = urlparse(raw if "://" in raw else "http://" + raw)
+        host = (u.hostname or "").lower()
+        path = u.path or "/"
+        q = u.query or ""
+        return f"{host}|{path}|{q}"
+    except Exception:
+        return raw.lower()
+
+
+def dedupe_scheme_pairs(entries: list) -> list:
+    """If two HIGH_SIGNAL/LEAD rows differ only by http vs https, keep one (prefer https).
+
+    Evidence: capital.com #139 produced duplicate SSRF HIGH_SIGNAL for http:// and https://
+    with the same differential evidence — doubles analyst load without new signal.
+    """
+    prefer_cls = {"HIGH_SIGNAL", "LEAD", "CONFIRMED", "IDOR-CANDIDATE"}
+    best = {}  # (engine, cls, key) -> entry
+    order = []
+    for e in entries:
+        cls = e.get("priority_class") or ""
+        if cls not in prefer_cls:
+            order.append(("keep", e))
+            continue
+        key = (e.get("engine"), cls, _target_host_path_key(e.get("target") or ""))
+        prev = best.get(key)
+        tgt = e.get("target") or ""
+        if prev is None:
+            best[key] = e
+            order.append(("keyed", key))
+            continue
+        # prefer https
+        prev_t = prev.get("target") or ""
+        if tgt.startswith("https://") and not prev_t.startswith("https://"):
+            best[key] = e
+    out = []
+    seen = set()
+    for kind, val in order:
+        if kind == "keep":
+            out.append(val)
+        else:
+            if val in seen:
+                continue
+            seen.add(val)
+            out.append(best[val])
+    return out
+
+
 def load_detection_evidence(results_dir):
     """From detection/engine_results.json — Access-Control + Open Redirect
     (and any future engine that plugs into the same framework)."""
@@ -547,6 +602,7 @@ def main():
         + load_representation_diffs(args.results_dir)
         + load_linkfinder_api_routes(args.results_dir)
     )
+    base_entries = dedupe_scheme_pairs(base_entries)
     already = {e.get("target") for e in base_entries if e.get("target")}
     entries = base_entries + load_cross_engine_relationships(args.results_dir, exclude_targets=already)
 

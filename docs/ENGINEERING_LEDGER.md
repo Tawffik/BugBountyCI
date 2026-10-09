@@ -1,5 +1,32 @@
 ---
 
+## CYCLE — 2026-10-09 — Post-#139/#140 project reconciliation
+
+### HEAD at reconciliation
+`a27fd88` (after this cycle: scheme-pair dedupe commit follows)
+
+### Verified against artifacts (not assumptions)
+
+| Capability | Evidence | Status |
+|------------|----------|--------|
+| Hunter after export | Workflow order export→hunter_queue_builder; #139 RC=13; #140 RC=40 | LIVE on c49fbd0/df3be1c |
+| RESEARCH_CONTEXT not vuln | builder text "Not a vulnerability — research context only" | CODE + ARTIFACT |
+| hosts/urls export | #139 hosts.jsonl+urls.jsonl populated (urlparse fix c49fbd0) | LIVE |
+| IP host cap 200 | 2995a26 after #139 SHA — **not** in #139 (14378 hosts); in code for next runs | CODE |
+| SI preserved, SI→Hunter OFF | #139: 14 candidates + 101 suppressed; hunter engines exclude SI | LIVE |
+| Nuclei bulk removed | a27fd88 NOT_RUN/MOVED_TO_VULNRADAR | CODE (live pending on this SHA) |
+| Protected contracts | 111 detection tests pass | OFFLINE |
+
+### Data quality notes
+- #139 SSRF HIGH_SIGNAL duplicated http+https same differential → scheme-pair dedupe added.
+- RESEARCH_CONTEXT on capital/aikido is relationship-backed, not vulnerability claims.
+- Nuclei 0 findings + PARTIAL remains non-clean; ownership → VulnRadar.
+
+### Highest-value next after this fix
+Live light run on current HEAD to prove nuclei NOT_RUN phase + IP-capped hosts + RC in one revision.
+
+---
+
 ## CYCLE — 2026-10-09 — Nuclei + Subdomain Monitor → VulnRadar
 
 ### Decision
