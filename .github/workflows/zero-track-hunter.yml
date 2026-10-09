@@ -4788,7 +4788,7 @@ jobs:
           # --- Are the tools this pipeline depends on actually present right now? ---
           # CloudFail's silent-clone-failure history is exactly why this matters - a
           # tool can be missing with zero visible error anywhere else in the run.
-          missing_tools = [t for t in ["nikto", "wpscan", "gowitness", "nuclei", "subfinder", "httpx", "dnsx", "katana", "amass", "cariddi", "gitleaks", "trufflehog", "mantra", "dalfox", "subzy", "crlfuzz"]
+          missing_tools = [t for t in ["nikto", "wpscan", "gowitness", "subfinder", "httpx", "dnsx", "katana", "amass", "cariddi", "gitleaks", "trufflehog", "mantra", "dalfox", "subzy", "crlfuzz"]  # nuclei intentionally excluded: Zero Track NOT_RUN / VulnRadar owns bulk
                             if os.system(f"command -v {t} >/dev/null 2>&1") != 0]
           if missing_tools:
               install_errs = tail("logs/tool_install.log", 8)

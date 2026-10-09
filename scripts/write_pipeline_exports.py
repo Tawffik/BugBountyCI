@@ -38,16 +38,35 @@ def main():
     nuc = phases.get("nuclei") or {}
     if str(nuc.get("status", "")).upper() == "PARTIAL":
         flags.append(f"Nuclei phase=PARTIAL — {nuc.get('detail','')}")
+    # Nuclei NOT_RUN / moved to VulnRadar is intentional — not a health failure
 
     overall = "DEGRADED" if flags else "OK"
-    # prefer pipeline_health first line if present
+    # prefer pipeline_health overall + Flags section when present (#142: overall
+    # was BROKEN from AI-provider flags, but engine_health.flags stayed empty
+    # because only arjun/nuclei phases were re-derived here).
     ph = os.path.join(rd, "meta", "pipeline_health.md")
     if os.path.exists(ph):
         try:
-            for line in open(ph):
+            in_flags = False
+            md_flags = []
+            for line in open(ph, encoding="utf-8", errors="replace"):
                 if line.startswith("## Overall:"):
                     overall = line.split("## Overall:", 1)[1].strip()
-                    break
+                    in_flags = False
+                    continue
+                if line.startswith("## Flags"):
+                    in_flags = True
+                    continue
+                if in_flags:
+                    if line.startswith("## "):
+                        in_flags = False
+                        continue
+                    s = line.strip()
+                    if s.startswith("- "):
+                        md_flags.append(s[2:].strip())
+            if md_flags:
+                # Prefer the human health report flags as authoritative list
+                flags = md_flags
         except Exception:
             pass
 

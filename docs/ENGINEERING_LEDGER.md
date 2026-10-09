@@ -1,5 +1,23 @@
 ---
 
+## CYCLE — 2026-10-09 — engine_health.flags empty while overall BROKEN (#142)
+
+### Evidence
+- #142 capital.com SHA `6ac4433` success
+- `pipeline_health.md` Overall=BROKEN with flag: all AI providers failed
+- `engine_health.json` overall=BROKEN but **flags=[]** (machine consumers saw no reason)
+- Arjun recovered to OK params=8; nuclei NOT_RUN; hostname_targets absent (pre-cc51e84)
+
+### Fix
+1. `write_pipeline_exports.py` parses `## Flags` from pipeline_health.md into engine_health.flags
+2. Remove `nuclei` from required-tools missing check (Zero Track intentionally NOT_RUN / VulnRadar)
+
+### Verification
+- Offline replay of #142 pipeline_health → flags_n=1 AI provider text
+- unit: test_engine_health_flags_from_md.py
+
+---
+
 ## CYCLE — 2026-10-09 — Full-system audit document
 
 See `docs/FULL_SYSTEM_AUDIT_2026-10-09.md`.
