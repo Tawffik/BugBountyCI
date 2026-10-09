@@ -1989,87 +1989,157 @@ jobs:
       - name: "🔓 Information Disclosure Scan (Git, Backups, Configs)"
         if: ${{ env.ENABLE_GIT_EXPOSURE == 'true' }}
         continue-on-error: true
-        timeout-minutes: 28
+        timeout-minutes: 24
         run: |
+          # Information Disclosure — bounded, hostname-first, DIRECT primary.
+          # Case study #142/#143: step burned full 28m (1681s) on expensive_targets
+          # cross-product (hosts×paths×proxychains). Budget died with little signal.
           RD="results/${{ env.TIMESTAMP }}"
-          INPUT="$RD/live/expensive_targets.txt"
-          [ -s "$INPUT" ] || INPUT="$RD/live/scan_order.txt"
-          [ -s "$INPUT" ] || INPUT="$RD/live/live.txt"
-          [ -s "$INPUT" ] || { echo "https://${{ env.TARGET }}" > /tmp/fallback.txt; INPUT=/tmp/fallback.txt; }
-          echo "ℹ️ Info-disclosure targets: $(wc -l < "$INPUT")"
-          : > "$RD/info_disclosure/git_exposure.txt"
-          for path in "/.git/HEAD" "/.git/config" "/.git/index" "/.git/logs/HEAD"; do
-            while IFS= read -r host; do
-              host="$(echo "$host" | tr -d '\r' | xargs)"; [ -z "$host" ] && continue
-              s=$(proxychains4 -q curl -sk -o /tmp/git_test -w "%{http_code}" --max-time 6 -H "User-Agent: $SCAN_USER_AGENT" "${host}${path}" 2>/dev/null || echo "000")
+          mkdir -p "$RD/info_disclosure" "$RD/meta/phases" "$RD/logs"
+          RAW="$RD/live/expensive_targets.txt"
+          [ -s "$RAW" ] || RAW="$RD/live/scan_order.txt"
+          [ -s "$RAW" ] || RAW="$RD/live/live.txt"
+          [ -s "$RAW" ] || { echo "https://${{ env.TARGET }}" > /tmp/fallback.txt; RAW=/tmp/fallback.txt; }
+
+          INPUT=/tmp/info_disc_targets.txt
+          python3 - <<'PY' "$RAW" "$INPUT"
+          import re, sys
+          from urllib.parse import urlparse
+          src, dst = sys.argv[1], sys.argv[2]
+          seen, out = set(), []
+          for line in open(src, errors="ignore"):
+              u = line.strip()
+              if not u or u.startswith("#"):
+                  continue
+              if "://" not in u:
+                  u = "https://" + u
+              try:
+                  host = (urlparse(u).hostname or "").lower()
+              except Exception:
+                  continue
+              if not host or re.fullmatch(r"\d{1,3}(?:\.\d{1,3}){3}", host):
+                  continue
+              if host in seen:
+                  continue
+              seen.add(host)
+              out.append(f"https://{host}")
+              if len(out) >= 10:
+                  break
+          open(dst, "w").write("\n".join(out) + ("\n" if out else ""))
+          print(f"info-disclosure targets={len(out)} (unique https hostnames, cap 10)")
+          PY
+          echo "ℹ️ Info-disclosure targets: $(wc -l < "$INPUT" | tr -d ' ')"
+
+          # Soft deadline: leave margin under GHA timeout-minutes
+          SOFT_LIMIT=1200
+          start_sec=$SECONDS
+          budget_ok() { [ $((SECONDS - start_sec)) -lt "$SOFT_LIMIT" ]; }
+
+          curl_code() {
+            # DIRECT first; optional single Tor fallback only if DIRECT is 000
+            local url="$1" out="$2" mt="${3:-5}"
+            local s
+            s=$(curl -sk -o "$out" -w "%{http_code}" --max-time "$mt" -H "User-Agent: $SCAN_USER_AGENT" "$url" 2>/dev/null || echo "000")
+            s="${s: -3}"
+            if [ "$s" = "000" ] && command -v proxychains4 >/dev/null 2>&1; then
+              s=$(proxychains4 -q curl -sk -o "$out" -w "%{http_code}" --max-time "$mt" -H "User-Agent: $SCAN_USER_AGENT" "$url" 2>/dev/null || echo "000")
               s="${s: -3}"
+            fi
+            echo "$s"
+          }
+
+          : > "$RD/info_disclosure/git_exposure.txt"
+          for path in "/.git/HEAD" "/.git/config"; do
+            budget_ok || break
+            while IFS= read -r host; do
+              [ -z "$host" ] && continue
+              budget_ok || break 2
+              s=$(curl_code "${host}${path}" /tmp/git_test 5)
               if [ "$s" = "200" ] && grep -qE 'ref: refs/heads/|gitdir:' /tmp/git_test 2>/dev/null; then
                 echo "[GIT-EXPOSURE] ${host}${path}" >> "$RD/info_disclosure/git_exposure.txt"
               fi
             done < "$INPUT"
           done
+
           : > "$RD/info_disclosure/backup_files.txt"
-          for ext in ".bak" ".old" ".zip" ".tar.gz" ".sql" ".dump" ".swp" "~" ".orig" ".backup"; do
-            for path in "/index${ext}" "/backup${ext}" "/db${ext}" "/database${ext}" "/dump${ext}"; do
-              while IFS= read -r host; do
-                host="$(echo "$host" | tr -d '\r' | xargs)"; [ -z "$host" ] && continue
-                s=$(proxychains4 -q curl -sk -o /tmp/backup_body -w "%{http_code}" --max-time 5 -H "User-Agent: $SCAN_USER_AGENT" "${host}${path}" 2>/dev/null || echo "000")
-                s="${s: -3}"
-                [ "$s" = "200" ] || continue
-                # Reject soft-404 HTML/SPA shells (kec.com noise: every .zip returned 200 HTML)
-                if grep -qiE '<html|<!doctype|text/html' /tmp/backup_body 2>/dev/null; then
-                  continue
-                fi
-                blen=$(wc -c < /tmp/backup_body 2>/dev/null || echo 0)
-                [ "$blen" -lt 50 ] && continue
-                # Prefer archive/db magic when detectable; still accept large non-HTML
-                if grep -aqE '^(PK|\x1f\x8b|SQLite format|MySQL dump|PostgreSQL|INSERT INTO|CREATE TABLE)' /tmp/backup_body 2>/dev/null                    || [ "$blen" -gt 2048 ]; then
-                  echo "[BACKUP] ${host}${path} (${blen}b)" >> "$RD/info_disclosure/backup_files.txt"
-                fi
-              done < "$INPUT"
-            done
-          done
-          : > "$RD/info_disclosure/config_files.txt"
-          for path in "/.env" "/.env.local" "/.env.production" "/config.json" "/appsettings.json" "/web.config" "/application.yml" "/settings.py" "/database.yml" "/docker-compose.yml" "/Dockerfile" "/package.json" "/.htaccess" "/.htpasswd" "/server-status" "/actuator/env" "/actuator/health" "/actuator/mappings" "/env" "/trace" "/metrics" "/prometheus"; do
+          # Reduced matrix: high-signal extensions only (was 9×5×N hosts → timeout)
+          for path in "/backup.zip" "/backup.sql" "/dump.sql" "/db.sql" "/database.sql" "/.env.bak" "/index.bak" "/backup.tar.gz"; do
+            budget_ok || break
             while IFS= read -r host; do
-              host="$(echo "$host" | tr -d '\r' | xargs)"; [ -z "$host" ] && continue
-              s=$(proxychains4 -q curl -sk -o /tmp/config_test -w "%{http_code}" --max-time 5 -H "User-Agent: $SCAN_USER_AGENT" "${host}${path}" 2>/dev/null || echo "000")
-              s="${s: -3}"
+              [ -z "$host" ] && continue
+              budget_ok || break 2
+              s=$(curl_code "${host}${path}" /tmp/backup_body 5)
+              [ "$s" = "200" ] || continue
+              if grep -qiE '<html|<!doctype|text/html' /tmp/backup_body 2>/dev/null; then
+                continue
+              fi
+              blen=$(wc -c < /tmp/backup_body 2>/dev/null || echo 0)
+              [ "$blen" -lt 50 ] && continue
+              if grep -aqE '^(PK|\x1f\x8b|SQLite format|MySQL dump|PostgreSQL|INSERT INTO|CREATE TABLE)' /tmp/backup_body 2>/dev/null \
+                   || [ "$blen" -gt 2048 ]; then
+                echo "[BACKUP] ${host}${path} (${blen}b)" >> "$RD/info_disclosure/backup_files.txt"
+              fi
+            done < "$INPUT"
+          done
+
+          : > "$RD/info_disclosure/config_files.txt"
+          for path in "/.env" "/.env.local" "/config.json" "/web.config" "/phpinfo.php" "/server-status" "/.aws/credentials"; do
+            budget_ok || break
+            while IFS= read -r host; do
+              [ -z "$host" ] && continue
+              budget_ok || break 2
+              s=$(curl_code "${host}${path}" /tmp/config_test 5)
               if [ "$s" = "200" ] && ! grep -qiE '<html|<!doctype' /tmp/config_test 2>/dev/null; then
                 echo "[CONFIG] ${host}${path}" >> "$RD/info_disclosure/config_files.txt"
               fi
             done < "$INPUT"
           done
+
           : > "$RD/info_disclosure/dir_listing.txt"
-          for path in "/" "/images/" "/uploads/" "/assets/" "/static/" "/files/" "/backup/" "/api/" "/docs/"; do
+          for path in "/uploads/" "/backup/" "/files/" "/.git/"; do
+            budget_ok || break
             while IFS= read -r host; do
-              host="$(echo "$host" | tr -d '\r' | xargs)"; [ -z "$host" ] && continue
-              s=$(proxychains4 -q curl -sk -o /tmp/dir_test -w "%{http_code}" --max-time 5 -H "User-Agent: $SCAN_USER_AGENT" "${host}${path}" 2>/dev/null || echo "000")
-              s="${s: -3}"
+              [ -z "$host" ] && continue
+              budget_ok || break 2
+              s=$(curl_code "${host}${path}" /tmp/dir_test 5)
               if [ "$s" = "200" ] && grep -qiE 'index of|directory listing|\[to parent directory\]' /tmp/dir_test 2>/dev/null; then
                 echo "[DIR-LISTING] ${host}${path}" >> "$RD/info_disclosure/dir_listing.txt"
               fi
             done < "$INPUT"
           done
+
           : > "$RD/info_disclosure/error_disclosure.txt"
           while IFS= read -r host; do
-            host="$(echo "$host" | tr -d '\r' | xargs)"; [ -z "$host" ] && continue
-            for trigger in "%00" "'" '"' "<script>" "../../../etc/passwd" "{{7*7}}"; do
-              s=$(proxychains4 -q curl -sk -o /tmp/err_test -w "%{http_code}" --max-time 5 -H "User-Agent: $SCAN_USER_AGENT" "${host}/?test=${trigger}" 2>/dev/null || echo "000")
-              s="${s: -3}"
-              if [ "$s" = "500" ] || [ "$s" = "502" ] || [ "$s" = "503" ]; then
-                if grep -qiE 'stack trace|traceback|exception|line [0-9]+|file "/|server:|nginx|apache|django|rails' /tmp/err_test 2>/dev/null; then
+            [ -z "$host" ] && continue
+            budget_ok || break
+            for trigger in "'" "../../../etc/passwd"; do
+              s=$(curl_code "${host}/?test=${trigger}" /tmp/err_test 5)
+              if [ "$s" = "500" ] || [ "$s" = "502" ]; then
+                if grep -qiE 'stack trace|traceback|exception|line [0-9]+|django|rails' /tmp/err_test 2>/dev/null; then
                   echo "[ERROR-DISCLOSURE] ${host}/?test=${trigger} [HTTP $s]" >> "$RD/info_disclosure/error_disclosure.txt"
                   break
                 fi
               fi
             done
           done < "$INPUT"
-          echo "✅ Git: $(wc -l < "$RD/info_disclosure/git_exposure.txt" 2>/dev/null || echo 0)"
-          echo "✅ Backups: $(wc -l < "$RD/info_disclosure/backup_files.txt" 2>/dev/null || echo 0)"
-          echo "✅ Configs: $(wc -l < "$RD/info_disclosure/config_files.txt" 2>/dev/null || echo 0)"
-          echo "✅ Dir listings: $(wc -l < "$RD/info_disclosure/dir_listing.txt" 2>/dev/null || echo 0)"
-          echo "✅ Errors: $(wc -l < "$RD/info_disclosure/error_disclosure.txt" 2>/dev/null || echo 0)"
+
+          git_n=$(wc -l < "$RD/info_disclosure/git_exposure.txt" 2>/dev/null | tr -d ' ' || echo 0)
+          bak_n=$(wc -l < "$RD/info_disclosure/backup_files.txt" 2>/dev/null | tr -d ' ' || echo 0)
+          cfg_n=$(wc -l < "$RD/info_disclosure/config_files.txt" 2>/dev/null | tr -d ' ' || echo 0)
+          dir_n=$(wc -l < "$RD/info_disclosure/dir_listing.txt" 2>/dev/null | tr -d ' ' || echo 0)
+          err_n=$(wc -l < "$RD/info_disclosure/error_disclosure.txt" 2>/dev/null | tr -d ' ' || echo 0)
+          elapsed=$((SECONDS - start_sec))
+          if [ "$elapsed" -ge "$SOFT_LIMIT" ]; then
+            status="PARTIAL"
+            detail="soft_deadline=${SOFT_LIMIT}s elapsed=${elapsed}s git=${git_n} backup=${bak_n} config=${cfg_n} dir=${dir_n} err=${err_n}"
+          else
+            status="ok"
+            detail="elapsed=${elapsed}s git=${git_n} backup=${bak_n} config=${cfg_n} dir=${dir_n} err=${err_n}"
+          fi
+          printf '{"phase":"information_disclosure","status":"%s","detail":"%s"}\n' "$status" "$detail" \
+            > "$RD/meta/phases/information_disclosure.json"
+          echo "✅ Info-disclosure phase=${status} ${detail}"
+          echo "✅ Git: ${git_n} | Backups: ${bak_n} | Configs: ${cfg_n} | Dirs: ${dir_n} | Errors: ${err_n}"
 
       - name: "🗺️ Source Map Analysis"
         if: ${{ env.ENABLE_SOURCE_MAPS == 'true' }}

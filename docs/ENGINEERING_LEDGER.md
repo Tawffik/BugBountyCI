@@ -1,5 +1,25 @@
 ---
 
+## CYCLE — 2026-10-09 — Information Disclosure timeout waste (#142/#143)
+
+### Case study
+- Runs **#142 capital.com** and **#143 superdrug.com** (SHA `6ac4433`)
+- Step `Information Disclosure Scan` completed in **1681s ≈ 28.0 min** — exact prior `timeout-minutes: 28` budget
+- Cause: nested loops over **full** `expensive_targets.txt` (http+https + many IP:port) × git paths × backup ext×path matrix × **proxychains on every request**
+- Result: phase burns almost entire GHA step budget; downstream phases wait; signal density low vs cost
+
+### Fix
+- Unique `https://hostname` only (cap **10**), skip pure IPs
+- DIRECT curl first; Tor only if DIRECT returns 000
+- Reduced backup path list (high-signal only)
+- Soft deadline **1200s** inside step + `timeout-minutes: 24`
+- Phase file `meta/phases/information_disclosure.json` with ok/PARTIAL + elapsed
+
+### Status
+IMPLEMENTED on tip. LIVE on next authorized run after this commit (current #142/#143 still on old step).
+
+---
+
 ## CYCLE — 2026-10-09 — Arjun PARTIAL root cause (#141)
 
 ### Evidence (#141 / 6ac4433)
