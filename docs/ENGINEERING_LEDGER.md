@@ -1,5 +1,66 @@
 ---
 
+## CYCLE — 2026-10-09 — G-live-1 mid-gate: #143 harvest + #144 still active
+
+### Current main HEAD
+`dd2efa5` — **ledger-only** (docs restore). Code tip for G-live-1 remains `c1d752e` (phase enrichment).  
+Ledger-only commits do not change runtime behavior.
+
+### SHA map (what each run can prove)
+
+| Commit | Content | In #143 (`6ac4433`)? | In #144 (`3ed22d8`)? | In code tip `c1d752e`? |
+|--------|---------|----------------------|---------------------|------------------------|
+| `cc51e84` | hostname_targets | No | **Yes** | Yes |
+| `3ed22d8` | flags → engine_health | No | **Yes** | Yes |
+| `cc311e3` | AI-only → DEGRADED + SA soft budget | No | **No** | Yes |
+| `c1d752e` | phase enrichment from summaries | No | **No** | Yes |
+
+### Run #143 — COMPLETED (harvested)
+
+| Field | Value |
+|-------|--------|
+| ID | `37939620457` |
+| Target | Superdrug.com |
+| SHA | `6ac4433593d093021f23728c23249bb8d6d770e9` |
+| Conclusion | **success** (completed 2026-10-09T17:52:22Z) |
+| Artifacts | `results-37939620457-143-superdrug.com` (id `11634731735`), toolchain |
+
+**What #143 proves (live artifacts):**
+- Pipeline completed end-to-end; overall `🟢 HEALTHY`
+- Summaries present: `info_disclosure/historical_validation_summary.json` (validated=40, not_run=354), `representation_summary.json` (pairs_run=25), `historical_pivot_summary.json` (total=500)
+- Phase files exist for arjun/ssrf/AC/etc.; **no** phase files for historical_validation / representation_differential / historical_pivot
+- `engine_health.phases` omits those three despite summaries → **live confirmation of G-obs-1 gap** (fixed only in `c1d752e`)
+- `engine_health.flags=[]` while `pipeline_health.md` has `## Flags` (AI provider note) → **live confirmation of empty-flags bug** (fixed in `3ed22d8`)
+- **No** `live/hostname_targets.txt` (expected: pre-`cc51e84`); `expensive_targets.txt` present (32 lines)
+- AI providers worked this run (OpenRouter free) — does not exercise AI-total-failure path
+- Nuclei phase `NOT_RUN` / VulnRadar ownership held
+
+**What #143 does NOT prove:** hostname_targets consumption, flags propagation into engine_health, AI-only DEGRADED severity, phase enrichment on tip.
+
+### Run #144 — STILL ACTIVE (do not cancel; do not start concurrent)
+
+| Field | Value |
+|-------|--------|
+| ID | `37961580167` |
+| Target | capital.com |
+| SHA | `3ed22d89eda9ce0098909bf81c9f3c47be98909e` |
+| Status | **in_progress** — step 42 `API Discovery` (as of harvest) |
+| Started | 2026-10-09T16:46:56Z |
+
+When #144 finishes it can partially validate **hostname_targets + flags** only. It **cannot** close full G-live-1 (missing `cc311e3` + `c1d752e`).
+
+### Policy this cycle
+- No new workflow dispatch while #144 is active.
+- No cancel of #144 without operator cost review.
+- No Notion / scanners / protected-contract edits.
+
+### G-live-1 status
+**OPEN** — offline PASS; #143 is negative-control evidence for the gaps; full tip live still pending after #144 finishes + one light run on `c1d752e` (or later) with authorized target.
+
+---
+
+---
+
 ## CYCLE — 2026-10-09 — G-live-1 verification gate (offline PASS; live BLOCKED)
 
 ### HEAD re-check
