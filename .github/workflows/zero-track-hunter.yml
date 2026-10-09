@@ -1832,20 +1832,55 @@ jobs:
           [ -s "$ARJUN_INPUT" ] || ARJUN_INPUT="$RD/live/scan_order.txt"
           [ -s "$ARJUN_INPUT" ] || ARJUN_INPUT="$RD/live/live.txt"
           if command -v arjun >/dev/null 2>&1 && [ -s "$ARJUN_INPUT" ]; then
-            echo "🔍 Running Arjun against prioritized hosts (interesting first, cap 30)..."
-            # #108: Tor-only arjun hit upstream AttributeError (request dict has no
-            # status_code). Prefer DIRECT first; Tor only if DIRECT produced nothing
-            # for that host. Always record phase status — crash ≠ clean empty.
-            head -30 "$ARJUN_INPUT" | while IFS= read -r host; do
+            echo "🔍 Running Arjun against prioritized HTTPS hostnames (cap 15)..."
+            # #141 capital.com: PARTIAL because head -30 of expensive_targets mixed
+            # http+https duplicates and many IP:port lines; Tor retry after DIRECT
+            # amplified upstream Arjun AttributeError (dict has no status_code).
+            # Prefer unique https://hostname only (no pure IPs); DIRECT only —
+            # Tor path is known to return request-as-dict and crash arjun.
+            ARJUN_LIST=/tmp/arjun_targets.txt
+            : > "$ARJUN_LIST"
+            python3 - <<'PY' "$ARJUN_INPUT" "$ARJUN_LIST"
+            import re, sys
+            from urllib.parse import urlparse
+            src, dst = sys.argv[1], sys.argv[2]
+            seen = set()
+            out = []
+            for line in open(src, errors="ignore"):
+                u = line.strip()
+                if not u or u.startswith("#"):
+                    continue
+                if "://" not in u:
+                    u = "https://" + u
+                try:
+                    p = urlparse(u)
+                except Exception:
+                    continue
+                host = (p.hostname or "").lower()
+                if not host:
+                    continue
+                # skip pure IP / IP:port targets — Arjun needs HTTP hostnames
+                if re.fullmatch(r"\d{1,3}(?:\.\d{1,3}){3}", host):
+                    continue
+                key = host
+                if key in seen:
+                    continue
+                seen.add(key)
+                out.append(f"https://{host}/")
+                if len(out) >= 15:
+                    break
+            open(dst, "w").write("\n".join(out) + ("\n" if out else ""))
+            print(f"arjun targets={len(out)} (hostname https only)")
+            PY
+            while IFS= read -r host; do
               [ -z "$host" ] && continue
               : > /tmp/arjun_out.txt
               arjun -u "$host" -t 10 --rate-limit 20 "${AUTH_ARGS[@]}" -oT /tmp/arjun_out.txt 2>>"$RD/logs/arjun.log" >/dev/null || true
-              if [ ! -s /tmp/arjun_out.txt ]; then
-                proxychains4 -q arjun -u "$host" -t 8 --rate-limit 10 "${AUTH_ARGS[@]}" -oT /tmp/arjun_out.txt 2>>"$RD/logs/arjun.log" >/dev/null || true
-              fi
+              # Do not Tor-retry: proxychains path triggers AttributeError in arjun
+              # (request dict has no status_code) — see #108/#141 logs.
               [ -s /tmp/arjun_out.txt ] && sed "s#^#[$host] #" /tmp/arjun_out.txt >> "$RD/targeted/arjun_params.txt"
               rm -f /tmp/arjun_out.txt
-            done
+            done < "$ARJUN_LIST"
           else
             echo "⚠️ arjun not installed or no live hosts - skipping"
           fi

@@ -1,5 +1,23 @@
 ---
 
+## CYCLE — 2026-10-09 — Arjun PARTIAL root cause (#141)
+
+### Evidence (#141 / 6ac4433)
+- phase=PARTIAL params=1; logs: 6× AttributeError `dict has no status_code`
+- Input: first 30 of `expensive_targets.txt` = http+https hostname duplicates + many `IP:port`
+- Tor retry after empty DIRECT amplified upstream Arjun crash (#108 pattern)
+
+### Fix (this commit)
+- Filter to unique `https://hostname/` only; skip pure IPs; cap 15
+- **No Tor retry** for Arjun (known request-as-dict crash under proxychains)
+- Offline: #141 expensive_targets → 6 hostname targets (api/app/capital/onlinedoctor/photo/www)
+- Unit: `tests/test_arjun_target_filter.py`
+
+### Status
+IMPLEMENTED + OFFLINE VERIFIED filter. LIVE verification of cleaner phase status requires a future authorized run (do not re-prove closed 6ac4433 gates).
+
+---
+
 ## CYCLE — 2026-10-09 — LIVE UNIFIED VERIFICATION #141
 
 ### Run
