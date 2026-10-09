@@ -1,5 +1,26 @@
 ---
 
+## CYCLE — 2026-10-09 — AI failure severity + Security Analysis soft budget
+
+### Plan / Notion alignment
+Fix Control Center: CONTINUE; do not block whole project on #144; maximize truthful
+signal vs false BROKEN; timeout root class already identified for Security Analysis.
+
+### Evidence (#142)
+Funnel stages healthy but Overall=BROKEN solely because every AI provider failed.
+
+### Changes
+1. AI total-failure flag: red to warn so verdict becomes DEGRADED, not BROKEN
+2. Security Analysis: soft deadline 1080s with per-host budget breaks
+
+### Tests
+test_ai_health_severity.py and prior health/hostname tests
+
+### Live
+Independent of #144; applies on next health-report execution.
+
+---
+
 ## CYCLE — 2026-10-09 — engine_health.flags empty while overall BROKEN (#142)
 
 ### Evidence

@@ -2826,6 +2826,9 @@ jobs:
         timeout-minutes: 20
         run: |
           RD="results/${{ env.TIMESTAMP }}"
+          SECONDS=0
+          SOFT_LIMIT=1080
+          budget_ok() { [ "$SECONDS" -lt "$SOFT_LIMIT" ]; }
           INPUT="$RD/live/hostname_targets.txt"
           [ -s "$INPUT" ] || INPUT="$RD/live/expensive_targets.txt"
           [ -s "$INPUT" ] || INPUT="$RD/live/scan_order.txt"
@@ -2833,6 +2836,7 @@ jobs:
           : > "$RD/cors/vulnerable.txt"
           for origin in "https://evil.com" "null" "https://evil.${{ env.TARGET }}"; do
             while IFS= read -r host; do
+            budget_ok || { echo "⚠️ Security Analysis soft deadline (${SECONDS}s)"; break; }
               host="$(echo "$host" | tr -d '\r' | xargs)"; [ -z "$host" ] && continue
               resp=$(proxychains4 -q curl -s -I -H "Origin: $origin" --max-time 6 "$host" 2>/dev/null || echo "")
               acao=$(echo "$resp" | grep -i 'access-control-allow-origin' | head -1 | sed -E 's/^[^:]+:[[:space:]]*//' | tr -d '\r' | xargs 2>/dev/null || echo "")
@@ -2842,6 +2846,7 @@ jobs:
           done
           declare -A BASE_LEN BASE_STATUS
           while IFS= read -r host; do
+            budget_ok || { echo "⚠️ Security Analysis soft deadline (${SECONDS}s)"; break; }
             host="$(echo "$host" | tr -d '\r' | xargs)"; [ -z "$host" ] && continue
             bstatus=$(proxychains4 -q curl -sk --max-time 5 -o /tmp/base_body -w "%{http_code}" "${host}/__not_a_real_path_xyz123" 2>/dev/null || echo "000")
             bstatus="${bstatus: -3}"  # curl -w already prints 000 on failure AND exits non-zero, so the || echo "000" fallback doubles it to 000000 - truncate to be safe either way
@@ -2851,6 +2856,7 @@ jobs:
           : > "$RD/files/sensitive.txt"
           for path in "/.env" "/.git/config" "/wp-config.php" "/config.json" "/credentials.json" "/phpinfo.php" "/info.php" "/Dockerfile" "/.aws/credentials" "/backup.sql"; do
             while IFS= read -r host; do
+            budget_ok || { echo "⚠️ Security Analysis soft deadline (${SECONDS}s)"; break; }
               host="$(echo "$host" | tr -d '\r' | xargs)"; [ -z "$host" ] && continue
               status=$(proxychains4 -q curl -sk -o /tmp/resp_body --max-time 5 -w "%{http_code}" "${host}${path}" 2>/dev/null || echo "000")
               status="${status: -3}"  # curl -w already prints 000 on failure AND exits non-zero, so the || echo "000" fallback doubles it to 000000 - truncate to be safe either way
@@ -2868,7 +2874,6 @@ jobs:
             done < "$INPUT"
           done
           echo "✅ CORS: $(wc -l < "$RD/cors/vulnerable.txt" 2>/dev/null || echo 0) | Sensitive: $(wc -l < "$RD/files/sensitive.txt" 2>/dev/null || echo 0)"
-
       - name: "🔌 CMS Fingerprint (WordPress)"
         continue-on-error: true
         timeout-minutes: 8
@@ -4783,7 +4788,10 @@ jobs:
               # case without producing an unreadable wall of text.
               errs = tail("logs/ai_providers.log", 30)
               detail = (" Errors seen: " + " | ".join(errs)) if errs else " (no ai_providers.log captured - check the raw Action log for this run.)"
-              flags.append(f"🔴 **Every configured AI provider failed** - AI-driven phases ran with no plan. Note: GitHub Models was permanently retired on 2026-07-30 and is no longer a fallback option; make sure at least one real provider secret (e.g. GEMINI_API_KEY, GROQ_API_KEY, OPENROUTER_API_KEY) is actually configured.{detail}")
+              # AI failure degrades planning phases; it must NOT mark the whole recon funnel
+              # BROKEN when DNS/live/URL stages produced data (#142 capital.com:
+              # funnel ✅ but overall BROKEN solely due to AI keys/credits).
+              flags.append(f"⚠️ **Every configured AI provider failed** - AI-driven phases ran with no plan; recon/observation pipeline may still be valid. Note: GitHub Models was permanently retired on 2026-07-30; configure a working provider secret (e.g. GEMINI_API_KEY, GROQ_API_KEY, OPENROUTER_API_KEY).{detail}")
 
           # --- Are the tools this pipeline depends on actually present right now? ---
           # CloudFail's silent-clone-failure history is exactly why this matters - a
