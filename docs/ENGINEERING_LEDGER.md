@@ -1,5 +1,24 @@
 ---
 
+## CYCLE — 2026-10-09 — Whole-system audit + phase enrichment
+
+See `docs/WHOLE_SYSTEM_CAPABILITY_AUDIT_2026-10-09.md`.
+
+### Implemented
+`write_pipeline_exports.py` enriches `engine_health.phases` from:
+- historical_validation_summary.json
+- representation_summary.json
+- historical_pivot_summary.json
+when dedicated phase files are missing (proven gap on #141).
+
+### Tests
+test_phase_enrichment_from_summaries.py + prior health tests.
+
+### Not done
+Live verify on HEAD (#144 tracks 3ed22d8 only). AI credentials external.
+
+---
+
 ## CYCLE — 2026-10-09 — AI failure severity + Security Analysis soft budget
 
 ### Plan / Notion alignment

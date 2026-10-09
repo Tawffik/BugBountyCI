@@ -30,6 +30,52 @@ def main():
         except Exception:
             pass
 
+    # Enrich health phases from intelligence summaries when dedicated phase
+    # files were not written (e.g. pre-phase-write SHAs, or engines that only
+    # emit summary JSON). Does not invent success — copies measured fields.
+    def _enrich_phase(name, summary_rel, status_fn, detail_fn):
+        if name in phases:
+            return
+        sp = os.path.join(rd, summary_rel)
+        if not os.path.isfile(sp):
+            return
+        try:
+            with open(sp, encoding="utf-8", errors="replace") as fh:
+                s = json.load(fh)
+        except Exception:
+            return
+        phases[name] = {
+            "phase": name,
+            "status": status_fn(s),
+            "detail": detail_fn(s),
+            "source": summary_rel,
+        }
+
+    _enrich_phase(
+        "historical_validation",
+        "info_disclosure/historical_validation_summary.json",
+        lambda s: "ok",
+        lambda s: (
+            f"validated={s.get('validated',0)} not_run={s.get('not_run',0)} "
+            f"outcomes={s.get('outcomes',{})}"
+        ),
+    )
+    _enrich_phase(
+        "representation_differential",
+        "info_disclosure/representation_summary.json",
+        lambda s: "ok" if (s.get("pairs_run") or 0) > 0 or (s.get("candidates") or 0) == 0 else "PARTIAL",
+        lambda s: (
+            f"candidates={s.get('candidates',0)} pairs_run={s.get('pairs_run',0)} "
+            f"kinds={s.get('kinds',{})} diagnosis={s.get('diagnosis','')}"
+        ),
+    )
+    _enrich_phase(
+        "historical_pivot",
+        "info_disclosure/historical_pivot_summary.json",
+        lambda s: "ok",
+        lambda s: f"total={s.get('total',0)} counts={s.get('counts',{})}",
+    )
+
     flags = []
     # re-derive minimal flags from phases for machine health
     arj = phases.get("arjun") or {}
