@@ -389,6 +389,41 @@ def load_representation_diffs(results_dir):
 
 
 
+
+def _currently_reachable_historical_paths(results_dir):
+    """Paths with CURRENTLY_REACHABLE historical validation (host-agnostic path key)."""
+    path = os.path.join(results_dir, "info_disclosure", "historical_validations.jsonl")
+    out = set()
+    if not os.path.isfile(path):
+        return out
+    try:
+        with open(path, "r", errors="ignore") as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                try:
+                    row = json.loads(line)
+                except Exception:
+                    continue
+                if row.get("outcome") != "CURRENTLY_REACHABLE":
+                    continue
+                p = (row.get("historical_path") or "").strip().lower()
+                if p:
+                    out.add(p)
+                vurl = row.get("validation_url") or ""
+                if vurl:
+                    try:
+                        from urllib.parse import urlparse
+                        pp = urlparse(vurl).path or ""
+                        if pp:
+                            out.add(pp.lower().rstrip("/") or pp.lower())
+                    except Exception:
+                        pass
+    except Exception:
+        return out
+    return out
+
+
 def load_cross_engine_relationships(results_dir, limit=40, exclude_targets=None):
     """Surface cross-engine relationships as research context — not findings.
 
@@ -400,6 +435,7 @@ def load_cross_engine_relationships(results_dir, limit=40, exclude_targets=None)
     if not os.path.isfile(path):
         return []
     exclude = set(exclude_targets or [])
+    reachable_hist = _currently_reachable_historical_paths(results_dir)
     hist, live = [], []
     try:
         with open(path, "r", errors="ignore") as f:
@@ -420,10 +456,22 @@ def load_cross_engine_relationships(results_dir, limit=40, exclude_targets=None)
                     path_label = (row.get("from") or "").replace("js_path:", "") or (row.get("to") or "").replace("endpoint:", "")
                 if not path_label or path_label in exclude:
                     continue
+                prio = "RESEARCH_CONTEXT"
+                extra = ""
+                # Corroborate HISTORICAL∩JS with CURRENTLY_REACHABLE validation when available
+                norm = path_label.strip().lower().rstrip("/") or path_label.strip().lower()
+                if rtype == "HISTORICAL_PATH_AND_JS_API" and (
+                    path_label.strip().lower() in reachable_hist or norm in reachable_hist
+                ):
+                    prio = "INTERESTING"
+                    extra = (
+                        "Corroborated: historical validation outcome CURRENTLY_REACHABLE "
+                        "for this path. Still not a vulnerability — prioritize manual review. "
+                    )
                 entry = {
                     "target": path_label[:200],
                     "engine": "relationship_cross_engine",
-                    "priority_class": "RESEARCH_CONTEXT",
+                    "priority_class": prio,
                     "reason": (
                         (
                             "Cross-engine relationship: historical archive path also appears "
@@ -432,6 +480,7 @@ def load_cross_engine_relationships(results_dir, limit=40, exclude_targets=None)
                             else "Cross-engine relationship: JS/LinkFinder route also appears "
                             "in the modeled endpoint surface. "
                         )
+                        + extra
                         + "Not a vulnerability — research context only. "
                         f"engines={row.get('engines')}; provenance={row.get('provenance')}. "
                         "Suggested next: compare current behaviour for this path "
@@ -443,6 +492,7 @@ def load_cross_engine_relationships(results_dir, limit=40, exclude_targets=None)
                         "from": row.get("from"),
                         "to": row.get("to"),
                         "provenance": row.get("provenance"),
+                        "corroborated_reachable": prio == "INTERESTING",
                     },
                 }
                 if rtype == "HISTORICAL_PATH_AND_JS_API":
