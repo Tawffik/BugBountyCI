@@ -44,6 +44,42 @@ def path_key(u: str) -> str:
         return ""
 
 
+
+def validation_priority(path: str, url: str = "") -> int:
+    """Lower score = validate sooner within budget.
+
+    Prefer research-interesting paths over generic marketing/locale pages.
+    Does not change classification or claim vulnerabilities.
+    """
+    p = (path or "").lower()
+    u = (url or "").lower()
+    blob = p + " " + u
+    score = 50
+    high = (
+        "/api", "graphql", "swagger", "openapi", "internal", "admin",
+        ".env", ".git", "backup", "config", "phpmy", "debug", "actuator",
+        "oauth", "token", "secret", "wp-json", "wp-admin", ".json",
+        "staging", "/v1/", "/v2/", "/graphql",
+    )
+    mid = ("login", "auth", "dashboard", "account", "upload", "export", "report")
+    low = (
+        "/learn/", "/market-updates/", "/analysis/", "/cryptocurrencies/",
+        "/forex", "/markets/", "stock-forecast", "/de-de/", "/ar-int/",
+        "/en-gb/", "/zh-", "/ru-",
+    )
+    if any(h in blob for h in high):
+        score = 10
+    elif any(m in blob for m in mid):
+        score = 25
+    elif any(l in blob for l in low):
+        score = 80
+    # Prefer shorter paths slightly (more likely structural)
+    if len(p) < 20:
+        score -= 5
+    if len(p) > 80:
+        score += 10
+    return score
+
 def host_of(u: str) -> str:
     try:
         return (urlparse(u).hostname or "").lower()
@@ -290,6 +326,13 @@ def main():
                     continue
 
     eligible = [p for p in pivots if p.get("classification") == "HISTORICAL_PATH_CURRENT_HOST"]
+    # Spend limited budget on higher-signal paths first (stable tie-break by path)
+    eligible.sort(
+        key=lambda piv: (
+            validation_priority(piv.get("path") or path_key(piv.get("url") or ""), piv.get("url") or ""),
+            (piv.get("path") or path_key(piv.get("url") or "")),
+        )
+    )
     current_keys = load_current_urls(rd)
     current_hosts, host_schemes, first_seen_schemes = load_current_hosts(rd)
 

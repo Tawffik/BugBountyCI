@@ -144,6 +144,40 @@ def test_same_host_same_path_already_known(tmp_path):
     print("  OK same_host_same_path")
 
 
+
+
+def test_validation_priority_orders_api_before_marketing():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("vh", SCRIPT)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    api = mod.validation_priority("/api/v1/users", "https://x/api/v1/users")
+    mkt = mod.validation_priority("/de-de/market-updates/amd-stock-forecast", "https://x/de-de/market-updates/amd")
+    assert api < mkt, (api, mkt)
+    print("  OK validation priority api < marketing")
+
+
+def test_priority_sort_affects_budget_selection(tmp_path):
+    """With budget=1, API path should be selected before marketing path."""
+    rd = tmp_path / "results"
+    (rd / "urls").mkdir(parents=True)
+    (rd / "live").mkdir(parents=True)
+    (rd / "info_disclosure").mkdir(parents=True)
+    (rd / "live" / "live.txt").write_text("https://app.example.com\n")
+    (rd / "urls" / "all.txt").write_text("https://app.example.com/\n")
+    pivots = [
+        {"classification": "HISTORICAL_PATH_CURRENT_HOST", "url": "https://app.example.com/de-de/market-updates/x", "path": "/de-de/market-updates/x", "historical_source": "wayback"},
+        {"classification": "HISTORICAL_PATH_CURRENT_HOST", "url": "https://app.example.com/api/v1/secret", "path": "/api/v1/secret", "historical_source": "wayback"},
+    ]
+    (rd / "info_disclosure" / "historical_pivots.jsonl").write_text("\n".join(json.dumps(p) for p in pivots) + "\n")
+    subprocess.check_call([sys.executable, str(SCRIPT), "--results-dir", str(rd), "--budget", "1", "--dry-run"])
+    rows = [json.loads(l) for l in open(rd / "info_disclosure" / "historical_validations.jsonl") if l.strip()]
+    dry = [r for r in rows if r.get("not_run_reason") == "dry_run"]
+    assert dry, rows
+    assert "/api/v1/secret" in (dry[0].get("validation_url") or dry[0].get("historical_path") or "")
+    print("  OK budget selects api first")
+
+
 if __name__ == "__main__":
     import tempfile
     test_outcome_classifier_unit()
