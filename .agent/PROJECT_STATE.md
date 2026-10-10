@@ -1,26 +1,17 @@
 # BugBountyCI — PROJECT STATE
 
 ## MODE
-CONTINUE — historical prefer-https **merged** to main; live verify pending
+CONTINUE — prefer-https merged; path-priority merged; **#145 live verify in progress**
 
 ## MAIN
-Runtime includes prefer-https historical validation (merged via PR #3).
-Prior code tip also has: phase enrichment (`c1d752e`), AI→DEGRADED (`cc311e3`), flags (`3ed22d8`), hostname_targets (`cc51e84`).
+Includes PR #3 prefer-https + PR #4 path-priority (after #145 start).
 
-## HISTORICAL VALIDATION
-- Prefer HTTPS when observed on current surface (not first-seen HTTP lock).
-- HTTP fallback when no HTTPS evidence.
-- Counters: `scheme_only_skipped`, `validated_substantive` (documented; not vuln counts).
-- Offline: tests EXIT 0; #144 dry replay → https validation URLs.
-- **Live on merge SHA: NOT YET RUN** (authorized light run still required).
+## LIVE
+- **#145** `38087135904` capital.com light on `56ec797` (prefer-https yes; path-priority **no** — started before PR #4)
+- Prior: #144 success on `3ed22d8` (pre prefer-https)
 
-## LAST LIVE PROOF (pre-merge runtime)
-#144 `37961580167` capital.com SHA `3ed22d8` success
-- hostname_targets=30; engine_health flags populated
-- historical: 40 REDIRECTED (http validation URLs) / 63 NOT_RUN — motivated prefer-https fix
-
-## #144 STATUS
-**completed success** (ledger mid-gate text that said in_progress is superseded)
+## OFFLINE VERIFIED
+prefer-https, path-priority, flags, phase enrichment, AI→DEGRADED, hostname_targets tests
 
 ## BOUNDARY
-BugBountyCI recon producer only. No SRA merge. Nuclei bulk → VulnRadar.
+BugBountyCI only. No SRA. Nuclei → VulnRadar.
