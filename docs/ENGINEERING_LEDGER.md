@@ -1,5 +1,33 @@
 ---
 
+## CYCLE — 2026-10-10 — Alignment checkpoint (repo ↔ ledger ↔ Notion)
+
+### Verified at write
+- **main HEAD:** `a6d805bf54418dd7db3486162a78692e5a8478a5`
+- **PRs merged this session:** #3 #4 #5 #6 #7 #8 #9 #10 #11 (all closed/merged)
+- **No open feature PRs** for this workstream
+- **#145:** `38087135904` in_progress · capital.com light · SHA `56ec797` · ~Info Disclosure (step 31/79) · not cancelled
+
+### Source agreement
+| Source | State |
+|--------|--------|
+| GitHub main | tip includes PR #3–#11 + docs |
+| ENGINEERING_LEDGER | cycles for harvest, Phase 2, Notion families, this checkpoint |
+| PROJECT_STATE | same HEAD + PR table + #145 |
+| Notion FCC top | PR #3–#11 listed; CONTINUE |
+
+### Drift corrected
+- Older FCC/ledger lines that said #144 in_progress are historical only
+- SI 115≠114 was closed (14+101=115 on #141)
+- #145 progress updated beyond subdomain enum
+
+### Status
+**CONTINUE** — not PROJECT_COMPLETE. Next live action: harvest #145 when finished.
+
+---
+
+---
+
 ## CYCLE — 2026-10-10 — Notion FCC families → PR #11
 
 ### Notion high-value directions executed
