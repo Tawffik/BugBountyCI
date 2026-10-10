@@ -454,6 +454,112 @@ def main():
                     break
         except Exception:
             pass
+    # Fixed-path Information Disclosure artifacts → observations
+    for fname, engine, behavior in (
+        ("git_exposure.txt", "info_disclosure_git", "git_metadata_candidate"),
+        ("backup_files.txt", "info_disclosure_backup", "backup_path_candidate"),
+        ("config_files.txt", "info_disclosure_config", "config_path_candidate"),
+        ("dir_listing.txt", "info_disclosure_dirlist", "directory_listing_candidate"),
+        ("error_disclosure.txt", "info_disclosure_error", "error_disclosure_candidate"),
+    ):
+        p = os.path.join(rd, "info_disclosure", fname)
+        if not os.path.isfile(p):
+            continue
+        try:
+            n = 0
+            with open(p, "r", errors="replace") as fh:
+                for line in fh:
+                    line = line.strip()
+                    if not line or n >= 40:
+                        continue
+                    add_obs(
+                        observation_id=f"infodisc-{engine}-{n}",
+                        engine=engine,
+                        url=line[:300],
+                        observed_behavior=behavior,
+                        status="SUCCESS",
+                        classification="LEAD",
+                        confidence="low",
+                        detail="Fixed-path probe hit — verify content is not SPA/WAF catch-all before treating as exposure",
+                        limitations="HTTP status alone is not proof of sensitive content",
+                        provenance=f"info_disclosure/{fname}",
+                    )
+                    n += 1
+        except Exception:
+            pass
+    # GitHub recon (workflow code search) → observations + summary
+    gh_kept = os.path.join(rd, "js", "github_recon.txt")
+    gh_raw = os.path.join(rd, "js", "github_recon_raw.txt")
+    kept_n = raw_n = 0
+    if os.path.isfile(gh_raw):
+        try:
+            raw_n = sum(1 for l in open(gh_raw, errors="replace") if l.strip())
+        except Exception:
+            raw_n = 0
+    if os.path.isfile(gh_kept):
+        try:
+            lines = [l.strip() for l in open(gh_kept, errors="replace") if l.strip()]
+            kept_n = len(lines)
+            for i, line in enumerate(lines[:40]):
+                # Format: repo/full_name :: path
+                repo, path = (line.split("::", 1) + [""])[:2]
+                add_obs(
+                    observation_id=f"gh-recon-{i}",
+                    engine="github_code_search",
+                    url=line[:300],
+                    observed_behavior="public_code_search_hit",
+                    status="SUCCESS",
+                    classification="LEAD",
+                    confidence="low",
+                    detail=f"repo={(repo or '').strip()} path={(path or '').strip()}",
+                    limitations="Public repo path mention is not a confirmed secret exposure",
+                    provenance="js/github_recon.txt",
+                    repository=(repo or "").strip(),
+                    path_hint=(path or "").strip(),
+                )
+        except Exception:
+            pass
+    try:
+        with open(os.path.join(rd, "meta", "github_recon_summary.json"), "w") as fh:
+            json.dump({
+                "schema": "bugbountyci.github_recon_summary.v1",
+                "run_id": run_id,
+                "target": target,
+                "raw_hits": raw_n,
+                "kept_hits": kept_n,
+                "note": "docs/dorking_engine.py is NOT invoked by Zero Track; workflow uses inline GitHub code search. This summary normalizes that path.",
+                "dorking_engine_status": "IMPLEMENTED_NOT_INVOKED",
+            }, fh, indent=2)
+    except Exception:
+        pass
+    # Enrich phase for github_recon if missing
+    if "github_recon" not in phases:
+        if not os.path.isfile(gh_raw) and not os.path.isfile(gh_kept):
+            phases["github_recon"] = {
+                "phase": "github_recon",
+                "status": "NOT_RUN",
+                "detail": "no github_recon artifacts (token missing or step skipped)",
+            }
+        else:
+            phases["github_recon"] = {
+                "phase": "github_recon",
+                "status": "SUCCESS" if kept_n or raw_n else "EMPTY_VALID",
+                "detail": f"raw={raw_n} kept={kept_n}",
+            }
+    # engine_health was written earlier — patch github_recon phase in
+    try:
+        ehp = os.path.join(rd, "meta", "engine_health.json")
+        if os.path.isfile(ehp) and "github_recon" in phases:
+            with open(ehp, encoding="utf-8", errors="replace") as fh:
+                eh = json.load(fh)
+            ph = eh.get("phases") if isinstance(eh.get("phases"), dict) else {}
+            ph = dict(ph)
+            ph["github_recon"] = phases["github_recon"]
+            eh["phases"] = ph
+            with open(ehp, "w") as fh:
+                json.dump(eh, fh, indent=2, default=str)
+    except Exception:
+        pass
     for phase_name, ph in phases.items():
         st = (ph or {}).get("status") or ""
         if st.upper() in ("PARTIAL", "ERROR", "EMPTY") or st.lower() in ("partial", "error", "empty"):
