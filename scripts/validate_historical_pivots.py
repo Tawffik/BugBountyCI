@@ -191,9 +191,18 @@ def load_current_urls(rd: str) -> set[str]:
 
 
 def load_current_hosts(rd: str) -> tuple:
-    """Return (hosts set, host->scheme map from current surface)."""
+    """Return (hosts, preferred_schemes, first_seen_schemes).
+
+    preferred_schemes: https wins when observed for a host.
+    first_seen_schemes: first scheme encountered in file order (legacy behavior).
+
+    Prefer-https avoids locking http from live.txt when urls/all later shows
+    https — that pattern burned validation budget on scheme-only redirects
+    (capital.com #144: 40/40 REDIRECTED http→https).
+    """
     hosts = set()
     schemes = {}
+    first_seen = {}
     for rel in ("live/live.txt", "live/verified.txt", "urls/all.txt"):
         p = os.path.join(rd, rel)
         if not os.path.isfile(p):
@@ -207,12 +216,54 @@ def load_current_hosts(rd: str) -> tuple:
                 if not h:
                     continue
                 hosts.add(h)
+                try:
+                    sch = (urlparse(u).scheme or "https").lower()
+                except Exception:
+                    sch = "https"
+                if h not in first_seen:
+                    first_seen[h] = sch
                 if h not in schemes:
-                    try:
-                        schemes[h] = urlparse(u).scheme or "https"
-                    except Exception:
-                        schemes[h] = "https"
-    return hosts, schemes
+                    schemes[h] = sch
+                elif sch == "https":
+                    schemes[h] = "https"
+    return hosts, schemes, first_seen
+
+
+def is_scheme_only_redirect(request_url: str, location: str) -> bool:
+    """True when Location differs only by scheme (host/path/query same).
+
+    Default ports 80/443 for http/https are treated as equivalent.
+    Non-default ports are not scheme-only unless both sides share the same port.
+    """
+    if not request_url or not location:
+        return False
+    try:
+        a, b = urlparse(request_url), urlparse(location)
+    except Exception:
+        return False
+    if not a.hostname or not b.hostname:
+        return False
+    if a.hostname.lower() != b.hostname.lower():
+        return False
+    if (a.path or "/") != (b.path or "/"):
+        return False
+    if (a.query or "") != (b.query or ""):
+        return False
+    if (a.scheme or "").lower() == (b.scheme or "").lower():
+        return False
+
+    def eff_port(p):
+        if p.port is not None:
+            return int(p.port)
+        return 443 if (p.scheme or "").lower() == "https" else 80
+
+    pa, pb = eff_port(a), eff_port(b)
+    if pa == pb:
+        return True
+    # http:80 ↔ https:443 is the normal pure scheme upgrade
+    if {pa, pb} <= {80, 443}:
+        return True
+    return False
 
 
 def main():
@@ -240,7 +291,7 @@ def main():
 
     eligible = [p for p in pivots if p.get("classification") == "HISTORICAL_PATH_CURRENT_HOST"]
     current_keys = load_current_urls(rd)
-    current_hosts, host_schemes = load_current_hosts(rd)
+    current_hosts, host_schemes, first_seen_schemes = load_current_hosts(rd)
 
     results = []
     stats = {
@@ -250,6 +301,8 @@ def main():
         "validated": 0,
         "not_run": 0,
         "outcomes": {},
+        "scheme_only_skipped": 0,  # historical http rebuilt as https (surface has https)
+        "validated_substantive": 0,  # actual probes under preferred scheme (not a vuln count)
     }
     seen_validation_urls = set()
     budget_left = max(0, args.budget)
@@ -283,6 +336,19 @@ def main():
             continue
 
         vurl = build_validation_url(hist_url, current_hosts, host_schemes)
+        if vurl:
+            try:
+                host = host_of(hist_url)
+                val_sch = (urlparse(vurl).scheme or "").lower()
+                # Count avoided first-seen-http lock: preferred https while
+                # first-seen surface scheme for this host was http.
+                if (
+                    val_sch == "https"
+                    and first_seen_schemes.get(host) == "http"
+                ):
+                    stats["scheme_only_skipped"] += 1
+            except Exception:
+                pass
         if not vurl:
             stats["not_run"] += 1
             results.append({
@@ -348,6 +414,7 @@ def main():
             not_run_reason = None
             budget_left -= 1
             stats["validated"] += 1
+            stats["validated_substantive"] += 1
             time.sleep(0.15)
 
         stats["outcomes"][outcome] = stats["outcomes"].get(outcome, 0) + 1
@@ -404,7 +471,14 @@ def main():
         "not_run": stats["not_run"] + sum(1 for r in results if r.get("outcome") == "NOT_RUN"),
         "outcomes": stats["outcomes"],
         "budget": args.budget,
-        "note": "HISTORICAL_PATH_CURRENT_HOST is a candidate for validation, not a dead endpoint or vulnerability",
+        "scheme_only_skipped": stats["scheme_only_skipped"],
+        "validated_substantive": stats["validated_substantive"],
+        "note": (
+            "HISTORICAL_PATH_CURRENT_HOST is a candidate for validation, not a dead endpoint or vulnerability. "
+            "scheme_only_skipped = validation URL uses https while first-seen surface scheme for host was http "
+            "(avoids wasting budget on known scheme-only redirects). "
+            "validated_substantive = probes actually performed under preferred scheme (not a vulnerability count)."
+        ),
     }
     # recount not_run accurately
     summary["not_run"] = sum(1 for r in results if r.get("outcome") == "NOT_RUN")

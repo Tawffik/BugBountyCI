@@ -158,3 +158,109 @@ if __name__ == "__main__":
     with tempfile.TemporaryDirectory() as td:
         test_same_host_same_path_already_known(Path(td) / "e")
     print("all passed")
+
+
+def test_prefer_https_over_first_seen_http(tmp_path):
+    """live.txt http first must not lock scheme when urls/all has https."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("vh", SCRIPT)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    rd = tmp_path / "results"
+    (rd / "live").mkdir(parents=True)
+    (rd / "urls").mkdir(parents=True)
+    (rd / "live" / "live.txt").write_text("http://app.example.com\n")
+    (rd / "urls" / "all.txt").write_text("https://app.example.com/home\n")
+    hosts, schemes, first_seen = mod.load_current_hosts(str(rd))
+    assert "app.example.com" in hosts
+    assert schemes["app.example.com"] == "https"
+    assert first_seen["app.example.com"] == "http"
+    vurl = mod.build_validation_url(
+        "http://app.example.com/old-path", hosts, schemes
+    )
+    assert vurl == "https://app.example.com/old-path"
+    print("  OK prefer https over first-seen http")
+
+
+def test_scheme_only_redirect_classifier():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("vh", SCRIPT)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    assert mod.is_scheme_only_redirect(
+        "http://app.example.com/a", "https://app.example.com/a"
+    )
+    assert mod.is_scheme_only_redirect(
+        "http://app.example.com/a?x=1", "https://app.example.com/a?x=1"
+    )
+    # path change → not scheme-only
+    assert not mod.is_scheme_only_redirect(
+        "http://app.example.com/a", "https://app.example.com/b"
+    )
+    # host change → not scheme-only
+    assert not mod.is_scheme_only_redirect(
+        "http://app.example.com/a", "https://other.example.com/a"
+    )
+    # query change → not scheme-only
+    assert not mod.is_scheme_only_redirect(
+        "http://app.example.com/a?x=1", "https://app.example.com/a?x=2"
+    )
+    print("  OK scheme-only classifier boundaries")
+
+
+def test_no_https_evidence_keeps_http(tmp_path):
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("vh", SCRIPT)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    rd = tmp_path / "results"
+    (rd / "live").mkdir(parents=True)
+    (rd / "urls").mkdir(parents=True)
+    (rd / "live" / "live.txt").write_text("http://only-http.example.com\n")
+    hosts, schemes, first_seen = mod.load_current_hosts(str(rd))
+    assert schemes["only-http.example.com"] == "http"
+    assert first_seen["only-http.example.com"] == "http"
+    vurl = mod.build_validation_url(
+        "http://only-http.example.com/legacy", hosts, schemes
+    )
+    assert vurl == "http://only-http.example.com/legacy"
+    print("  OK no-https evidence keeps http")
+
+
+def test_summary_counters_scheme_upgrade(tmp_path):
+    """Dry-run with http historical + https surface records scheme_only_skipped."""
+    rd = tmp_path / "results"
+    (rd / "urls").mkdir(parents=True)
+    (rd / "live").mkdir(parents=True)
+    (rd / "info_disclosure").mkdir(parents=True)
+    (rd / "live" / "live.txt").write_text("http://app.example.com\nhttps://app.example.com\n")
+    (rd / "urls" / "all.txt").write_text("https://app.example.com/\n")
+    piv = {
+        "schema": "bugbountyci.historical_pivot.v1",
+        "classification": "HISTORICAL_PATH_CURRENT_HOST",
+        "url": "http://app.example.com/old-admin",
+        "path": "/old-admin",
+        "historical_source": "wayback.txt",
+        "current_host_relation": True,
+    }
+    (rd / "info_disclosure" / "historical_pivots.jsonl").write_text(json.dumps(piv) + "\n")
+    subprocess.check_call(
+        [sys.executable, str(SCRIPT), "--results-dir", str(rd), "--budget", "5", "--dry-run"]
+    )
+    summary = json.load(open(rd / "info_disclosure" / "historical_validation_summary.json"))
+    assert summary.get("scheme_only_skipped", 0) >= 1
+    assert "validated_substantive" in summary
+    rows = [json.loads(l) for l in open(rd / "info_disclosure" / "historical_validations.jsonl") if l.strip()]
+    assert rows[0]["validation_url"].startswith("https://")
+    assert rows[0]["outcome"] == "NOT_RUN"  # dry-run
+    print("  OK summary counters + https validation_url")
+
+
+if __name__ == "__main__":
+    import tempfile
+    from pathlib import Path
+    test_outcome_classifier_unit()
+    test_prefer_https_over_first_seen_http(Path(tempfile.mkdtemp()))
+    test_scheme_only_redirect_classifier()
+    test_no_https_evidence_keeps_http(Path(tempfile.mkdtemp()))
+    print("unit subset OK")
