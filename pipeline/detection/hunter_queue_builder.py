@@ -633,6 +633,37 @@ def annotate_leads_with_object_params(entries, results_dir):
     return entries
 
 
+
+def load_fixed_path_info_disclosure(results_dir, limit=20):
+    """Fixed-path info disclosure hits → INTERESTING research seeds (not confirmed exposure)."""
+    mapping = (
+        ("git_exposure.txt", "info_disclosure_git", "Git metadata path responded — verify body is not SPA/WAF catch-all"),
+        ("backup_files.txt", "info_disclosure_backup", "Backup-like path with non-trivial body — verify sensitivity"),
+        ("config_files.txt", "info_disclosure_config", "Config-like path responded — verify content sensitivity"),
+    )
+    out = []
+    for fname, engine, reason in mapping:
+        path = os.path.join(results_dir, "info_disclosure", fname)
+        if not os.path.isfile(path):
+            continue
+        try:
+            with open(path, "r", errors="ignore") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or len(out) >= limit:
+                        break
+                    out.append({
+                        "target": line[:250],
+                        "engine": engine,
+                        "priority_class": "INTERESTING",
+                        "reason": reason + " Evidence only — not a confirmed vulnerability.",
+                        "stable": None,
+                    })
+        except Exception:
+            continue
+    return out
+
+
 def load_surface_context(results_dir):
     """Additive meta context. Never invents findings."""
     meta = os.path.join(results_dir, "meta")
@@ -771,6 +802,7 @@ def main():
         + load_representation_diffs(args.results_dir)
         + load_linkfinder_api_routes(args.results_dir)
         + load_id_like_parameters(args.results_dir)
+        + load_fixed_path_info_disclosure(args.results_dir)
     )
     base_entries = dedupe_scheme_pairs(base_entries)
     already = {e.get("target") for e in base_entries if e.get("target")}
