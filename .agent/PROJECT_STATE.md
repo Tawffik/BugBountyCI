@@ -1,25 +1,17 @@
 # BugBountyCI — PROJECT STATE
 
 ## MODE
-CONTINUE — value maximization; #145 live verify still running
+CONTINUE — Notion high-value families advanced; #145 still running
 
-## MAIN (session 2026-10-10)
-Merged:
-- PR #3 prefer-https historical validation
-- PR #4 path-priority within validation budget
-- PR #5 dry-run budget accounting
-- PR #6 HIST∩JS → INTERESTING when CURRENTLY_REACHABLE
-- PR #7 hist/rep → observation.v1
-- PR #8 detection LEADs + id-like params → observation.v1
-- PR #9 id-like params → Hunter RESEARCH_CONTEXT
+## MERGED (session)
+PR #3–#11: prefer-https, path-priority, dry-run budget, HIST∩JS boost, observations Phase 2,
+id-like params, delta hostname preference, LEAD×object-param annotation
 
 ## LIVE
-- **#145** `38087135904` capital.com light @ `56ec797` (prefer-https only; later PRs after dispatch)
-- Status at last check: URL Collection in progress
+#145 capital.com light @ 56ec797 — in progress (prefer-https live proof pending harvest)
 
-## CLOSED THIS SESSION
-- SI 115 accounting (#141): 14+101=115
-- Phase 2 observation gap for hist/rep/detection/params (offline)
+## NOTION
+FCC top block aligned with PR #3–#11. SI 115 closed. SI→Hunter OFF.
 
-## BOUNDARY
-BugBountyCI only. No SRA merge. Nuclei → VulnRadar. SI→Hunter OFF.
+## STILL PLANNED
+Phase 3 full object model · Phase 11 formal benchmark · modular YAML · AI keys (external)
