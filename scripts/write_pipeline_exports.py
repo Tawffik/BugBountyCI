@@ -384,6 +384,76 @@ def main():
                     n_rep += 1
         except Exception:
             pass
+    # Detection engines (AC / open_redirect / framework) → observations
+    eng_path = os.path.join(rd, "detection", "engine_results.json")
+    if os.path.isfile(eng_path):
+        try:
+            with open(eng_path, encoding="utf-8", errors="replace") as fh:
+                data = json.load(fh)
+            n_eng = 0
+            for engine_result in (data if isinstance(data, list) else []):
+                if not isinstance(engine_result, dict):
+                    continue
+                ename = engine_result.get("engine") or "detection"
+                for ev in engine_result.get("evidence") or []:
+                    if n_eng >= 60:
+                        break
+                    cls = (ev.get("classification") or "").upper()
+                    if cls not in ("LEAD", "HIGH_SIGNAL", "CONFIRMED", "INTERESTING"):
+                        continue
+                    cand = ev.get("candidate") or {}
+                    add_obs(
+                        observation_id=f"det-{n_eng}",
+                        engine=ename,
+                        url=cand.get("target") or cand.get("url"),
+                        observed_behavior=cls,
+                        status="SUCCESS",
+                        classification="SIGNAL" if cls in ("HIGH_SIGNAL", "CONFIRMED") else "LEAD",
+                        confidence="medium" if cls in ("HIGH_SIGNAL", "CONFIRMED") else "low",
+                        detail=(ev.get("reason") or "")[:200],
+                        limitations="detector evidence — not confirmed vulnerability without manual verification",
+                        provenance="detection/engine_results.json",
+                        stable=ev.get("stable"),
+                    )
+                    n_eng += 1
+        except Exception:
+            pass
+    # ID-like parameters → LEAD observations (auth/object depth seed; not IDOR claims)
+    pi_path_obs = os.path.join(rd, "detection", "parameter_intelligence.json")
+    if os.path.isfile(pi_path_obs):
+        try:
+            with open(pi_path_obs, encoding="utf-8", errors="replace") as fh:
+                pi = json.load(fh)
+            id_re = re.compile(
+                r"(?:^|[_-])(id|user_?id|account_?id|uid|uuid|order_?id|org_?id|customer_?id)(?:$|[_-])",
+                re.I,
+            )
+            n_pi = 0
+            for ep in (pi.get("endpoints") or [])[:400]:
+                if n_pi >= 40:
+                    break
+                path_s = ep.get("endpoint") or ""
+                params = ep.get("parameters") or ep.get("params") or []
+                for pname in params:
+                    name = pname if isinstance(pname, str) else (pname.get("name") if isinstance(pname, dict) else "")
+                    if not name or not id_re.search(str(name)):
+                        continue
+                    add_obs(
+                        observation_id=f"param-id-{n_pi}",
+                        engine="parameter_intelligence",
+                        url=path_s,
+                        observed_behavior="id_like_parameter",
+                        status="SUCCESS",
+                        classification="LEAD",
+                        confidence="low",
+                        detail=f"param={name}",
+                        limitations="surface parameter name only — not an IDOR finding",
+                        provenance="detection/parameter_intelligence.json",
+                    )
+                    n_pi += 1
+                    break
+        except Exception:
+            pass
     for phase_name, ph in phases.items():
         st = (ph or {}).get("status") or ""
         if st.upper() in ("PARTIAL", "ERROR", "EMPTY") or st.lower() in ("partial", "error", "empty"):
