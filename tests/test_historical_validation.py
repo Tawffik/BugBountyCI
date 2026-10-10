@@ -171,9 +171,10 @@ def test_prefer_https_over_first_seen_http(tmp_path):
     (rd / "urls").mkdir(parents=True)
     (rd / "live" / "live.txt").write_text("http://app.example.com\n")
     (rd / "urls" / "all.txt").write_text("https://app.example.com/home\n")
-    hosts, schemes = mod.load_current_hosts(str(rd))
+    hosts, schemes, first_seen = mod.load_current_hosts(str(rd))
     assert "app.example.com" in hosts
     assert schemes["app.example.com"] == "https"
+    assert first_seen["app.example.com"] == "http"
     vurl = mod.build_validation_url(
         "http://app.example.com/old-path", hosts, schemes
     )
@@ -216,8 +217,9 @@ def test_no_https_evidence_keeps_http(tmp_path):
     (rd / "live").mkdir(parents=True)
     (rd / "urls").mkdir(parents=True)
     (rd / "live" / "live.txt").write_text("http://only-http.example.com\n")
-    hosts, schemes = mod.load_current_hosts(str(rd))
+    hosts, schemes, first_seen = mod.load_current_hosts(str(rd))
     assert schemes["only-http.example.com"] == "http"
+    assert first_seen["only-http.example.com"] == "http"
     vurl = mod.build_validation_url(
         "http://only-http.example.com/legacy", hosts, schemes
     )
