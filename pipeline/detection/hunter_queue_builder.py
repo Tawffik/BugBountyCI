@@ -558,6 +558,81 @@ def load_id_like_parameters(results_dir, limit=15):
     return out
 
 
+
+def _id_like_param_index(results_dir):
+    """endpoint path/url -> list of id-like param names from parameter_intelligence."""
+    path = os.path.join(results_dir, "detection", "parameter_intelligence.json")
+    out = {}
+    if not os.path.isfile(path):
+        return out
+    try:
+        with open(path, "r", errors="ignore") as f:
+            pi = json.load(f)
+    except Exception:
+        return out
+    id_re = re.compile(
+        r"(?:^|[_-])(id|user_?id|account_?id|uid|uuid|order_?id|org_?id|customer_?id)(?:$|[_-])",
+        re.I,
+    )
+    for ep in (pi.get("endpoints") or []):
+        path_s = (ep.get("endpoint") or "").strip()
+        if not path_s:
+            continue
+        names = []
+        for pname in (ep.get("parameters") or ep.get("params") or []):
+            name = pname if isinstance(pname, str) else (pname.get("name") if isinstance(pname, dict) else "")
+            if name and id_re.search(str(name)):
+                names.append(str(name))
+        if names:
+            out[path_s] = names
+            try:
+                from urllib.parse import urlparse
+                p = urlparse(path_s if "://" in path_s else "http://x" + path_s)
+                if p.path:
+                    out[p.path] = names
+            except Exception:
+                pass
+    return out
+
+
+def annotate_leads_with_object_params(entries, results_dir):
+    """G-depth-api light: note id-like params on same path as AC/SSRF LEADs.
+
+    Does not upgrade classification to CONFIRMED. Adds research context only.
+    """
+    idx = _id_like_param_index(results_dir)
+    if not idx:
+        return entries
+    for e in entries:
+        cls = e.get("priority_class") or ""
+        if cls not in ("LEAD", "HIGH_SIGNAL", "INTERESTING"):
+            continue
+        tgt = e.get("target") or ""
+        matched = None
+        for key, names in idx.items():
+            if key and key in tgt:
+                matched = names
+                break
+        if not matched:
+            try:
+                from urllib.parse import urlparse
+                path = urlparse(tgt.split()[0] if tgt else "").path or ""
+                matched = idx.get(path)
+            except Exception:
+                matched = None
+        if matched:
+            note = (
+                f" Object-param surface also lists id-like name(s): {', '.join(matched[:5])}."
+                " Not proof of IDOR — authorized object/auth testing context only."
+            )
+            e["reason"] = ((e.get("reason") or "") + note)[:500]
+            det = e.get("details") if isinstance(e.get("details"), dict) else {}
+            det = dict(det or {})
+            det["id_like_params"] = matched[:5]
+            e["details"] = det
+    return entries
+
+
 def load_surface_context(results_dir):
     """Additive meta context. Never invents findings."""
     meta = os.path.join(results_dir, "meta")
