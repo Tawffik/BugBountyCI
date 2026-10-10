@@ -451,6 +451,9 @@ def main():
             outcome = "NOT_RUN"
             pr = {"status": None, "content_type": None, "fingerprint": None, "location": None, "error": "dry_run"}
             not_run_reason = "dry_run"
+            # Still consume budget so dry-run mirrors live selection accounting
+            budget_left -= 1
+            stats["validated"] += 1  # selected slots (not live HTTP)
         else:
             pr = probe(vurl)
             outcome = classify_outcome(pr)
