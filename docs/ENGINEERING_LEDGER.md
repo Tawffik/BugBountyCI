@@ -1,5 +1,41 @@
 ---
 
+## CYCLE — 2026-10-11 — Directive: Info-Disclosure + GitHub recon consumption (PR #12)
+
+### Reconcile
+- HEAD before: `67e649d9` · after merge tip includes PR #12
+- #145 still in_progress on `56ec797` (do not cancel)
+
+### Capability findings
+| Capability | State |
+|------------|--------|
+| `docs/dorking_engine.py` | **IMPLEMENTED_NOT_INVOKED** (Zero Track uses inline GitHub code search) |
+| Workflow GitHub recon | EXECUTED (when GITHUB_TOKEN) → `js/github_recon*.txt` |
+| Fixed-path info disclosure | EXECUTED → `info_disclosure/*.txt` |
+| Prior gap | **OUTPUT_NOT_CONSUMED** by observation.v1 / structured hunter |
+
+### Fix PR #12
+- Observations for git/backup/config/dir/error + github_recon
+- `meta/github_recon_summary.json` + phases.github_recon patch
+- Hunter INTERESTING seeds for fixed-path hits
+- Offline test: observations engines include info_disclosure_git + github_code_search
+
+### SI 115
+Already closed on #141 (14+101=115). SI→Hunter remains OFF.
+
+### Not done this cycle
+- Invoke full dorking_engine (Google/Bing/SerpAPI)
+- Independent positive/negative benchmark suite (§6)
+- Multi-profile live validation beyond #145
+- SI→Hunter promotion
+
+### Status
+CONTINUE
+
+---
+
+---
+
 ## CYCLE — 2026-10-10 — Alignment checkpoint (repo ↔ ledger ↔ Notion)
 
 ### Verified at write
