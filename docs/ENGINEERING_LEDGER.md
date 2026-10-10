@@ -1,5 +1,26 @@
 ---
 
+## CYCLE — 2026-10-10 — Two-week harvest → delta noise fix (PR #10)
+
+### Harvest (artifacts, no wait on #145)
+- #144 capital: hist 40/40 REDIRECTED, validation_url http-heavy
+- #143 superdrug: hist REDIR/BLOCKED; delta 741 interesting hosts IP-heavy
+- #141/#140/#139: same scheme-only historical pattern
+
+### Implemented from harvest
+- **PR #10** Hunter delta prefers hostnames; suppress pure-IP lines in operator view
+- Prior same-day: prefer-https, path-priority, observations Phase 2, HIST∩JS boost
+
+### Doc
+`docs/HARVEST_2WEEK_2026-10.md`
+
+### Status
+CONTINUE — #145 still for live prefer-https proof only.
+
+---
+
+---
+
 ## CYCLE — 2026-10-10 — Phase 2 observation completeness + G-depth seed
 
 ### Merged
