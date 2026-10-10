@@ -191,15 +191,18 @@ def load_current_urls(rd: str) -> set[str]:
 
 
 def load_current_hosts(rd: str) -> tuple:
-    """Return (hosts set, host->scheme map from current surface).
+    """Return (hosts, preferred_schemes, first_seen_schemes).
 
-    Prefer https when observed for a host. First-seen must NOT lock http
-    if a later surface file shows https (live.txt often lists http before
-    urls/all.txt lists https — that wasted validation budget on scheme-only
-    redirects on capital.com #144).
+    preferred_schemes: https wins when observed for a host.
+    first_seen_schemes: first scheme encountered in file order (legacy behavior).
+
+    Prefer-https avoids locking http from live.txt when urls/all later shows
+    https — that pattern burned validation budget on scheme-only redirects
+    (capital.com #144: 40/40 REDIRECTED http→https).
     """
     hosts = set()
     schemes = {}
+    first_seen = {}
     for rel in ("live/live.txt", "live/verified.txt", "urls/all.txt"):
         p = os.path.join(rd, rel)
         if not os.path.isfile(p):
@@ -217,11 +220,13 @@ def load_current_hosts(rd: str) -> tuple:
                     sch = (urlparse(u).scheme or "https").lower()
                 except Exception:
                     sch = "https"
+                if h not in first_seen:
+                    first_seen[h] = sch
                 if h not in schemes:
                     schemes[h] = sch
                 elif sch == "https":
                     schemes[h] = "https"
-    return hosts, schemes
+    return hosts, schemes, first_seen
 
 
 def is_scheme_only_redirect(request_url: str, location: str) -> bool:
@@ -286,7 +291,7 @@ def main():
 
     eligible = [p for p in pivots if p.get("classification") == "HISTORICAL_PATH_CURRENT_HOST"]
     current_keys = load_current_urls(rd)
-    current_hosts, host_schemes = load_current_hosts(rd)
+    current_hosts, host_schemes, first_seen_schemes = load_current_hosts(rd)
 
     results = []
     stats = {
@@ -333,11 +338,14 @@ def main():
         vurl = build_validation_url(hist_url, current_hosts, host_schemes)
         if vurl:
             try:
-                hist_sch = (urlparse(hist_url).scheme or "").lower()
+                host = host_of(hist_url)
                 val_sch = (urlparse(vurl).scheme or "").lower()
-                if hist_sch == "http" and val_sch == "https":
-                    # Prefer-https: we do not spend budget on the http form when
-                    # the current surface already shows https for this host.
+                # Count avoided first-seen-http lock: preferred https while
+                # first-seen surface scheme for this host was http.
+                if (
+                    val_sch == "https"
+                    and first_seen_schemes.get(host) == "http"
+                ):
                     stats["scheme_only_skipped"] += 1
             except Exception:
                 pass
@@ -467,7 +475,7 @@ def main():
         "validated_substantive": stats["validated_substantive"],
         "note": (
             "HISTORICAL_PATH_CURRENT_HOST is a candidate for validation, not a dead endpoint or vulnerability. "
-            "scheme_only_skipped = historical http rebuilt as https when current surface shows https for host "
+            "scheme_only_skipped = validation URL uses https while first-seen surface scheme for host was http "
             "(avoids wasting budget on known scheme-only redirects). "
             "validated_substantive = probes actually performed under preferred scheme (not a vulnerability count)."
         ),
