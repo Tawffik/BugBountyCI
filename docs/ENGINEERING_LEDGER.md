@@ -1,5 +1,31 @@
 ---
 
+## CYCLE — 2026-10-10 — Autonomous loop: dry-run budget + SI accounting closed
+
+### Live #145
+Still **in_progress** `38087135904` capital.com light @ `56ec797` (subdomain enum at last poll). Not cancelled.
+
+### PR #5 merged
+`fix(historical): dry-run budget accounting` — dry-run now decrements budget like live selection slots; `validated_substantive` remains HTTP-only.
+
+### SI bookkeeping (Notion 115≠114) — CLOSED from #141 artifacts
+Artifact `results-37875044705-141-capital.com`:
+- `secret_candidates_si4.json`: raw_total=**115**, candidates retained=**14**, suppressed_count=**101**
+- `secret_suppressed.jsonl` lines=**101**
+- Equation: **14 + 101 = 115** (hard_negative_or_noise_dropped aliases the same 101 suppressed)
+- Prior "114" discrepancy was double-counting confusion, not a missing observation
+- SI→Hunter remains OFF (by design)
+
+### PRs this session
+#3 prefer-https · #4 path-priority · #5 dry-run budget
+
+### Status
+CONTINUE — awaiting #145 harvest for prefer-https live proof.
+
+---
+
+---
+
 ## CYCLE — 2026-10-10 — Live verify #145 + path-priority budget (PR #4)
 
 ### Live verify dispatched
