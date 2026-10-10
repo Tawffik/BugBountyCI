@@ -514,6 +514,50 @@ def load_cross_engine_relationships(results_dir, limit=40, exclude_targets=None)
     return out
 
 
+
+def load_id_like_parameters(results_dir, limit=15):
+    """Surface id-like parameter names as RESEARCH_CONTEXT — not IDOR findings."""
+    path = os.path.join(results_dir, "detection", "parameter_intelligence.json")
+    if not os.path.isfile(path):
+        return []
+    try:
+        with open(path, "r", errors="ignore") as f:
+            pi = json.load(f)
+    except Exception:
+        return []
+    id_re = re.compile(
+        r"(?:^|[_-])(id|user_?id|account_?id|uid|uuid|order_?id|org_?id|customer_?id)(?:$|[_-])",
+        re.I,
+    )
+    out, seen = [], set()
+    for ep in (pi.get("endpoints") or []):
+        if len(out) >= limit:
+            break
+        path_s = (ep.get("endpoint") or "")[:200]
+        params = ep.get("parameters") or ep.get("params") or []
+        for pname in params:
+            name = pname if isinstance(pname, str) else (pname.get("name") if isinstance(pname, dict) else "")
+            if not name or not id_re.search(str(name)):
+                continue
+            key = (path_s, str(name).lower())
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append({
+                "target": f"{path_s}?{name}=",
+                "engine": "parameter_intelligence",
+                "priority_class": "RESEARCH_CONTEXT",
+                "reason": (
+                    f"Id-like parameter name observed on surface: {name}. "
+                    "Not an IDOR finding — research context for authorized object/auth testing."
+                ),
+                "stable": None,
+                "details": {"endpoint": path_s, "param": name},
+            })
+            break
+    return out
+
+
 def load_surface_context(results_dir):
     """Additive meta context. Never invents findings."""
     meta = os.path.join(results_dir, "meta")
@@ -651,6 +695,7 @@ def main():
         + load_historical_validations(args.results_dir)
         + load_representation_diffs(args.results_dir)
         + load_linkfinder_api_routes(args.results_dir)
+        + load_id_like_parameters(args.results_dir)
     )
     base_entries = dedupe_scheme_pairs(base_entries)
     already = {e.get("target") for e in base_entries if e.get("target")}
