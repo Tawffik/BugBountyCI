@@ -1,5 +1,27 @@
 ---
 
+## CYCLE — 2026-10-10 — Notion FCC families → PR #11
+
+### Notion high-value directions executed
+1. Historical/info-disclosure — #3–#5
+2. Cross-engine — #6
+3. Phase 2 observations — #7–#8
+4. API/object depth light — #9 + **#11** (LEAD × id-like param annotation)
+5. Harvest operator noise — #10
+
+### PR #11
+`annotate_leads_with_object_params` — does not claim IDOR; research context only.
+
+### Notion FCC updated
+Session block lists PR #3–#11 + still-open honest list.
+
+### Status
+CONTINUE
+
+---
+
+---
+
 ## CYCLE — 2026-10-10 — Two-week harvest → delta noise fix (PR #10)
 
 ### Harvest (artifacts, no wait on #145)
