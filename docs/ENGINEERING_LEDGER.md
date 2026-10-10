@@ -1,5 +1,35 @@
 ---
 
+## CYCLE — 2026-10-10 — Live verify #145 + path-priority budget (PR #4)
+
+### Live verify dispatched
+- Run **#145** / `38087135904`
+- Target: capital.com · mode: **light**
+- SHA at dispatch: `56ec797` (includes prefer-https PR #3; **does not** include path-priority PR #4)
+- authorized_open_scan=true · discord=false · waf_bypass=false
+- Purpose: live-verify prefer-https validation_url scheme + tip health features
+
+### Path priority (PR #4) merged after #145 start
+- Merge: `d0baef6` — sort HISTORICAL_PATH_CURRENT_HOST by validation_priority before budget
+- API/admin/graphql preferred over marketing/locale pages
+- Offline tests OK; **not** in #145 SHA (next run will include)
+
+### Offline suite this session
+- test_historical_validation EXIT 0
+- test_hostname_targets, test_engine_health_flags, test_phase_enrichment, test_ai_health_severity, test_representation_differential EXIT 0
+
+### Still pending
+- Harvest #145 when complete
+- Notion FCC partially updated
+- Path-priority live evidence on a post-PR#4 SHA
+
+### Status
+CONTINUE — #145 in progress; campaign not PROJECT_COMPLETE.
+
+---
+
+---
+
 ## CYCLE — 2026-10-10 — Historical prefer-https MERGED (PR #3)
 
 ### Decision
