@@ -1,5 +1,27 @@
 ---
 
+## CYCLE — 2026-10-10 — Phase 2 observation completeness + G-depth seed
+
+### Merged
+- **PR #8** detection LEAD/HIGH_SIGNAL + id-like params → `meta/observations.jsonl`
+- **PR #9** id-like params → Hunter RESEARCH_CONTEXT (auth/object depth seed; not IDOR)
+
+### Prior same-day merges (aligned)
+#3 prefer-https · #4 path priority · #5 dry-run budget · #6 HIST∩JS corroboration · #7 hist/rep observations
+
+### Live
+#145 still in_progress on dispatch SHA `56ec797` — harvest when complete for prefer-https live proof.
+
+### Notion alignment target
+Fix Control Center + PROJECT_STATE + this ledger should agree: CONTINUE, not PROJECT_COMPLETE.
+
+### Status
+CONTINUE
+
+---
+
+---
+
 ## CYCLE — 2026-10-10 — Autonomous loop: dry-run budget + SI accounting closed
 
 ### Live #145
