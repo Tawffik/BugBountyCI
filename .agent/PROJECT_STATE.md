@@ -1,17 +1,25 @@
 # BugBountyCI — PROJECT STATE
 
 ## MODE
-CONTINUE — prefer-https merged; path-priority merged; **#145 live verify in progress**
+CONTINUE — value maximization; #145 live verify still running
 
-## MAIN
-Includes PR #3 prefer-https + PR #4 path-priority (after #145 start).
+## MAIN (session 2026-10-10)
+Merged:
+- PR #3 prefer-https historical validation
+- PR #4 path-priority within validation budget
+- PR #5 dry-run budget accounting
+- PR #6 HIST∩JS → INTERESTING when CURRENTLY_REACHABLE
+- PR #7 hist/rep → observation.v1
+- PR #8 detection LEADs + id-like params → observation.v1
+- PR #9 id-like params → Hunter RESEARCH_CONTEXT
 
 ## LIVE
-- **#145** `38087135904` capital.com light on `56ec797` (prefer-https yes; path-priority **no** — started before PR #4)
-- Prior: #144 success on `3ed22d8` (pre prefer-https)
+- **#145** `38087135904` capital.com light @ `56ec797` (prefer-https only; later PRs after dispatch)
+- Status at last check: URL Collection in progress
 
-## OFFLINE VERIFIED
-prefer-https, path-priority, flags, phase enrichment, AI→DEGRADED, hostname_targets tests
+## CLOSED THIS SESSION
+- SI 115 accounting (#141): 14+101=115
+- Phase 2 observation gap for hist/rep/detection/params (offline)
 
 ## BOUNDARY
-BugBountyCI only. No SRA. Nuclei → VulnRadar.
+BugBountyCI only. No SRA merge. Nuclei → VulnRadar. SI→Hunter OFF.
