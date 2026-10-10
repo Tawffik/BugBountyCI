@@ -313,6 +313,77 @@ def main():
                 n_rd += 1
         except Exception:
             pass
+    # Historical validation outcomes → canonical observations (Phase 2 contract)
+    hv_path = os.path.join(rd, "info_disclosure", "historical_validations.jsonl")
+    if os.path.isfile(hv_path):
+        try:
+            n_hv = 0
+            with open(hv_path, "r", errors="ignore") as fh:
+                for line in fh:
+                    if not line.strip() or n_hv >= 80:
+                        continue
+                    try:
+                        row = json.loads(line)
+                    except Exception:
+                        continue
+                    outcome = row.get("outcome") or ""
+                    if outcome in ("NOT_RUN", ""):
+                        continue
+                    # Prefer substantive outcomes for observation stream
+                    if outcome == "REDIRECTED" and n_hv >= 20:
+                        continue
+                    add_obs(
+                        observation_id=f"hist-val-{n_hv}",
+                        engine="historical_validation",
+                        url=row.get("validation_url") or row.get("historical_url"),
+                        observed_behavior=outcome,
+                        status=str(row.get("status") or outcome),
+                        classification=(
+                            "SIGNAL" if outcome == "CURRENTLY_REACHABLE"
+                            else "LEAD" if outcome in ("REDIRECTED", "BLOCKED_OR_RATE_LIMITED")
+                            else "NEGATIVE"
+                        ),
+                        confidence=row.get("confidence") or "low",
+                        detail=(row.get("not_run_reason") or row.get("location") or "")[:200],
+                        limitations=row.get("limitations"),
+                        provenance="info_disclosure/historical_validations.jsonl",
+                        historical_path=row.get("historical_path"),
+                        evidence_ladder=row.get("evidence_ladder"),
+                    )
+                    n_hv += 1
+        except Exception:
+            pass
+    # Representation MEANINGFUL only
+    rep_path = os.path.join(rd, "info_disclosure", "representation_diffs.jsonl")
+    if os.path.isfile(rep_path):
+        try:
+            n_rep = 0
+            with open(rep_path, "r", errors="ignore") as fh:
+                for line in fh:
+                    if not line.strip() or n_rep >= 40:
+                        continue
+                    try:
+                        row = json.loads(line)
+                    except Exception:
+                        continue
+                    if row.get("outcome") != "MEANINGFUL_DIFFERENTIAL":
+                        continue
+                    add_obs(
+                        observation_id=f"repdiff-{n_rep}",
+                        engine="representation_differential",
+                        url=row.get("url"),
+                        observed_behavior="MEANINGFUL_DIFFERENTIAL",
+                        status="SUCCESS",
+                        classification="SIGNAL",
+                        confidence="medium",
+                        detail=str((row.get("differential") or {}).get("signals") or "")[:200],
+                        limitations="observational Accept differential — not a vulnerability",
+                        provenance="info_disclosure/representation_diffs.jsonl",
+                        evidence_ladder=row.get("evidence_ladder"),
+                    )
+                    n_rep += 1
+        except Exception:
+            pass
     for phase_name, ph in phases.items():
         st = (ph or {}).get("status") or ""
         if st.upper() in ("PARTIAL", "ERROR", "EMPTY") or st.lower() in ("partial", "error", "empty"):
