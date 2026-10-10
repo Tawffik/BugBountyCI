@@ -1,5 +1,43 @@
 ---
 
+## CYCLE — 2026-10-10 — Historical prefer-https MERGED (PR #3)
+
+### Decision
+Merge readiness audit: **READY**. Owner execution: merge completed.
+
+### Merge
+- Branch: `fix/historical-prefer-https-validation` @ `cfc9dc5`
+- PR: https://github.com/Tawffik/BugBountyCI/pull/3
+- Merge commit: `6b4be4d7598e7ceaca2c8bd29e73e3793a6617b4`
+- Files: `scripts/validate_historical_pivots.py`, `tests/test_historical_validation.py` only
+
+### What changed
+- Prefer HTTPS for historical validation URLs when surface observed HTTPS for the host
+- HTTP fallback when no HTTPS evidence
+- Summary counters `scheme_only_skipped` + `validated_substantive` (documented semantics)
+- `is_scheme_only_redirect` helper present for tests; Hunter retains its own filter (unchanged)
+
+### Verification completed before merge
+- Focused tests EXIT 0
+- Offline dry-run replay of #144 artifact: validation_url schemes http→**https**
+- No live HTTP requests during review
+
+### #144 correction (stale ledger text)
+Run `37961580167` capital.com on `3ed22d8`: **completed success** (not in_progress).
+Artifact evidence: 40 REDIRECTED / 63 NOT_RUN; validation URLs mostly http — root cause of this fix.
+
+### Still pending (not claimed)
+- Live verify on post-merge main (authorized light capital.com or approved target)
+- Phase enrichment + AI→DEGRADED still offline-only relative to tip live
+- Notion Fix Control Center still needs human/page update (not done in this cycle)
+
+### Status
+**Historical prefer-https: MERGED.** Campaign: **CONTINUE.** Not PROJECT_COMPLETE.
+
+---
+
+---
+
 ## CYCLE — 2026-10-09 — G-live-1 mid-gate: #143 harvest + #144 still active
 
 ### Current main HEAD
