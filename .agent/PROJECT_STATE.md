@@ -1,19 +1,17 @@
 # BugBountyCI — PROJECT STATE
 
 ## MODE
-CONTINUE — not PROJECT_COMPLETE
+CONTINUE
 
-## BENCHMARK (controlled fixtures)
-PR #13: github recon + fixed-path info disclosure
-- positives 5/5 · hard_neg 5/5 · CONFIRMED 0 · NOT_RUN honest
-- Command: `python3 tests/test_benchmark_github_recon_info_disclosure.py`
+## LATEST
+PR #14: fixed-path response-body classifier (conservative)
+Benchmark: 13 tests OK (body + github recon suites)
 
 ## LIVE
-#145 completed success on `56ec797` (pre PR #12/#13 code). Harvest available; do not attribute to tip.
+#145 completed on `56ec797` (old SHA — not tip proof)
 
-## DIAGNOSTIC
-docs/dorking_engine.py = IMPLEMENTED_NOT_INVOKED
-SI→Hunter = OFF
+## LIMITATION
+Workflow does not yet emit `probe_results.jsonl` → live hits stay PATH_LEAD until producer stores truncated bodies.
 
-## NEXT
-Highest value: content-signature classification for fixed-path bodies (SPA/WAF vs real) OR lab-owned public-repo fixture with mocked GH API — still no SI→Hunter.
+## STILL OFF
+dorking_engine IMPLEMENTED_NOT_INVOKED · SI→Hunter OFF
