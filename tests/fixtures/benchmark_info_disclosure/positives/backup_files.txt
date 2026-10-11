@@ -1,1 +1,1 @@
-[BACKUP] https://lab.example.com/backup.sql (2048b)
+[BACKUP] https://lab.example.com/backup.sql (500b)
