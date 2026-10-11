@@ -1,3 +1,22 @@
+
+# Fixed-path body classifier (conservative; never CONFIRMED from path/status alone)
+try:
+    from classify_info_disclosure_body import (
+        classify_fixed_path_body,
+        observation_fields_from_classification,
+    )
+except ImportError:
+    try:
+        import importlib.util
+        _p = os.path.join(os.path.dirname(os.path.abspath(__file__)), "classify_info_disclosure_body.py")
+        _spec = importlib.util.spec_from_file_location("classify_info_disclosure_body", _p)
+        _mod = importlib.util.module_from_spec(_spec)
+        _spec.loader.exec_module(_mod)
+        classify_fixed_path_body = _mod.classify_fixed_path_body
+        observation_fields_from_classification = _mod.observation_fields_from_classification
+    except Exception:
+        classify_fixed_path_body = None
+        observation_fields_from_classification = None
 #!/usr/bin/env python3
 """Write pipeline meta exports: health, profile, hosts, observations, surface, vocabulary, relationships.
 Called from Pipeline Health Report after pipeline_health.md is written.
@@ -492,7 +511,70 @@ def main():
                     break
         except Exception:
             pass
-    # Fixed-path Information Disclosure artifacts → observations
+    # Optional structured probe results with bodies (classifier input)
+    probe_by_url = {}
+    probe_path = os.path.join(rd, "info_disclosure", "probe_results.jsonl")
+    if os.path.isfile(probe_path):
+        try:
+            with open(probe_path, encoding="utf-8", errors="replace") as fh:
+                for line in fh:
+                    if not line.strip():
+                        continue
+                    try:
+                        row = json.loads(line)
+                    except Exception:
+                        continue
+                    u = (row.get("url") or row.get("target") or "").strip()
+                    if u:
+                        probe_by_url[u] = row
+                        # also index by path suffix
+                        probe_by_url[u.split("]")[-1].strip() if "]" in u else u] = row
+        except Exception:
+            pass
+
+    def _classify_line(line: str, default_behavior: str):
+        """Return observation kwargs including body disposition. Never CONFIRMED."""
+        url = line[:300]
+        # Extract URL from [TAG] url form
+        m = re.search(r"https?://\S+", line)
+        target_url = m.group(0) if m else line
+        row = probe_by_url.get(target_url) or probe_by_url.get(line) or {}
+        body = row.get("body") if "body" in row else row.get("body_preview")
+        status = row.get("status_code") or row.get("status")
+        ctype = row.get("content_type")
+        truncated = bool(row.get("body_truncated"))
+        path_hint = row.get("path") or target_url
+        if classify_fixed_path_body is None:
+            return {
+                "url": url,
+                "observed_behavior": default_behavior,
+                "status": "SUCCESS",
+                "classification": "LEAD",
+                "confidence": "low",
+                "detail": "classifier_unavailable; path lead only",
+                "limitations": "HTTP status/path alone is not proof of sensitive content",
+                "disposition": "PATH_LEAD",
+            }
+        clf = classify_fixed_path_body(
+            path_hint,
+            body if body is not None else (None if not row else body),
+            status_code=int(status) if status not in (None, "") else None,
+            content_type=ctype,
+            body_truncated=truncated,
+        )
+        # If no probe row, force PATH_LEAD
+        if not row:
+            clf = classify_fixed_path_body(path_hint, None)
+        fields = observation_fields_from_classification(clf)
+        fields["url"] = url
+        fields["status"] = "SUCCESS"
+        fields["disposition"] = clf.get("disposition")
+        fields["disposition_reasons"] = (clf.get("reasons") or [])[:6]
+        fields["expected_family"] = clf.get("expected_family")
+        # Strip internal hunter marker from observation schema surface if present
+        return fields
+
+    # Fixed-path Information Disclosure artifacts → observations (body-classified)
     for fname, engine, behavior in (
         ("git_exposure.txt", "info_disclosure_git", "git_metadata_candidate"),
         ("backup_files.txt", "info_disclosure_backup", "backup_path_candidate"),
@@ -510,17 +592,13 @@ def main():
                     line = line.strip()
                     if not line or n >= 40:
                         continue
+                    fields = _classify_line(line, behavior)
+                    excl = fields.pop("_exclude_from_hunter_interesting", None)
                     add_obs(
                         observation_id=f"infodisc-{engine}-{n}",
                         engine=engine,
-                        url=line[:300],
-                        observed_behavior=behavior,
-                        status="SUCCESS",
-                        classification="LEAD",
-                        confidence="low",
-                        detail="Fixed-path probe hit — verify content is not SPA/WAF catch-all before treating as exposure",
-                        limitations="HTTP status alone is not proof of sensitive content",
                         provenance=f"info_disclosure/{fname}",
+                        **{k: v for k, v in fields.items() if not k.startswith("_")},
                     )
                     n += 1
         except Exception:
