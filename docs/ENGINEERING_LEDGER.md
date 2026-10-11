@@ -1,5 +1,46 @@
 ---
 
+## CYCLE — 2026-10-11 — Independent benchmark GitHub recon + fixed-path (PR #13)
+
+### Baseline verified
+- PR #12 merge `6d7cf77` on main (consumption path)
+- HEAD before this cycle included PR #12 docs tip
+- **#145** `38087135904` **completed success** on `56ec797` (preserved; results **not** attributed to post-#12 code)
+
+### Benchmark executed
+Command: `python3 tests/test_benchmark_github_recon_info_disclosure.py`
+
+| Metric | Result |
+|--------|--------|
+| Positives detected | **5/5** |
+| Hard negatives rejected | **5/5** (after fix) |
+| CONFIRMED violations | **0** |
+| Failure NOT_RUN | **PASS** |
+| Hunter fixed-path delivery | **3/3** INTERESTING |
+| Schema observation.v1 | **PASS** |
+
+### Demonstrated defect → fix
+Hard negatives (docs/, YOUR_API_KEY_HERE, robots.txt) were promoted to LEAD observations.
+**Fix:** `_github_recon_line_is_hard_negative` + line dedupe in `write_pipeline_exports.py`.
+
+### Files
+- `scripts/write_pipeline_exports.py`
+- `tests/test_benchmark_github_recon_info_disclosure.py`
+- `tests/fixtures/benchmark_info_disclosure/**`
+
+### Explicit non-claims
+- Not production FP/recall
+- Not live-provider verification
+- dorking_engine still IMPLEMENTED_NOT_INVOKED
+- SI→Hunter still OFF
+
+### Status
+CONTINUE — controlled-fixture benchmark **VERIFIED**; live tip still needs a post-#13 run for field proof.
+
+---
+
+---
+
 ## CYCLE — 2026-10-11 — Directive: Info-Disclosure + GitHub recon consumption (PR #12)
 
 ### Reconcile
