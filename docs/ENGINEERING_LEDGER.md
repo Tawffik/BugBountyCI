@@ -1,5 +1,34 @@
 ---
 
+## CYCLE — 2026-10-11 — Fixed-path response-body classifier (PR #14)
+
+### Verified baseline
+- PR #12 `6d7cf77` · PR #13 `c959931` on ancestry
+- #145 completed on `56ec797` — **not** used as tip verification
+
+### Implementation
+- `scripts/classify_info_disclosure_body.py` — conservative dispositions
+- Export + Hunter consume optional `info_disclosure/probe_results.jsonl`
+- Without body → **PATH_LEAD** only (never CONFIRMED)
+- SPA/WAF/AUTH/PLACEHOLDER → not INTERESTING in Hunter
+
+### Benchmark executed
+```
+python3 -m unittest tests.test_benchmark_body_classifier tests.test_benchmark_github_recon_info_disclosure
+# 13 tests OK
+```
+Body unit: positives CONTENT_SUPPORTED · SPA/WAF/AUTH/PLACEHOLDER rejected · PATH_LEAD never CONFIRMED
+
+### Limitation (honest)
+Live workflow still discards curl bodies after path checks — production tips without `probe_results.jsonl` remain PATH_LEAD. Emitter into jsonl is the next integration slice.
+
+### Status
+CONTINUE
+
+---
+
+---
+
 ## CYCLE — 2026-10-11 — Independent benchmark GitHub recon + fixed-path (PR #13)
 
 ### Baseline verified
