@@ -3,18 +3,17 @@
 ## MODE
 CONTINUE — not PROJECT_COMPLETE
 
-## MAIN
-Includes PR #3–#12. Latest work: info-disclosure + github recon → observation.v1 + Hunter.
-
-## KEY DIAGNOSTIC
-- `docs/dorking_engine.py`: **IMPLEMENTED_NOT_INVOKED**
-- Production path: workflow inline GitHub code search → now consumed in exports (PR #12)
+## BENCHMARK (controlled fixtures)
+PR #13: github recon + fixed-path info disclosure
+- positives 5/5 · hard_neg 5/5 · CONFIRMED 0 · NOT_RUN honest
+- Command: `python3 tests/test_benchmark_github_recon_info_disclosure.py`
 
 ## LIVE
-#145 `38087135904` capital.com light @ `56ec797` — in progress (do not cancel)
+#145 completed success on `56ec797` (pre PR #12/#13 code). Harvest available; do not attribute to tip.
 
-## CLOSED
-SI 115 · prefer-https · path-priority · Phase 2 observations · delta IP noise · LEAD×param annotation · info-disc/github consumption
+## DIAGNOSTIC
+docs/dorking_engine.py = IMPLEMENTED_NOT_INVOKED
+SI→Hunter = OFF
 
-## STILL OPEN
-#145 harvest · full dorking_engine integration · §6 independent benchmark · Phase 3 full object model · SI→Hunter (NOT READY)
+## NEXT
+Highest value: content-signature classification for fixed-path bodies (SPA/WAF vs real) OR lab-owned public-repo fixture with mocked GH API — still no SI→Hunter.
