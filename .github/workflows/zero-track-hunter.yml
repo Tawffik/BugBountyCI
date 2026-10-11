@@ -1998,6 +1998,12 @@ jobs:
           # cross-product (hosts×paths×proxychains). Budget died with little signal.
           RD="results/${{ env.TIMESTAMP }}"
           mkdir -p "$RD/info_disclosure" "$RD/meta/phases" "$RD/logs"
+          # Bounded probe evidence for body classifier (PR #14 contract)
+          : > "$RD/info_disclosure/probe_results.jsonl"
+          RECORD_PROBE="python3 scripts/record_info_disclosure_probe.py"
+          if [ ! -f scripts/record_info_disclosure_probe.py ]; then
+            RECORD_PROBE="python3 -c \"print('recorder missing'); exit 0\""
+          fi
           RAW="$RD/live/hostname_targets.txt"
           [ -s "$RAW" ] || RAW="$RD/live/expensive_targets.txt"
           [ -s "$RAW" ] || RAW="$RD/live/scan_order.txt"
@@ -2059,6 +2065,10 @@ jobs:
               s=$(curl_code "${host}${path}" /tmp/git_test 5)
               if [ "$s" = "200" ] && grep -qE 'ref: refs/heads/|gitdir:' /tmp/git_test 2>/dev/null; then
                 echo "[GIT-EXPOSURE] ${host}${path}" >> "$RD/info_disclosure/git_exposure.txt"
+                python3 scripts/record_info_disclosure_probe.py \
+                  --out "$RD/info_disclosure/probe_results.jsonl" \
+                  --url "${host}${path}" --path "$path" --status "$s" \
+                  --body-file /tmp/git_test --family git 2>/dev/null || true
               fi
             done < "$INPUT"
           done
@@ -2080,6 +2090,10 @@ jobs:
               if grep -aqE '^(PK|\x1f\x8b|SQLite format|MySQL dump|PostgreSQL|INSERT INTO|CREATE TABLE)' /tmp/backup_body 2>/dev/null \
                    || [ "$blen" -gt 2048 ]; then
                 echo "[BACKUP] ${host}${path} (${blen}b)" >> "$RD/info_disclosure/backup_files.txt"
+                python3 scripts/record_info_disclosure_probe.py \
+                  --out "$RD/info_disclosure/probe_results.jsonl" \
+                  --url "${host}${path}" --path "$path" --status "$s" \
+                  --body-file /tmp/backup_body --family backup 2>/dev/null || true
               fi
             done < "$INPUT"
           done
@@ -2093,6 +2107,10 @@ jobs:
               s=$(curl_code "${host}${path}" /tmp/config_test 5)
               if [ "$s" = "200" ] && ! grep -qiE '<html|<!doctype' /tmp/config_test 2>/dev/null; then
                 echo "[CONFIG] ${host}${path}" >> "$RD/info_disclosure/config_files.txt"
+                python3 scripts/record_info_disclosure_probe.py \
+                  --out "$RD/info_disclosure/probe_results.jsonl" \
+                  --url "${host}${path}" --path "$path" --status "$s" \
+                  --body-file /tmp/config_test --family config 2>/dev/null || true
               fi
             done < "$INPUT"
           done
@@ -2106,6 +2124,10 @@ jobs:
               s=$(curl_code "${host}${path}" /tmp/dir_test 5)
               if [ "$s" = "200" ] && grep -qiE 'index of|directory listing|\[to parent directory\]' /tmp/dir_test 2>/dev/null; then
                 echo "[DIR-LISTING] ${host}${path}" >> "$RD/info_disclosure/dir_listing.txt"
+                python3 scripts/record_info_disclosure_probe.py \
+                  --out "$RD/info_disclosure/probe_results.jsonl" \
+                  --url "${host}${path}" --path "$path" --status "$s" \
+                  --body-file /tmp/dir_test --family dirlist 2>/dev/null || true
               fi
             done < "$INPUT"
           done
@@ -2119,6 +2141,10 @@ jobs:
               if [ "$s" = "500" ] || [ "$s" = "502" ]; then
                 if grep -qiE 'stack trace|traceback|exception|line [0-9]+|django|rails' /tmp/err_test 2>/dev/null; then
                   echo "[ERROR-DISCLOSURE] ${host}/?test=${trigger} [HTTP $s]" >> "$RD/info_disclosure/error_disclosure.txt"
+                  python3 scripts/record_info_disclosure_probe.py \
+                    --out "$RD/info_disclosure/probe_results.jsonl" \
+                    --url "${host}/?test=trigger" --path "/?test" --status "$s" \
+                    --body-file /tmp/err_test --family error 2>/dev/null || true
                   break
                 fi
               fi
@@ -2130,18 +2156,21 @@ jobs:
           cfg_n=$(wc -l < "$RD/info_disclosure/config_files.txt" 2>/dev/null | tr -d ' ' || echo 0)
           dir_n=$(wc -l < "$RD/info_disclosure/dir_listing.txt" 2>/dev/null | tr -d ' ' || echo 0)
           err_n=$(wc -l < "$RD/info_disclosure/error_disclosure.txt" 2>/dev/null | tr -d ' ' || echo 0)
+          probe_n=$(wc -l < "$RD/info_disclosure/probe_results.jsonl" 2>/dev/null | tr -d ' ' || echo 0)
+          # Ensure probe_results.jsonl exists even when zero hits (EMPTY contract)
+          [ -f "$RD/info_disclosure/probe_results.jsonl" ] || : > "$RD/info_disclosure/probe_results.jsonl"
           elapsed=$((SECONDS - start_sec))
           if [ "$elapsed" -ge "$SOFT_LIMIT" ]; then
             status="PARTIAL"
-            detail="soft_deadline=${SOFT_LIMIT}s elapsed=${elapsed}s git=${git_n} backup=${bak_n} config=${cfg_n} dir=${dir_n} err=${err_n}"
+            detail="soft_deadline=${SOFT_LIMIT}s elapsed=${elapsed}s git=${git_n} backup=${bak_n} config=${cfg_n} dir=${dir_n} err=${err_n} probes=${probe_n}"
           else
             status="ok"
-            detail="elapsed=${elapsed}s git=${git_n} backup=${bak_n} config=${cfg_n} dir=${dir_n} err=${err_n}"
+            detail="elapsed=${elapsed}s git=${git_n} backup=${bak_n} config=${cfg_n} dir=${dir_n} err=${err_n} probes=${probe_n}"
           fi
           printf '{"phase":"information_disclosure","status":"%s","detail":"%s"}\n' "$status" "$detail" \
             > "$RD/meta/phases/information_disclosure.json"
           echo "✅ Info-disclosure phase=${status} ${detail}"
-          echo "✅ Git: ${git_n} | Backups: ${bak_n} | Configs: ${cfg_n} | Dirs: ${dir_n} | Errors: ${err_n}"
+          echo "✅ Git: ${git_n} | Backups: ${bak_n} | Configs: ${cfg_n} | Dirs: ${dir_n} | Errors: ${err_n} | Probes: ${probe_n}"
 
       - name: "🗺️ Source Map Analysis"
         if: ${{ env.ENABLE_SOURCE_MAPS == 'true' }}
