@@ -1,5 +1,36 @@
 ---
 
+## CYCLE — 2026-10-11 — Live probe_results.jsonl emitter (PR #15)
+
+### Verified baseline
+- HEAD before: `30fdbea4` · PR #14 body classifier present
+- #145 on `56ec797` predates this change — not used as evidence
+
+### Implementation
+- `scripts/record_info_disclosure_probe.py` — redacted/truncated JSONL records
+- Workflow emits `info_disclosure/probe_results.jsonl` on real probe hits
+- File always created (empty when zero hits)
+- Downstream: existing classifier → observations → Hunter (SPA not INTERESTING)
+
+### Offline tests
+- `python3 -m unittest tests.test_record_info_disclosure_probe` → **6 OK**
+- Integration: recorder→export→Hunter — secrets redacted; CONTENT_SUPPORTED vs SPA_CATCHALL correct
+
+### E2E
+- **#146** `38106058796` capital.com light on tip `dcf4955b` — **in_progress**
+- Harvest when complete: verify probe_results.jsonl schema, redaction, classifier dispositions
+- Do **not** claim live verification until harvest
+
+### Boundaries
+dorking_engine IMPLEMENTED_NOT_INVOKED · SI→Hunter OFF
+
+### Status
+CONTINUE
+
+---
+
+---
+
 ## CYCLE — 2026-10-11 — Fixed-path response-body classifier (PR #14)
 
 ### Verified baseline
