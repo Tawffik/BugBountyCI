@@ -1,0 +1,3 @@
+[default]
+aws_access_key_id = AKIATESTFAKE00000000
+aws_secret_access_key = fakeSecretKeyOnlyForFixture0000000000
