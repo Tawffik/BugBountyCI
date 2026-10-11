@@ -4,14 +4,15 @@
 CONTINUE
 
 ## LATEST
-PR #14: fixed-path response-body classifier (conservative)
-Benchmark: 13 tests OK (body + github recon suites)
+PR #15: live `info_disclosure/probe_results.jsonl` emitter (redacted/truncated)
+Closes evidence loop for PR #14 body classifier.
 
-## LIVE
-#145 completed on `56ec797` (old SHA — not tip proof)
+## E2E
+#146 `38106058796` capital.com light @ `dcf4955b` — **in_progress** (harvest for artifact proof)
+#145 on `56ec797` is pre-change — not tip evidence
 
-## LIMITATION
-Workflow does not yet emit `probe_results.jsonl` → live hits stay PATH_LEAD until producer stores truncated bodies.
+## OFFLINE
+recorder tests 6 OK · integration redaction+SPA/CONTENT path OK
 
 ## STILL OFF
 dorking_engine IMPLEMENTED_NOT_INVOKED · SI→Hunter OFF
