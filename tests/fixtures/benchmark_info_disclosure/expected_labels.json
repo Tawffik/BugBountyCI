@@ -1,0 +1,130 @@
+{
+  "schema": "bugbountyci.benchmark_labels.v1",
+  "note": "Independent expected labels for controlled fixtures only. Not production FP/recall.",
+  "cases": [
+    {
+      "id": "pos_gh_db_config",
+      "class": "positive",
+      "channel": "github_recon",
+      "input": "lab-org/config-leak :: config/database.yml",
+      "expected_source_status": "COMPLETED_WITH_CANDIDATES",
+      "expected_observation": true,
+      "expected_classification": "LEAD",
+      "expected_hunter": false,
+      "expected_confirmed": false,
+      "provenance_must_include": [
+        "github_code_search",
+        "js/github_recon.txt"
+      ]
+    },
+    {
+      "id": "pos_gh_env",
+      "class": "positive",
+      "channel": "github_recon",
+      "input": "lab-org/app-secrets :: .env.production",
+      "expected_source_status": "COMPLETED_WITH_CANDIDATES",
+      "expected_observation": true,
+      "expected_classification": "LEAD",
+      "expected_hunter": false,
+      "expected_confirmed": false,
+      "provenance_must_include": [
+        "github_code_search"
+      ]
+    },
+    {
+      "id": "pos_git_head",
+      "class": "positive",
+      "channel": "fixed_path",
+      "input": "[GIT-EXPOSURE] https://lab.example.com/.git/HEAD",
+      "expected_observation": true,
+      "expected_classification": "LEAD",
+      "expected_hunter": true,
+      "expected_hunter_class": "INTERESTING",
+      "expected_confirmed": false,
+      "provenance_must_include": [
+        "info_disclosure/git_exposure.txt"
+      ]
+    },
+    {
+      "id": "pos_config_env",
+      "class": "positive",
+      "channel": "fixed_path",
+      "input": "[CONFIG] https://lab.example.com/.env",
+      "expected_observation": true,
+      "expected_classification": "LEAD",
+      "expected_hunter": true,
+      "expected_confirmed": false
+    },
+    {
+      "id": "pos_backup",
+      "class": "positive",
+      "channel": "fixed_path",
+      "input": "[BACKUP] https://lab.example.com/backup.sql (2048b)",
+      "expected_observation": true,
+      "expected_hunter": true,
+      "expected_confirmed": false
+    },
+    {
+      "id": "neg_docs_password_word",
+      "class": "hard_negative",
+      "channel": "github_recon",
+      "input": "lab-org/docs :: docs/security.md",
+      "expected_observation": false,
+      "expected_hunter": false,
+      "expected_confirmed": false,
+      "reason": "Documentation path; word password alone is not exposure"
+    },
+    {
+      "id": "neg_placeholder_key",
+      "class": "hard_negative",
+      "channel": "github_recon",
+      "input": "lab-org/examples :: examples/YOUR_API_KEY_HERE.txt",
+      "expected_observation": false,
+      "expected_hunter": false,
+      "reason": "Placeholder pattern, not a live secret"
+    },
+    {
+      "id": "neg_public_robots",
+      "class": "hard_negative",
+      "channel": "github_recon",
+      "input": "lab-org/public-config :: public/robots.txt",
+      "expected_observation": false,
+      "expected_hunter": false,
+      "reason": "Ordinary public file"
+    },
+    {
+      "id": "neg_no_confirmed_from_status",
+      "class": "hard_negative",
+      "channel": "fixed_path",
+      "input": "[GIT-EXPOSURE] https://spa.example.com/.git/HEAD",
+      "expected_observation": true,
+      "expected_classification": "LEAD",
+      "expected_confirmed": false,
+      "expected_hunter": true,
+      "reason": "Path hit may be LEAD/INTERESTING research seed but NEVER CONFIRMED without body proof"
+    },
+    {
+      "id": "fail_missing_github_artifacts",
+      "class": "failure",
+      "channel": "github_recon",
+      "setup": "no js/github_recon*.txt",
+      "expected_source_status": "NOT_RUN",
+      "expected_observation_count_max": 0
+    },
+    {
+      "id": "fail_empty_kept",
+      "class": "failure",
+      "channel": "github_recon",
+      "setup": "empty github_recon.txt with empty raw",
+      "expected_source_status": "EMPTY_VALID"
+    },
+    {
+      "id": "fail_duplicate_same_line",
+      "class": "hard_negative",
+      "channel": "github_recon",
+      "setup": "duplicate identical positive lines",
+      "expected_unique_obs_for_line": 1,
+      "reason": "Duplicates must not inflate unique candidate counts"
+    }
+  ]
+}
