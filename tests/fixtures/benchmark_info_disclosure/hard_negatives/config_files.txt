@@ -1,0 +1,4 @@
+[CONFIG] https://waf.example.com/.env
+[CONFIG] https://auth.example.com/.env
+[CONFIG] https://lab.example.com/.env.placeholder
+[CONFIG] https://lab.example.com/config.json

@@ -1,0 +1,15 @@
+-- MySQL dump
+CREATE TABLE users (id INT);
+INSERT INTO users VALUES (1);
+-- MySQL dump
+CREATE TABLE users (id INT);
+INSERT INTO users VALUES (1);
+-- MySQL dump
+CREATE TABLE users (id INT);
+INSERT INTO users VALUES (1);
+-- MySQL dump
+CREATE TABLE users (id INT);
+INSERT INTO users VALUES (1);
+-- MySQL dump
+CREATE TABLE users (id INT);
+INSERT INTO users VALUES (1);

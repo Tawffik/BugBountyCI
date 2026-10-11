@@ -1,0 +1,5 @@
+{"url": "https://spa.example.com/.git/HEAD", "path": "/.git/HEAD", "status_code": 200, "body": "<!DOCTYPE html><html><body><div id=\"root\"></div><script src=\"/static/js/main.chunk.js\"></script></body></html>\n"}
+{"url": "https://waf.example.com/.env", "path": "/.env", "status_code": 200, "body": "<html><title>Attention Required</title><h1>Cloudflare</h1><p>Checking your browser before accessing</p></html>\n"}
+{"url": "https://auth.example.com/.env", "path": "/.env", "status_code": 200, "body": "<html><form action=\"/login\"><input name=\"username\"><input name=\"password\" type=\"password\"><button>Sign in</button></form></html>\n"}
+{"url": "https://lab.example.com/.env.placeholder", "path": "/.env", "status_code": 200, "body": "API_KEY=YOUR_API_KEY_HERE\nSECRET=CHANGEME\n"}
+{"url": "https://lab.example.com/config.json", "path": "/config.json", "status_code": 200, "body": "{\"message\": \"see password policy\", \"token\": null}\n"}

@@ -1,0 +1,2 @@
+# Setup
+Run git clone and check .git/config for remotes.
