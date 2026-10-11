@@ -1,3 +1,4 @@
+import json
 #!/usr/bin/env python3
 """
 pipeline/detection/hunter_queue_builder.py
@@ -28,6 +29,19 @@ strip those caveats away when merging.
 import argparse
 import json
 import os
+
+try:
+    from classify_info_disclosure_body import classify_fixed_path_body
+except ImportError:
+    try:
+        import importlib.util
+        _cp = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "scripts", "classify_info_disclosure_body.py")
+        _spec = importlib.util.spec_from_file_location("classify_info_disclosure_body", _cp)
+        _mod = importlib.util.module_from_spec(_spec)
+        _spec.loader.exec_module(_mod)
+        classify_fixed_path_body = _mod.classify_fixed_path_body
+    except Exception:
+        classify_fixed_path_body = None
 import re
 from urllib.parse import urlparse
 
@@ -635,14 +649,40 @@ def annotate_leads_with_object_params(entries, results_dir):
 
 
 def load_fixed_path_info_disclosure(results_dir, limit=20):
-    """Fixed-path info disclosure hits → INTERESTING research seeds (not confirmed exposure)."""
+    """Fixed-path info disclosure → Hunter seeds with body-aware disposition.
+
+    - CONTENT_SUPPORTED → INTERESTING (still not confirmed vulnerability)
+    - PATH_LEAD (no body) → INTERESTING with low-confidence caveat
+    - SPA/WAF/AUTH/PLACEHOLDER/NOISE → skipped (not INTERESTING)
+    - INCONCLUSIVE/MALFORMED → RESEARCH_CONTEXT
+    Never CONFIRMED.
+    """
     mapping = (
-        ("git_exposure.txt", "info_disclosure_git", "Git metadata path responded — verify body is not SPA/WAF catch-all"),
-        ("backup_files.txt", "info_disclosure_backup", "Backup-like path with non-trivial body — verify sensitivity"),
-        ("config_files.txt", "info_disclosure_config", "Config-like path responded — verify content sensitivity"),
+        ("git_exposure.txt", "info_disclosure_git"),
+        ("backup_files.txt", "info_disclosure_backup"),
+        ("config_files.txt", "info_disclosure_config"),
     )
+    # Load optional probe bodies
+    probe = {}
+    pp = os.path.join(results_dir, "info_disclosure", "probe_results.jsonl")
+    if os.path.isfile(pp):
+        try:
+            with open(pp, "r", errors="ignore") as f:
+                for line in f:
+                    if not line.strip():
+                        continue
+                    try:
+                        row = json.loads(line)
+                    except Exception:
+                        continue
+                    u = (row.get("url") or "").strip()
+                    if u:
+                        probe[u] = row
+        except Exception:
+            pass
+
     out = []
-    for fname, engine, reason in mapping:
+    for fname, engine in mapping:
         path = os.path.join(results_dir, "info_disclosure", fname)
         if not os.path.isfile(path):
             continue
@@ -652,12 +692,55 @@ def load_fixed_path_info_disclosure(results_dir, limit=20):
                     line = line.strip()
                     if not line or len(out) >= limit:
                         break
+                    import re as _re
+                    m = _re.search(r"https?://\S+", line)
+                    url = m.group(0) if m else line
+                    row = probe.get(url) or {}
+                    body = row.get("body") if row else None
+                    if body is None and "body_preview" in row:
+                        body = row.get("body_preview")
+                    path_hint = row.get("path") or url
+                    if classify_fixed_path_body is not None:
+                        clf = classify_fixed_path_body(
+                            path_hint,
+                            body if row else None,
+                            status_code=row.get("status_code"),
+                            content_type=row.get("content_type"),
+                            body_truncated=bool(row.get("body_truncated")),
+                        )
+                    else:
+                        clf = {"disposition": "PATH_LEAD", "is_content_supported": False, "is_non_exposure": False, "is_path_only": True, "reasons": ["classifier_unavailable"]}
+                    disp = clf.get("disposition") or "PATH_LEAD"
+                    if clf.get("is_non_exposure"):
+                        # Do not promote SPA/WAF/auth/placeholder as INTERESTING
+                        continue
+                    if disp in ("INCONCLUSIVE", "MALFORMED"):
+                        prio = "RESEARCH_CONTEXT"
+                        reason = (
+                            f"Fixed-path body disposition={disp}. "
+                            f"Reasons: {', '.join((clf.get('reasons') or [])[:3])}. "
+                            "Needs human review — not confirmed exposure."
+                        )
+                    elif clf.get("is_content_supported"):
+                        prio = "INTERESTING"
+                        reason = (
+                            f"Content-supported candidate (disposition=CONTENT_SUPPORTED). "
+                            f"Reasons: {', '.join((clf.get('reasons') or [])[:3])}. "
+                            "Body matches expected structure — NOT a confirmed vulnerability."
+                        )
+                    else:
+                        prio = "INTERESTING"
+                        reason = (
+                            f"Path lead (disposition={disp}); body unavailable or weak. "
+                            "Verify response body is not SPA/WAF before treating as exposure."
+                        )
                     out.append({
                         "target": line[:250],
                         "engine": engine,
-                        "priority_class": "INTERESTING",
-                        "reason": reason + " Evidence only — not a confirmed vulnerability.",
+                        "priority_class": prio,
+                        "reason": reason[:500],
                         "stable": None,
+                        "details": {"disposition": disp, "reasons": (clf.get("reasons") or [])[:6]},
                     })
         except Exception:
             continue
