@@ -1,0 +1,1 @@
+[GIT-EXPOSURE] https://lab.example.com/.git/HEAD
