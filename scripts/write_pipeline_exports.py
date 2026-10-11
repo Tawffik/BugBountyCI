@@ -15,6 +15,44 @@ def _count_secret_candidates(path):
         return 0
 
 
+
+def _github_recon_line_is_hard_negative(line: str) -> bool:
+    """Downgrade/skip documentation, placeholders, and ordinary public files.
+
+    Controlled-fixture rule: path mention alone in docs/examples is not exposure evidence.
+    Does not claim production FP rate — reduces obvious non-candidates before observation.v1.
+    """
+    low = (line or "").lower()
+    if not low.strip():
+        return True
+    # placeholder markers
+    if "your_api_key_here" in low or "your_token_here" in low or "example_secret" in low:
+        return True
+    if "xxx_api_key" in low or "changeme" in low:
+        return True
+    # path after ::
+    path = low.split("::", 1)[-1].strip() if "::" in low else low
+    # ordinary public / docs paths
+    hard_path_prefixes = (
+        "docs/", "doc/", "readme", "license", "changelog", "contributing",
+        "examples/", "example/", "sample/", "samples/", "testdata/",
+        "public/robots.txt", "robots.txt",
+    )
+    for p in hard_path_prefixes:
+        if path.startswith(p) or f"/{p}" in path or path.endswith("readme.md") or path.endswith("license"):
+            return True
+    # markdown docs without secret-like filename
+    secret_name = any(
+        x in path
+        for x in (
+            ".env", "credential", "secret", "password", "token", "apikey", "api_key",
+            "id_rsa", ".pem", "aws/credentials", "database.yml", "wp-config",
+        )
+    )
+    if path.endswith(".md") and not secret_name:
+        return True
+    return False
+
 def main():
     rd = sys.argv[1] if len(sys.argv) > 1 else f"results/{os.environ.get('TIMESTAMP','')}"
     target = os.environ.get("TARGET", "")
@@ -500,7 +538,19 @@ def main():
         try:
             lines = [l.strip() for l in open(gh_kept, errors="replace") if l.strip()]
             kept_n = len(lines)
-            for i, line in enumerate(lines[:40]):
+            seen_gh = set()
+            n_skip_hn = 0
+            i = 0
+            for line in lines:
+                if i >= 40:
+                    break
+                if _github_recon_line_is_hard_negative(line):
+                    n_skip_hn += 1
+                    continue
+                key = line.strip().lower()
+                if key in seen_gh:
+                    continue
+                seen_gh.add(key)
                 # Format: repo/full_name :: path
                 repo, path = (line.split("::", 1) + [""])[:2]
                 add_obs(
@@ -517,8 +567,22 @@ def main():
                     repository=(repo or "").strip(),
                     path_hint=(path or "").strip(),
                 )
+                i += 1
+            # record skip count on summary via closure var
+            try:
+                open(os.path.join(rd, "meta", ".gh_recon_hard_neg_skipped"), "w").write(str(n_skip_hn))
+            except Exception:
+                pass
         except Exception:
             pass
+    hn_skip = 0
+    try:
+        p = os.path.join(rd, "meta", ".gh_recon_hard_neg_skipped")
+        if os.path.isfile(p):
+            hn_skip = int(open(p).read().strip() or "0")
+            os.remove(p)
+    except Exception:
+        hn_skip = 0
     try:
         with open(os.path.join(rd, "meta", "github_recon_summary.json"), "w") as fh:
             json.dump({
@@ -527,6 +591,7 @@ def main():
                 "target": target,
                 "raw_hits": raw_n,
                 "kept_hits": kept_n,
+                "hard_negative_skipped": hn_skip,
                 "note": "docs/dorking_engine.py is NOT invoked by Zero Track; workflow uses inline GitHub code search. This summary normalizes that path.",
                 "dorking_engine_status": "IMPLEMENTED_NOT_INVOKED",
             }, fh, indent=2)
