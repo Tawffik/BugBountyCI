@@ -1,0 +1,1 @@
+[GIT-EXPOSURE] https://spa.example.com/.git/HEAD

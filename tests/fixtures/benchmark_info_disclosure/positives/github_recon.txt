@@ -1,0 +1,3 @@
+lab-org/config-leak :: config/database.yml
+lab-org/app-secrets :: .env.production
+lab-org/ci-tokens :: .github/workflows/deploy.yml
