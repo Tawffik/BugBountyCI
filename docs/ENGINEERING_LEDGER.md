@@ -1,5 +1,30 @@
 ---
 
+## CYCLE — 2026-10-14 — Multi-target live campaign (5 runs)
+
+### #146 E2E harvest (PR #15 tip `dcf4955b`)
+- probe_results.jsonl **exists**, size 0 (no fixed-path content matches on capital.com) → EMPTY contract held
+- historical: prefer-https on tip — check schemes in validations
+- health: HEALTHY
+
+### Live batch (tip `ea7fa9a8`)
+| Run | Target | ID |
+|-----|--------|-----|
+| #147 | capital.com | 38477459929 |
+| #148 | superdrug.com | 38477466485 |
+| #149 | app.aikido.dev | 38477472763 |
+| #150 | nuva.finance | 38477479642 |
+| #151 | datacamp.com | 38477486191 |
+
+Mode: light · enable_git_exposure · authorized_open_scan. Targets historically used in this repo.
+
+### Status
+CONTINUE — monitor/harvest; fix regressions only with evidence.
+
+---
+
+---
+
 ## CYCLE — 2026-10-11 — Live probe_results.jsonl emitter (PR #15)
 
 ### Verified baseline
