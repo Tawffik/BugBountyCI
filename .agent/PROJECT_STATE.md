@@ -1,18 +1,13 @@
 # BugBountyCI — PROJECT STATE
 
 ## MODE
-CONTINUE
+CONTINUE — multi-target live campaign
 
-## LATEST
-PR #15: live `info_disclosure/probe_results.jsonl` emitter (redacted/truncated)
-Closes evidence loop for PR #14 body classifier.
+## LIVE BATCH (tip ea7fa9a8 / PR #15 lineage)
+#147 capital.com · #148 superdrug.com · #149 app.aikido.dev · #150 nuva.finance · #151 datacamp.com
 
-## E2E
-#146 `38106058796` capital.com light @ `dcf4955b` — **in_progress** (harvest for artifact proof)
-#145 on `56ec797` is pre-change — not tip evidence
+## #146 HARVEST
+probe_results.jsonl present (empty = no content-matched disclosures on capital) — producer contract OK
 
-## OFFLINE
-recorder tests 6 OK · integration redaction+SPA/CONTENT path OK
-
-## STILL OFF
-dorking_engine IMPLEMENTED_NOT_INVOKED · SI→Hunter OFF
+## NEXT
+Harvest all 5; compare Hunter/observations quality; fix only evidenced defects
