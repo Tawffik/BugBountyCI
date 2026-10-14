@@ -1,5 +1,41 @@
 ---
 
+## CYCLE — 2026-10-14 — Five-run artifact harvest + offline always-record contract
+
+### Historical runs inspected (SHA `ea7fa9a8` — pre always-record)
+| Run | ID | Target | Artifact ID | probe_results.jsonl | positive hit files | info_disclosure phase |
+|-----|-----|--------|-------------|---------------------|--------------------|------------------------|
+| #147 | 38477459929 | capital.com | 11860203793 | **0 bytes / probes=0** | all empty | ok elapsed=157s |
+| #148 | 38477466485 | superdrug.com | 11860651820 | **0 bytes / probes=0** | all empty | ok |
+| #149 | 38477472763 | app.aikido.dev | 11858648080 | **0 bytes / probes=0** | all empty | ok |
+| #150 | 38477479642 | nuva.finance | 11858623287 | **0 bytes / probes=0** | all empty | ok |
+| #151 | 38477486191 | datacamp.com | 11860557472 | **0 bytes / probes=0** | all empty | ok |
+
+Artifacts **not expired**; downloaded and inventoried.
+
+**Interpretation:** EMPTY probe_results is the **positive-only emitter** contract on `ea7fa9a8`, not proof that live probes failed. Positive path files empty = no content matches. Historical/representation/github_recon produced real outputs (e.g. capital hist validated=40; datacamp representation OBSERVED_DIFFERENTIAL=16). Observations are LEAD/SIGNAL only — **no CONFIRMED vulnerability claims** from these artifacts.
+
+### Post-fix live validation
+- Run **#162** / `38611194554` on tip `8291408` (always-record) — **still in_progress** at harvest time (Subdomain Takeover Check; 0 failures so far; **0 artifacts yet**)
+- Do not confuse with older failed runs; do not launch replacement campaign
+
+### Offline always-record → classify contract (this cycle)
+Synthetic bodies exercised:
+- git HEAD → **CONTENT_SUPPORTED**
+- SPA shell → **SPA_CATCHALL**
+- Cloudflare deny → **WAF_CHALLENGE**
+- Schema `bugbountyci.info_disclosure_probe.v1`; redaction held
+
+### Workflow integrity on main
+- size 351118; integrity tests OK; no placeholder
+
+### Status
+**COMPLETE_WITH_EXTERNAL_BLOCKERS** — independent offline + historical evidence closed; live always-record E2E blocked only on #162 completion/harvest.
+
+---
+
+---
+
 ## CYCLE — 2026-10-14 — Regression guards + offline suite green; live #152 still running
 
 ### Main tip
