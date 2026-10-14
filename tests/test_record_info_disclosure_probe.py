@@ -14,7 +14,7 @@ class TestRecordProbe(unittest.TestCase):
     def test_build_truncation(self):
         td = tempfile.mkdtemp()
         bf = os.path.join(td, "b.txt")
-        open(bf, "w").write("A" * 5000)
+        with open(bf, "w") as _f: _f.write("A" * 5000)
         rec = build_record("https://x/.env", "/.env", 200, body_file=bf)
         self.assertTrue(rec["body_truncated"])
         self.assertLessEqual(len(rec["body"]), 2048)
@@ -23,11 +23,12 @@ class TestRecordProbe(unittest.TestCase):
         td = tempfile.mkdtemp()
         out = os.path.join(td, "probe_results.jsonl")
         bf = os.path.join(td, "b.txt")
-        open(bf, "w").write("ref: refs/heads/main\n")
+        with open(bf, "w") as _f: _f.write("ref: refs/heads/main\n")
         rec = build_record("https://x/.git/HEAD", "/.git/HEAD", 200, body_file=bf)
         append_record(out, rec)
         append_record(out, rec)
-        self.assertEqual(len([l for l in open(out) if l.strip()]), 1)
+        with open(out) as _f:
+            self.assertEqual(len([l for l in _f if l.strip()]), 1)
 
     def test_empty_body_file(self):
         rec = build_record("https://x/.env", "/.env", 200, body_file=None)
@@ -43,13 +44,15 @@ class TestRecordProbe(unittest.TestCase):
         td = tempfile.mkdtemp()
         out = os.path.join(td, "probe_results.jsonl")
         bf = os.path.join(td, "b.txt")
-        open(bf, "w").write("API_KEY=supersecretvalue999\n")
+        with open(bf, "w") as _f: _f.write("API_KEY=supersecretvalue999\n")
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
             main(["--out", out, "--url", "https://x/.env", "--path", "/.env", "--status", "200", "--body-file", bf])
         self.assertNotIn("supersecretvalue999", buf.getvalue())
-        self.assertNotIn("supersecretvalue999", open(out).read())
-        self.assertIn("REDACTED", open(out).read())
+        with open(out) as _f:
+            content = _f.read()
+        self.assertNotIn("supersecretvalue999", content)
+        self.assertIn("REDACTED", content)
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

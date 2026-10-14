@@ -1,5 +1,30 @@
 ---
 
+## CYCLE — 2026-10-14 — P0 MERGED to main + live #152 dispatched
+
+### Merge
+- PR #16 squash-merged → main `829140882be63e62810c9c0d98a8474882974b49`
+- zero-track-hunter.yml size **351118** (was 40-byte placeholder)
+- always-record PROBE_CAP=48 + payload self-heal parts present
+
+### Offline
+- Full unittest suite: **56 OK**
+- ResourceWarning cleanup in `tests/test_record_info_disclosure_probe.py` (this commit)
+
+### Live
+- Run **38611194554** (#152) capital.com light on `8291408` — in_progress at dispatch
+- Harvest when complete: probe_results.jsonl record count, schema, redaction, dispositions
+
+### State docs
+- `.agent/PROJECT_STATE.md` updated on main `5971c5d`
+
+### Status
+CONTINUE — awaiting #152 harvest for always-record live proof.
+
+---
+
+---
+
 ## CYCLE — 2026-10-14 — P0 workflow integrity restore + always-record probes
 
 ### Root cause
