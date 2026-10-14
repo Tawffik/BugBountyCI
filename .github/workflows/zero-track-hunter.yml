@@ -1,1 +1,9 @@
-SEE_FILE
+name: "🎯 Zero Track - AI Autonomous Hunter"
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Target domain (e.g., example.com)"
+        required: true
+        type: string
