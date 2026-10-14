@@ -44,8 +44,12 @@ class TestWorkflowIntegrity(unittest.TestCase):
         with open(WF, encoding="utf-8") as f:
             doc = yaml.safe_load(f)
         self.assertIsInstance(doc, dict)
-        self.assertIn("on", doc)
+        # PyYAML parses bare key "on:" as boolean True
+        self.assertTrue("on" in doc or True in doc, "missing workflow triggers (on:)")
         self.assertIn("jobs", doc)
+        jobs = doc["jobs"]
+        self.assertIsInstance(jobs, dict)
+        self.assertGreaterEqual(len(jobs), 1)
 
 
 if __name__ == "__main__":
