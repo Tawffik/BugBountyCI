@@ -1,5 +1,39 @@
 ---
 
+## CYCLE — 2026-10-14 — P0 workflow integrity restore + always-record probes
+
+### Root cause
+- `main` @ `81c6966311e4a5c7bf16f869be8c6de7693e57c9` had `.github/workflows/zero-track-hunter.yml` reduced to **40 bytes** (`SEE_FILE_TOO_LARGE_USE_PUSH_OR_SELF_HEAL`) after a truncated Contents-API write.
+- Prior runs #147–#151 completed with info-disclosure phase success but `probe_results.jsonl` EMPTY (positive-only emitter) — body classifier never received live SPA/AUTH/WAF samples.
+
+### Repair (branch, not main)
+- Branch: `fix/restore-wf-payload-assemble`
+- Tip SHA: `e08c99718233221e09122f46fd39692d38d5a350`
+- PR: https://github.com/Tawffik/BugBountyCI/pull/16
+- Restored workflow size **351118 bytes**
+- `record_probe()` after every non-000 fixed-path curl; **PROBE_CAP=48**
+- Payload recovery: `.github/workflows/_payload/part_0..6.b64` + `self-heal-zero-track.yml` + existing `scripts/assemble_workflow.py`
+- Positive-hit files and EMPTY contract unchanged
+
+### Offline verification (executed)
+- YAML parse: OK
+- `python3 -m unittest` record + body classifier + github_recon benchmarks: **OK**
+  - record_info_disclosure_probe tests OK
+  - benchmark_body_classifier OK
+  - benchmark_github_recon_info_disclosure: positives 5/5, hard_neg 5/5, CONFIRMED violations 0
+
+### Explicit non-claims
+- **Not merged to main** — PR #16 open; main still 40-byte placeholder until merge
+- **No new live run** on restored SHA yet (requires merge or dispatch from branch)
+- Live always-record E2E remains UNVERIFIED until one light authorized run after merge
+
+### Status
+CONTINUE — P0 restore on branch + PR; await merge for main integrity; then one light live verification for probe_results bodies.
+
+---
+
+---
+
 ## CYCLE — 2026-10-14 — Multi-target live campaign (5 runs)
 
 ### #146 E2E harvest (PR #15 tip `dcf4955b`)
