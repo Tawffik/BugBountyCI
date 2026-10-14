@@ -1,9 +1,1 @@
-name: "🎯 Zero Track - AI Autonomous Hunter"
-
-on:
-  workflow_dispatch:
-    inputs:
-      target:
-        description: "Target domain (e.g., example.com)"
-        required: true
-        type: string
+SEE_FILE_TOO_LARGE_USE_PUSH_OR_SELF_HEAL
