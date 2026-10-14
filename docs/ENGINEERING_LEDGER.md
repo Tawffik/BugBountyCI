@@ -1,5 +1,34 @@
 ---
 
+## CYCLE — 2026-10-14 — Regression guards + offline suite green; live #152 still running
+
+### Main tip
+`46c67176a112112529665c0002748297bcdf833f`
+
+### Added
+- `tests/test_workflow_integrity.py` — size ≥100KB, always-record markers, no SEE_FILE placeholder, YAML structure
+- ResourceWarning cleanup in record_probe unit tests
+
+### Offline suite
+- **60 tests OK** (56 prior + 4 integrity)
+
+### Live #152
+- Run `38611194554` still **in_progress** on workflow SHA `8291408` (subdomain enum at last poll)
+- Always-record **live E2E remains UNVERIFIED** until harvest of probe_results.jsonl
+
+### Notion FCC
+- Inserted P0 merge + #152 status block at top of Fix Control Center
+
+### Boundaries unchanged
+dorking_engine IMPLEMENTED_NOT_INVOKED · SI→Hunter OFF
+
+### Status
+**READY_WORK_EXHAUSTED_WITH_EXTERNAL_BLOCKER** for always-record live harvest only (run duration). All independent P0/P1 offline work complete.
+
+---
+
+---
+
 ## CYCLE — 2026-10-14 — P0 MERGED to main + live #152 dispatched
 
 ### Merge
