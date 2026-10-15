@@ -200,6 +200,7 @@ if command -v naabu >/dev/null; then
     # Merge non-standard URLs: hostnames unlimited, pure IPs capped (same policy as ports enrichment)
     : > /tmp/nonstd_host.txt
     : > /tmp/nonstd_ip.txt
+    awk '{print $1}' "$RD/live/nonstandard_live.txt" 2>/dev/null | grep -E '^https?://' > /tmp/nonstd_urls.txt || : > /tmp/nonstd_urls.txt
     while IFS= read -r u; do
       [ -z "$u" ] && continue
       h=$(echo "$u" | sed -E 's#https?://##' | cut -d/ -f1 | cut -d: -f1)
@@ -208,7 +209,7 @@ if command -v naabu >/dev/null; then
       else
         echo "$u" >> /tmp/nonstd_host.txt
       fi
-    done < <(awk '{print $1}' "$RD/live/nonstandard_live.txt" 2>/dev/null | grep -E '^https?://' || true)
+    done < /tmp/nonstd_urls.txt
     head -n "${IP_LIVE_CAP:-200}" /tmp/nonstd_ip.txt > /tmp/nonstd_ip_capped.txt 2>/dev/null || : > /tmp/nonstd_ip_capped.txt
     cat /tmp/nonstd_host.txt /tmp/nonstd_ip_capped.txt >> "$RD/live/live.txt" 2>/dev/null || true
     sort -u -o "$RD/live/live.txt" "$RD/live/live.txt"
