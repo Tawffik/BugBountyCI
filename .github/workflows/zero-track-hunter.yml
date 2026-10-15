@@ -2733,6 +2733,24 @@ jobs:
           if [ -s "$RD/js/admin.txt" ]; then sed -i '1i # CANDIDATE paths only (status-code match) - verify manually, not confirmed findings' "$RD/js/admin.txt"; fi
           echo "✅ Swagger: $(wc -l < "$RD/js/swagger.txt" 2>/dev/null || echo 0) | GraphQL: $(wc -l < "$RD/js/graphql.txt" 2>/dev/null || echo 0) | Admin: $(wc -l < "$RD/js/admin.txt" 2>/dev/null || echo 0)"
 
+      - name: "🗺️ Parameter Intelligence"
+        continue-on-error: true
+        timeout-minutes: 5
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          mkdir -p "$RD/detection"
+          # Gap I: build endpoint→parameter map BEFORE Access-Control and
+          # Open-Redirect so those engines (and SSRF later) can consume
+          # real observed params instead of weaker static/vocabulary-only
+          # candidate sources. Sources: urls/, js/, arjun, smart-fuzzing
+          # vocabulary — all expected to exist by this point in the run.
+          python3 pipeline/detection/parameter_intelligence.py --results-dir "$RD" || true
+          if [ -f "$RD/detection/parameter_intelligence.json" ]; then
+            echo "✅ parameter_intelligence.json ready for downstream engines"
+          else
+            echo "⚠️ parameter_intelligence.json missing — engines will fall back to prior candidate sources"
+          fi
+
       - name: "🔎 Content Discovery Fuzzing"
         continue-on-error: true
         timeout-minutes: 20
@@ -2803,23 +2821,6 @@ jobs:
           sort -u -o "$RD/fuzzing/discovered.txt" "$RD/fuzzing/discovered.txt"
           echo "✅ Content discovery hits: $(wc -l < "$RD/fuzzing/discovered.txt" 2>/dev/null || echo 0)"
 
-      - name: "🗺️ Parameter Intelligence"
-        continue-on-error: true
-        timeout-minutes: 5
-        run: |
-          RD="results/${{ env.TIMESTAMP }}"
-          mkdir -p "$RD/detection"
-          # Gap I: build endpoint→parameter map BEFORE Access-Control and
-          # Open-Redirect so those engines (and SSRF later) can consume
-          # real observed params instead of weaker static/vocabulary-only
-          # candidate sources. Sources: urls/, js/, arjun, smart-fuzzing
-          # vocabulary — all expected to exist by this point in the run.
-          python3 pipeline/detection/parameter_intelligence.py --results-dir "$RD" || true
-          if [ -f "$RD/detection/parameter_intelligence.json" ]; then
-            echo "✅ parameter_intelligence.json ready for downstream engines"
-          else
-            echo "⚠️ parameter_intelligence.json missing — engines will fall back to prior candidate sources"
-          fi
 
       - name: "🔐 Access-Control Intelligence (V1)"
         continue-on-error: true
