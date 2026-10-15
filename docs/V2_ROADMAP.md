@@ -190,9 +190,9 @@ because a spec listed it." This is the order to actually work in.
 
 ### Priority 0 - blocking (must close before anything below)
 
-0. **Close §2's two open diagnostics with evidence from a real run.**
-   Nothing technology-aware or fuzzing-dependent can be trusted until
-   these are resolved.
+0. ✅ **DONE - Close §2's two open diagnostics with evidence from run #162**
+   (`38611194554`, capital.com, SHA `8291408`). See §2 for metrics:
+   tech.json non-empty; response_diffs populated; ffuf TLS-death hypothesis rejected.
 
 ### Priority 1 - high real-world value, natural next steps
 
