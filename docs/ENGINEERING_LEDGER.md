@@ -1,4 +1,10 @@
 ---
+## CYCLE — continued workflow audit #44–#45
+#44 OpenAPI path extract + SA path dedup
+#45 swagger_paths in wordlist structural tier
+Live run 38780752972 still on 4ff3db7 (pre #41–#45) — need new dispatch for verification.
+---
+---
 
 ## CYCLE — full workflow audit (not only user-reported gaps)
 
