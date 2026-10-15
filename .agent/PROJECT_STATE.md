@@ -1,16 +1,13 @@
 # BugBountyCI — PROJECT STATE
 
-## MAIN HEAD
-verify with git (post #41)
+## HEAD
+verify git (post #42)
 
-## THIS CYCLE
-#41 smart-fuzz structural sibling leaves + wolf shrink when empty
+## THIS PASS
+#41 structural smart-fuzz · #42 hostname hunter priority
 
 ## PRESERVED
-#17–#40 resource caps, scope, integrity
+#17–#40 caps/scope/integrity
 
-## STILL OPEN
-Info-disclosure static paths · dorking NOT_INVOKED · SI→Hunter OFF
-
-## TESTS
-292 offline
+## OPEN
+info-disclosure path matrix · dorking · SI→Hunter OFF

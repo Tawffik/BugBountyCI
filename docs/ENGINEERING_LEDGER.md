@@ -1,5 +1,23 @@
 ---
 
+## CYCLE — 2026-10-15 full-pipeline work-flow pass
+
+### Goal (Notion/chat)
+Scope → Discovery → Surface → Evidence → Hunter queue (signal, not raw volume).
+
+### Week runs
+162/163 capital.com: caps worked; smart-fuzz structural empty fixed in #41; hostname list was first-N.
+
+### #42
+hostname_targets hunter ranking (test/api/admin before static); token-boundary scores; interesting_ranked input.
+
+### Still open
+Info-disclosure static paths · dorking NOT_INVOKED · live adaptive wordlist mid-run
+
+---
+
+---
+
 ## CYCLE — 2026-10-15 smart-fuzz target specificity (work-flow, not new subsystem)
 
 ### Problem (operator)
