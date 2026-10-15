@@ -23,7 +23,7 @@ Called from Pipeline Health Report after pipeline_health.md is written.
 Does not replace raw evidence.
 """
 import json, glob, os, re, sys
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
 
 def _count_secret_candidates(path):
     try:
@@ -532,7 +532,6 @@ def main():
     probe_path = os.path.join(rd, "info_disclosure", "probe_results.jsonl")
     if os.path.isfile(probe_path):
         try:
-            from urllib.parse import urlparse, urlunparse
             with open(probe_path, encoding="utf-8", errors="replace") as fh:
                 for line in fh:
                     if not line.strip():
@@ -570,8 +569,7 @@ def main():
         row = probe_by_url.get(target_url) or probe_by_url.get(line) or {}
         if not row:
             try:
-                from urllib.parse import urlparse as _up
-                pr = _up(target_url if "://" in target_url else "https://" + target_url)
+                pr = urlparse(target_url if "://" in target_url else "https://" + target_url)
                 path_key = (pr.path or "").rstrip("/") or "/"
                 host = (pr.hostname or "").lower()
                 row = probe_by_url.get(f"{host}|{path_key}") or {}

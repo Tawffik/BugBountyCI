@@ -44,6 +44,7 @@ except ImportError:
         classify_fixed_path_body = None
 import re
 from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
 
 PRIORITY_ORDER = {"HIGH_SIGNAL": 0, "CONFIRMED": 0, "IDOR-CANDIDATE": 1, "LEAD": 2, "INTERESTING": 3, "RESEARCH_CONTEXT": 5}
 # Within same priority_class, prefer research-dense engines over low-value noise.
@@ -667,7 +668,6 @@ def load_fixed_path_info_disclosure(results_dir, limit=20):
     pp = os.path.join(results_dir, "info_disclosure", "probe_results.jsonl")
     if os.path.isfile(pp):
         try:
-            from urllib.parse import urlparse, urlunparse
             with open(pp, "r", errors="ignore") as f:
                 for line in f:
                     if not line.strip():
@@ -714,8 +714,7 @@ def load_fixed_path_info_disclosure(results_dir, limit=20):
                     row = probe.get(url) or {}
                     if not row:
                         try:
-                            from urllib.parse import urlparse as _up
-                            pr = _up(url if "://" in url else "https://" + url)
+                            pr = urlparse(url if "://" in url else "https://" + url)
                             path_key = (pr.path or "").rstrip("/") or "/"
                             host = (pr.hostname or "").lower()
                             row = probe.get(f"{host}|{path_key}") or {}
