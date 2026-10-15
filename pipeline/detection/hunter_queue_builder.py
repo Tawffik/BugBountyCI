@@ -1,4 +1,5 @@
 import json
+from urllib.parse import urlparse, urlunparse
 #!/usr/bin/env python3
 """
 pipeline/detection/hunter_queue_builder.py
@@ -43,8 +44,6 @@ except ImportError:
     except Exception:
         classify_fixed_path_body = None
 import re
-from urllib.parse import urlparse
-from urllib.parse import urlparse, urlunparse
 
 PRIORITY_ORDER = {"HIGH_SIGNAL": 0, "CONFIRMED": 0, "IDOR-CANDIDATE": 1, "LEAD": 2, "INTERESTING": 3, "RESEARCH_CONTEXT": 5}
 # Within same priority_class, prefer research-dense engines over low-value noise.
@@ -99,7 +98,6 @@ def _annotate_oob_status(reason, details, confirmed_labels):
 
 def _target_host_path_key(target: str) -> str:
     """Identity for scheme-pair dedupe: host + path (+ query template), ignore scheme."""
-    from urllib.parse import urlparse
     raw = (target or "").strip()
     if not raw or raw == "?":
         return raw
@@ -428,7 +426,6 @@ def _currently_reachable_historical_paths(results_dir):
                 vurl = row.get("validation_url") or ""
                 if vurl:
                     try:
-                        from urllib.parse import urlparse
                         pp = urlparse(vurl).path or ""
                         if pp:
                             out.add(pp.lower().rstrip("/") or pp.lower())
@@ -601,7 +598,6 @@ def _id_like_param_index(results_dir):
         if names:
             out[path_s] = names
             try:
-                from urllib.parse import urlparse
                 p = urlparse(path_s if "://" in path_s else "http://x" + path_s)
                 if p.path:
                     out[p.path] = names
@@ -630,7 +626,6 @@ def annotate_leads_with_object_params(entries, results_dir):
                 break
         if not matched:
             try:
-                from urllib.parse import urlparse
                 path = urlparse(tgt.split()[0] if tgt else "").path or ""
                 matched = idx.get(path)
             except Exception:
