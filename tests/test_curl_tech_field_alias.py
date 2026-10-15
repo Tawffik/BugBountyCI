@@ -12,3 +12,10 @@ def test_workflow_wordpress_jq_accepts_technologies():
     assert "technologies" in wf
     # must not only reference .tech for wordpress host selection
     assert "(.tech!=null) or (.technologies!=null)" in wf or "$r.technologies" in wf
+
+
+def test_workflow_top_tech_reads_technologies():
+    wf = open(".github/workflows/zero-track-hunter.yml", encoding="utf-8").read()
+    assert '"technologies"' in wf or "'technologies'" in wf
+    # top_tech loops both keys
+    assert 'for k in ("tech","technologies")' in wf

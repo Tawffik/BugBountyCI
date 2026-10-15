@@ -3211,7 +3211,12 @@ jobs:
                   techs=set()
                   with open(os.path.join(rd,path)) as f:
                       for line in f:
-                          try: techs.update(json.loads(line).get("tech",[]))
+                          try:
+                              row=json.loads(line)
+                              for k in ("tech","technologies"):
+                                  v=row.get(k) or []
+                                  if isinstance(v,list): techs.update(str(x) for x in v if x)
+                                  elif v: techs.add(str(v))
                           except: continue
                   return (", ".join(sorted(techs)) or "N/A")[:cap]
               except: return "N/A"
