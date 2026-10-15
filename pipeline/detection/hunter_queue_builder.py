@@ -662,11 +662,12 @@ def load_fixed_path_info_disclosure(results_dir, limit=20):
         ("backup_files.txt", "info_disclosure_backup"),
         ("config_files.txt", "info_disclosure_config"),
     )
-    # Load optional probe bodies
+    # Load optional probe bodies (index by exact URL + scheme-swapped URL + path)
     probe = {}
     pp = os.path.join(results_dir, "info_disclosure", "probe_results.jsonl")
     if os.path.isfile(pp):
         try:
+            from urllib.parse import urlparse, urlunparse
             with open(pp, "r", errors="ignore") as f:
                 for line in f:
                     if not line.strip():
@@ -676,8 +677,23 @@ def load_fixed_path_info_disclosure(results_dir, limit=20):
                     except Exception:
                         continue
                     u = (row.get("url") or "").strip()
-                    if u:
-                        probe[u] = row
+                    if not u:
+                        continue
+                    probe[u] = row
+                    try:
+                        pr = urlparse(u)
+                        if pr.scheme in ("http", "https"):
+                            alt = urlunparse(
+                                ("https" if pr.scheme == "http" else "http",)
+                                + pr[1:]
+                            )
+                            probe.setdefault(alt, row)
+                        path_key = (pr.path or "").rstrip("/") or "/"
+                        host = (pr.hostname or "").lower()
+                        if host and path_key:
+                            probe.setdefault(f"{host}|{path_key}", row)
+                    except Exception:
+                        pass
         except Exception:
             pass
 
@@ -696,6 +712,19 @@ def load_fixed_path_info_disclosure(results_dir, limit=20):
                     m = _re.search(r"https?://\S+", line)
                     url = m.group(0) if m else line
                     row = probe.get(url) or {}
+                    if not row:
+                        try:
+                            from urllib.parse import urlparse as _up
+                            pr = _up(url if "://" in url else "https://" + url)
+                            path_key = (pr.path or "").rstrip("/") or "/"
+                            host = (pr.hostname or "").lower()
+                            row = probe.get(f"{host}|{path_key}") or {}
+                            if not row and pr.scheme in ("http", "https"):
+                                alt_scheme = "https" if pr.scheme == "http" else "http"
+                                alt = url.replace(pr.scheme + "://", alt_scheme + "://", 1)
+                                row = probe.get(alt) or {}
+                        except Exception:
+                            row = {}
                     body = row.get("body") if row else None
                     if body is None and "body_preview" in row:
                         body = row.get("body_preview")

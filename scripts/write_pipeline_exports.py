@@ -532,6 +532,7 @@ def main():
     probe_path = os.path.join(rd, "info_disclosure", "probe_results.jsonl")
     if os.path.isfile(probe_path):
         try:
+            from urllib.parse import urlparse, urlunparse
             with open(probe_path, encoding="utf-8", errors="replace") as fh:
                 for line in fh:
                     if not line.strip():
@@ -541,10 +542,22 @@ def main():
                     except Exception:
                         continue
                     u = (row.get("url") or row.get("target") or "").strip()
-                    if u:
-                        probe_by_url[u] = row
-                        # also index by path suffix
-                        probe_by_url[u.split("]")[-1].strip() if "]" in u else u] = row
+                    if not u:
+                        continue
+                    probe_by_url[u] = row
+                    # tag-stripped and scheme-swapped aliases for path-file lines
+                    probe_by_url[u.split("]")[-1].strip() if "]" in u else u] = row
+                    try:
+                        pr = urlparse(u)
+                        if pr.scheme in ("http", "https"):
+                            alt = urlunparse(("https" if pr.scheme == "http" else "http",) + pr[1:])
+                            probe_by_url.setdefault(alt, row)
+                        path_key = (pr.path or "").rstrip("/") or "/"
+                        host = (pr.hostname or "").lower()
+                        if host and path_key:
+                            probe_by_url.setdefault(f"{host}|{path_key}", row)
+                    except Exception:
+                        pass
         except Exception:
             pass
 
@@ -555,6 +568,15 @@ def main():
         m = re.search(r"https?://\S+", line)
         target_url = m.group(0) if m else line
         row = probe_by_url.get(target_url) or probe_by_url.get(line) or {}
+        if not row:
+            try:
+                from urllib.parse import urlparse as _up
+                pr = _up(target_url if "://" in target_url else "https://" + target_url)
+                path_key = (pr.path or "").rstrip("/") or "/"
+                host = (pr.hostname or "").lower()
+                row = probe_by_url.get(f"{host}|{path_key}") or {}
+            except Exception:
+                row = {}
         body = row.get("body") if "body" in row else row.get("body_preview")
         status = row.get("status_code") or row.get("status")
         ctype = row.get("content_type")
