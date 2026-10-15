@@ -1,5 +1,31 @@
 ---
 
+## CYCLE — 2026-10-15 — Session continuous execution (PRs #17–#22)
+
+### Code fixes merged to main
+| PR | Fix | Evidence |
+|----|-----|----------|
+| #17 | Cap pure-IP port→live (`IP_LIVE_CAP=200`); hostname-first scan_order; tech hostname input | #162: 28630 IP ports → 28734 live URLs |
+| #18 | Dual-write `tech`+`technologies`; wordpress jq both keys | curl_tech wrote technologies only |
+| #19 | `top_tech()` reads both keys | AI triage missed technologies |
+| #20 | `live_hostname_urls` / `live_ip_urls` export counts | Honest metrics |
+| #21 | Nonstandard merge without process substitution | Portability |
+| #22 | `engine_health.overall` enum OK/DEGRADED/BROKEN + `overall_display` | #162 was emoji HEALTHY |
+
+### Closed without merge
+- PR #1 legacy recon-pipeline
+- PR #2 modular delete of zero-track-hunter.yml (unsafe)
+
+### Tests
+97+ in tests/; broader suites 241 when detection+smart-fuzz included
+
+### Live verification still pending
+Next authorized light run should show live.txt ≪ 28k and richer hostname-first tech coverage.
+
+---
+
+---
+
 ## CYCLE — 2026-10-15 — Continued: tech consumers + honest live counts (PRs #19, #20)
 
 ### Merged
