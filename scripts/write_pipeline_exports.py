@@ -173,10 +173,26 @@ def main():
         except Exception:
             pass
 
+    # Normalize overall to a stable enum for consumers; keep display separately.
+    # #162 wrote overall="🟢 HEALTHY" which is human-friendly but breaks equality
+    # checks against OK/DEGRADED/BROKEN.
+    overall_display = overall
+    _od = (overall or "").upper()
+    if "BROKEN" in _od or "FAIL" in _od:
+        overall_status = "BROKEN"
+    elif "DEGRAD" in _od or "WARN" in _od:
+        overall_status = "DEGRADED"
+    elif "HEALTHY" in _od or _od in ("OK", "SUCCESS", "PASS", "🟢 HEALTHY"):
+        overall_status = "OK"
+    elif overall in ("OK", "DEGRADED", "BROKEN"):
+        overall_status = overall
+    else:
+        overall_status = "DEGRADED" if flags else "OK"
     eng = {
         "schema": "bugbountyci.engine_health.v1",
         "run_id": run_id,
-        "overall": overall,
+        "overall": overall_status,
+        "overall_display": overall_display,
         "phases": phases,
         "flags": flags,
     }
