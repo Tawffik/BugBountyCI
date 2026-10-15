@@ -1,5 +1,26 @@
 ---
 
+## CYCLE — 2026-10-15 post-#37 integrity contract at MD source
+
+### Start
+`27d5e9d568b90cef4fce614ac9322a676f6ef6df`
+
+### PR #38
+**Defect:** `pipeline_health.md` producer only flagged arjun ERROR/PARTIAL; critical phase failures never entered MD (consumer-side #37 was the only defense).
+
+**Root cause:** Incomplete phase→flag mapping in workflow health report.
+
+**Fix:** `scripts/collect_phase_integrity_flags.py` + workflow invocation; tests for error/empty/malformed.
+
+**Defense in depth:** MD produces honest flags; `write_pipeline_exports` still worst-of merges (#37).
+
+### Live
+Still outstanding.
+
+---
+
+---
+
 ## CYCLE — 2026-10-15 post-#36 lineage / reporting integrity
 
 ### Start
