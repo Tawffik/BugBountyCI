@@ -103,6 +103,57 @@ def _load_predicted_fuzz_paths(out_dir):
 
 
 
+
+def _load_path_file_candidates(path: str, limit: int = 200) -> list[str]:
+    """Load path-like lines from an evidence file for ffuf (strip scheme/host)."""
+    if not path or not os.path.isfile(path):
+        return []
+    out: list[str] = []
+    seen: set[str] = set()
+    try:
+        with open(path, "r", errors="ignore") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                # "[200] https://host/path" or bare /path or path
+                if "://" in line:
+                    try:
+                        from urllib.parse import urlparse
+                        # drop leading status tags
+                        for tok in line.split():
+                            if "://" in tok:
+                                line = tok
+                                break
+                        path_only = urlparse(line).path or ""
+                    except Exception:
+                        continue
+                else:
+                    path_only = line
+                path_only = path_only.strip()
+                if not path_only or path_only == "/":
+                    continue
+                cand = path_only.lstrip("/")
+                if not cand or cand.startswith("{") or cand in seen:
+                    continue
+                seen.add(cand)
+                out.append(cand)
+                if len(out) >= limit:
+                    break
+    except OSError:
+        return []
+    return out
+
+
+def _load_linkfinder_fuzz_paths(out_dir) -> list[str]:
+    path = os.path.normpath(os.path.join(out_dir, "..", "js_deep", "linkfinder_endpoints.txt"))
+    return _load_path_file_candidates(path, limit=150)
+
+
+def _load_admin_fuzz_paths(out_dir) -> list[str]:
+    path = os.path.normpath(os.path.join(out_dir, "..", "js", "admin.txt"))
+    return _load_path_file_candidates(path, limit=40)
+
 def _load_swagger_fuzz_paths(out_dir):
     """OpenAPI path keys extracted in API Discovery (js/swagger_paths.txt)."""
     path = os.path.normpath(os.path.join(out_dir, "..", "js", "swagger_paths.txt"))
@@ -176,7 +227,11 @@ def main():
         wolf_cap_override = None
     structural_paths = _load_predicted_fuzz_paths(out_dir)[:structural_cap]
     # OpenAPI paths are target-specific evidence — same tier as structural
-    for sp in _load_swagger_fuzz_paths(out_dir):
+    for sp in (
+        _load_swagger_fuzz_paths(out_dir)
+        + _load_linkfinder_fuzz_paths(out_dir)
+        + _load_admin_fuzz_paths(out_dir)
+    ):
         if sp not in structural_paths:
             structural_paths.append(sp)
         if len(structural_paths) >= structural_cap:
