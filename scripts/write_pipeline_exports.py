@@ -79,13 +79,17 @@ def main():
     os.makedirs(os.path.join(rd, "meta"), exist_ok=True)
 
     phases = {}
+    phase_load_issues = []
     for pf in glob.glob(os.path.join(rd, "meta", "phases", "*.json")):
         try:
             with open(pf) as fh:
                 j = json.load(fh)
+            if not isinstance(j, dict):
+                phase_load_issues.append(os.path.basename(pf) + ":unexpected_type")
+                continue
             phases[j.get("phase") or os.path.basename(pf).replace(".json", "")] = j
-        except Exception:
-            pass
+        except Exception as e:
+            phase_load_issues.append(f"{os.path.basename(pf)}:malformed")
 
     # Enrich health phases from intelligence summaries when dedicated phase
     # files were not written (e.g. pre-phase-write SHAs, or engines that only
@@ -134,14 +138,47 @@ def main():
     )
 
     flags = []
-    # re-derive minimal flags from phases for machine health
+    # re-derive flags from phases for machine health.
+    # Critical stages: error/partial must degrade overall (not only arjun/nuclei).
+    # skipped_starved / empty / ok / NOT_RUN are not automatic failures.
+    _CRITICAL_PHASES = (
+        "smart_fuzzing", "information_disclosure", "ssrf", "open_redirect",
+        "access_control", "port_scan", "live_probe", "url_collection",
+    )
+    for pname in _CRITICAL_PHASES:
+        ph = phases.get(pname) or {}
+        st = str(ph.get("status", "") or "")
+        stu = st.upper()
+        stl = st.lower()
+        if stu in ("ERROR", "PARTIAL") or stl in ("error", "partial"):
+            flags.append(f"{pname} phase={st} — {ph.get('detail', '')}")
+    # Keep arjun partial/error (may not be in critical list name variants)
     arj = phases.get("arjun") or {}
     if str(arj.get("status", "")).upper() in ("PARTIAL", "ERROR"):
-        flags.append(f"Arjun phase={arj.get('status')} — {arj.get('detail','')}")
+        msg = f"Arjun phase={arj.get('status')} — {arj.get('detail','')}"
+        if msg not in flags:
+            flags.append(msg)
+    # Nuclei NOT_RUN / moved to VulnRadar is intentional — only PARTIAL/ERROR
     nuc = phases.get("nuclei") or {}
-    if str(nuc.get("status", "")).upper() == "PARTIAL":
-        flags.append(f"Nuclei phase=PARTIAL — {nuc.get('detail','')}")
-    # Nuclei NOT_RUN / moved to VulnRadar is intentional — not a health failure
+    if str(nuc.get("status", "")).upper() in ("PARTIAL", "ERROR"):
+        msg = f"Nuclei phase={nuc.get('status')} — {nuc.get('detail','')}"
+        if msg not in flags:
+            flags.append(msg)
+    for issue in phase_load_issues:
+        flags.append(f"phase_file:{issue}")
+
+    # Detection metrics input integrity (malformed engine_results / response_diffs)
+    det_metrics = os.path.join(rd, "detection", "metrics.json")
+    if os.path.isfile(det_metrics):
+        try:
+            with open(det_metrics, encoding="utf-8", errors="replace") as fh:
+                dm = json.load(fh)
+            integ = (dm or {}).get("input_integrity") or {}
+            if integ.get("trusted") is False:
+                for iss in integ.get("issues") or ["untrusted"]:
+                    flags.append(f"detection_metrics:{iss}")
+        except Exception:
+            flags.append("detection_metrics:unreadable")
 
     overall = "DEGRADED" if flags else "OK"
     # prefer pipeline_health overall + Flags section when present (#142: overall
@@ -195,6 +232,7 @@ def main():
         "overall_display": overall_display,
         "phases": phases,
         "flags": flags,
+        "phase_load_issues": phase_load_issues,
     }
     with open(os.path.join(rd, "meta", "engine_health.json"), "w") as fh:
         json.dump(eng, fh, indent=2)
