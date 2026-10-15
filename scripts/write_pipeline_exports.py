@@ -180,18 +180,21 @@ def main():
         except Exception:
             flags.append("detection_metrics:unreadable")
 
-    overall = "DEGRADED" if flags else "OK"
-    # prefer pipeline_health overall + Flags section when present (#142: overall
-    # was BROKEN from AI-provider flags, but engine_health.flags stayed empty
-    # because only arjun/nuclei phases were re-derived here).
+    # Phase/metrics integrity flags must never be discarded by pipeline_health.md.
+    # #36 set these from critical phases; #142 made MD overall/flags authoritative,
+    # which could overwrite DEGRADED→HEALTHY and drop phase error flags.
+    phase_integrity_flags = list(flags)
+    overall_from_phases = "DEGRADED" if phase_integrity_flags else "OK"
+
+    md_overall = None
+    md_flags = []
     ph = os.path.join(rd, "meta", "pipeline_health.md")
     if os.path.exists(ph):
         try:
             in_flags = False
-            md_flags = []
             for line in open(ph, encoding="utf-8", errors="replace"):
                 if line.startswith("## Overall:"):
-                    overall = line.split("## Overall:", 1)[1].strip()
+                    md_overall = line.split("## Overall:", 1)[1].strip()
                     in_flags = False
                     continue
                 if line.startswith("## Flags"):
@@ -204,16 +207,37 @@ def main():
                     s = line.strip()
                     if s.startswith("- "):
                         md_flags.append(s[2:].strip())
-            if md_flags:
-                # Prefer the human health report flags as authoritative list
-                flags = md_flags
         except Exception:
             pass
+
+    # Merge flags: phase integrity first, then MD flags not already present
+    flags = list(phase_integrity_flags)
+    for f in md_flags:
+        if f not in flags:
+            flags.append(f)
+
+    def _rank_status(s):
+        su = (s or "").upper()
+        if "BROKEN" in su or "FAIL" in su:
+            return 3
+        if "DEGRAD" in su or "WARN" in su or su == "DEGRADED":
+            return 2
+        if "HEALTHY" in su or su in ("OK", "SUCCESS", "PASS"):
+            return 1
+        if s in ("OK", "DEGRADED", "BROKEN"):
+            return {"OK": 1, "DEGRADED": 2, "BROKEN": 3}.get(s, 0)
+        return 0
+
+    # Worst-of: phase integrity cannot be upgraded by a healthy MD summary
+    candidates = [overall_from_phases]
+    if md_overall:
+        candidates.append(md_overall)
+    overall = max(candidates, key=_rank_status)
 
     # Normalize overall to a stable enum for consumers; keep display separately.
     # #162 wrote overall="🟢 HEALTHY" which is human-friendly but breaks equality
     # checks against OK/DEGRADED/BROKEN.
-    overall_display = overall
+    overall_display = overall if not md_overall else f"{overall} (md={md_overall})"
     _od = (overall or "").upper()
     if "BROKEN" in _od or "FAIL" in _od:
         overall_status = "BROKEN"
@@ -225,6 +249,10 @@ def main():
         overall_status = overall
     else:
         overall_status = "DEGRADED" if flags else "OK"
+    # Final guard: any phase integrity flag forces at least DEGRADED
+    if phase_integrity_flags and overall_status == "OK":
+        overall_status = "DEGRADED"
+        overall_display = f"DEGRADED (phase integrity; md claimed {md_overall or 'OK'})"
     eng = {
         "schema": "bugbountyci.engine_health.v1",
         "run_id": run_id,

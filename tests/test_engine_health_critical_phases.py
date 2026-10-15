@@ -97,3 +97,38 @@ def test_malformed_phase_file_flagged(tmp_path: Path):
     eng = _run_exports(tmp_path)
     assert eng["overall"] == "DEGRADED"
     assert eng.get("phase_load_issues")
+
+
+def test_pipeline_health_md_healthy_cannot_erase_phase_error(tmp_path: Path):
+    """#36 counterexample: MD Overall HEALTHY must not upgrade away phase error."""
+    (tmp_path / "meta" / "phases").mkdir(parents=True)
+    (tmp_path / "meta" / "phases" / "smart_fuzzing.json").write_text(
+        json.dumps(
+            {
+                "phase": "smart_fuzzing",
+                "status": "error",
+                "detail": "FFUF_PARSE_FAILURE",
+            }
+        )
+    )
+    (tmp_path / "meta" / "pipeline_health.md").write_text(
+        "# Health\n"
+        "## Overall: 🟢 HEALTHY\n\n"
+        "## Flags\n"
+        "- ℹ️ informational note only\n"
+    )
+    eng = _run_exports(tmp_path)
+    assert eng["overall"] == "DEGRADED"
+    assert any("smart_fuzzing" in f for f in eng["flags"])
+    # MD flag merged, not exclusive replacement
+    assert any("informational" in f for f in eng["flags"])
+
+
+def test_md_broken_still_wins_when_phases_ok(tmp_path: Path):
+    (tmp_path / "meta" / "phases").mkdir(parents=True)
+    (tmp_path / "meta" / "pipeline_health.md").write_text(
+        "## Overall: 🔴 BROKEN - stages empty\n\n## Flags\n- 🔴 AI failed\n"
+    )
+    eng = _run_exports(tmp_path)
+    assert eng["overall"] == "BROKEN"
+    assert any("AI failed" in f for f in eng["flags"])
