@@ -1,5 +1,26 @@
 ---
 
+## CYCLE — 2026-10-15 evidence integrity & failure semantics
+
+### Start
+`9f4ff4e4e864fe008965b891eda7db0c8fee3149`
+
+### Repairs
+| PR | Defect | Fix |
+|----|--------|-----|
+| **#32** | #31 counted parse failures but `pipeline_state` stayed clean | `FFUF_PARSE_FAILURE` / `PARTIAL_FFUF_PARSE` / `DIFFS_GENERATED_PARTIAL_PARSE`; aggregate reports failures |
+| **#33** | `smart_fuzzing.sh` mapped parse failure → phase `empty` | Map to phase `error` with parse_failures in detail |
+
+### Evidence association
+Synthetic tests: scheme match; host/path/port non-match; IP vs hostname distinct.
+
+### Not claimed
+Live behavior unverified. Many bare excepts in exports remain intentional per-section degrade.
+
+---
+
+---
+
 ## CYCLE — 2026-10-15 post-b567fd4 — resource bounds + association + soft-seed + ffuf visibility
 
 ### Starting HEAD

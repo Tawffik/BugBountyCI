@@ -1,21 +1,18 @@
 # BugBountyCI — PROJECT STATE
 
 ## MAIN HEAD
-`89ee30edf948` (verify with git)
+verify with `git rev-parse HEAD` (post #32/#33)
 
-## WORKFLOW
-zero-track-hunter.yml 351468 · always-record
-
-## THIS CONTINUATION
-#29 port-aware probe + resource_caps observability
-#30 SOFT_SEED_HOST_CAP recovery
-#31 ffuf JSON parse failure visibility
+## THIS CYCLE
+#32 ffuf pipeline_state on parse failure
+#33 smart_fuzzing phase error (not empty) on parse failure
+Evidence association regression tests
 
 ## TESTS
-250+ green offline
+265+ offline expected
 
-## LIVE VERIFY
-Authorized light run still needed for ports/live bound under #17+#24+#30
+## LIVE
+Unverified — needs authorized light run for resource bounds
 
 ## BOUNDARIES
-dorking IMPLEMENTED_NOT_INVOKED · SI→Hunter OFF · IDOR multi-session BLOCKED_EXTERNAL
+dorking OFF · SI→Hunter OFF · IDOR multi-session BLOCKED_EXTERNAL
