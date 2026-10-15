@@ -322,13 +322,18 @@ if [ ! -s "$RD/live/live.txt" ] && [ -s "$INPUT" ]; then
     # proved Tor+httpx can return 0 AND GitHub-runner direct can be WAF-blocked
     # (403) while the hosts are still real. Seed from evidence we already have.
     : > "$RD/live/live.txt"
-    # 1) Every DNS-resolved subdomain → try both schemes as candidates
+    # 1) DNS-resolved subdomains → both schemes (capped; recovery must not
+    # reintroduce unbounded surface when resolved is huge)
+    SOFT_SEED_HOST_CAP="${SOFT_SEED_HOST_CAP:-500}"
     if [ -s "$RD/subdomains/resolved.txt" ]; then
+      head -n "$SOFT_SEED_HOST_CAP" "$RD/subdomains/resolved.txt" > /tmp/soft_seed_hosts.txt || true
+      _ss_n=$(wc -l < "$RD/subdomains/resolved.txt" | tr -d ' ')
+      echo "ℹ️ soft-seed resolved hosts: ${_ss_n} available → using up to ${SOFT_SEED_HOST_CAP}"
       while IFS= read -r h; do
         h="$(echo "$h" | tr -d '\r' | xargs)"; [ -z "$h" ] && continue
         echo "https://$h" >> "$RD/live/live.txt"
         echo "http://$h" >> "$RD/live/live.txt"
-      done < "$RD/subdomains/resolved.txt"
+      done < /tmp/soft_seed_hosts.txt
     fi
     # 2) Apex + www always
     echo "https://$TARGET" >> "$RD/live/live.txt"
@@ -339,10 +344,12 @@ if [ ! -s "$RD/live/live.txt" ] && [ -s "$INPUT" ]; then
     # ports.txt in the next step — at this point we may not have it yet, so
     # also accept all_subs as soft candidates if resolved was empty)
     if [ ! -s "$RD/live/live.txt" ] && [ -s "$RD/subdomains/all_subs.txt" ]; then
+      SOFT_SEED_HOST_CAP="${SOFT_SEED_HOST_CAP:-500}"
+      head -n "$SOFT_SEED_HOST_CAP" "$RD/subdomains/all_subs.txt" > /tmp/soft_seed_all.txt || true
       while IFS= read -r h; do
         h="$(echo "$h" | tr -d '\r' | xargs)"; [ -z "$h" ] && continue
         echo "https://$h" >> "$RD/live/live.txt"
-      done < "$RD/subdomains/all_subs.txt"
+      done < /tmp/soft_seed_all.txt
     fi
     sort -u -o "$RD/live/live.txt" "$RD/live/live.txt"
     n=$(wc -l < "$RD/live/live.txt" 2>/dev/null || echo 0)
