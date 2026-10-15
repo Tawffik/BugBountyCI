@@ -1,5 +1,26 @@
 ---
 
+## CYCLE — 2026-10-15 system-wide discovery (post-7a00a0d)
+
+### Start / End
+`7a00a0d` → see git HEAD
+
+### PRs
+| PR | Defect | Fix |
+|----|--------|-----|
+| **#34** | Malformed engine_results/response_diffs → empty metrics looking clean | `input_integrity` on detection metrics; `baseline_meta.json` truncation |
+| **#35** | Access-control [] on bad JSON → EMPTY_VALID; crash vs skip phase mix-up | Raise on malformed diffs; phase: prerequisites→skipped_starved, crash→error |
+
+### Pattern
+Silent JSON failure → empty success (same family as #31 ffuf parse)
+
+### Tests
+270+ offline expected
+
+---
+
+---
+
 ## CYCLE — 2026-10-15 evidence integrity & failure semantics
 
 ### Start

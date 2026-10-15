@@ -1,18 +1,17 @@
 # BugBountyCI — PROJECT STATE
 
 ## MAIN HEAD
-verify with `git rev-parse HEAD` (post #32/#33)
+verify with git (post #34/#35)
 
 ## THIS CYCLE
-#32 ffuf pipeline_state on parse failure
-#33 smart_fuzzing phase error (not empty) on parse failure
-Evidence association regression tests
+#34 metrics input_integrity + baseline_meta
+#35 access-control malformed diffs → error phase
 
 ## TESTS
-265+ offline expected
+270+ offline
 
 ## LIVE
-Unverified — needs authorized light run for resource bounds
+Unverified
 
 ## BOUNDARIES
-dorking OFF · SI→Hunter OFF · IDOR multi-session BLOCKED_EXTERNAL
+dorking OFF · SI→Hunter OFF · IDOR BLOCKED_EXTERNAL
