@@ -1,5 +1,27 @@
 ---
 
+## CYCLE — 2026-10-15 — IP live flood + tech field alias (PRs #17, #18)
+
+### Defects fixed
+1. **Unbounded pure-IP port enrichment** (#162: ports.txt 28630 → live.txt 28734)
+   - PR **#17** merged `f43b79a` — `IP_LIVE_CAP=200`, hostname-first scan_order, tech probe hostname input
+2. **tech vs technologies consumer mismatch** (wordpress jq only `.tech`)
+   - PR **#18** merged `7ec7f0c` — dual-write + dual-key jq
+
+### Housekeeping
+- Closed stale PR **#2** (would delete zero-track-hunter.yml)
+- Closed stale PR **#1** (legacy recon-pipeline paths)
+
+### Tests
+- **239 passed** after merges
+
+### Status
+Code on main; live re-verify of live.txt size pending next authorized light run.
+
+---
+
+---
+
 ## CYCLE — 2026-10-15 — Cap pure-IP port enrichment into live.txt (#162 evidence)
 
 ### Proven defect
