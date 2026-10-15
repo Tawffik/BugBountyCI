@@ -102,6 +102,30 @@ def _load_predicted_fuzz_paths(out_dir):
     return fuzz_paths
 
 
+
+def _load_swagger_fuzz_paths(out_dir):
+    """OpenAPI path keys extracted in API Discovery (js/swagger_paths.txt)."""
+    path = os.path.normpath(os.path.join(out_dir, "..", "js", "swagger_paths.txt"))
+    if not os.path.isfile(path):
+        return []
+    out = []
+    try:
+        with open(path, "r", errors="ignore") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if line.startswith("/"):
+                    line = line.lstrip("/")
+                # skip pure parameter templates noise
+                if not line or line.startswith("{"):
+                    continue
+                out.append(line)
+    except OSError:
+        return []
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--results-dir", required=True)
@@ -151,6 +175,12 @@ def main():
     else:
         wolf_cap_override = None
     structural_paths = _load_predicted_fuzz_paths(out_dir)[:structural_cap]
+    # OpenAPI paths are target-specific evidence — same tier as structural
+    for sp in _load_swagger_fuzz_paths(out_dir):
+        if sp not in structural_paths:
+            structural_paths.append(sp)
+        if len(structural_paths) >= structural_cap:
+            break
 
     wolf_cap = wolf_cap_override if wolf_cap_override is not None else WOLF_SHARE.get(args.mode, WOLF_SHARE["normal"])
     # When structural predictions are absent, generic Wolf must not dominate
