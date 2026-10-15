@@ -99,9 +99,10 @@ def main():
         with open(args.hosts_file, "r", errors="ignore") as f:
             all_hosts = [l.strip() for l in f if l.strip()]
     hosts = all_hosts[: args.max_hosts]
-    if len(all_hosts) > len(hosts):
+    truncated_hosts = max(0, len(all_hosts) - len(hosts))
+    if truncated_hosts:
         print(f"⚠️ --max-hosts={args.max_hosts} truncated {len(all_hosts)} host(s) down to "
-              f"{len(hosts)} — the {len(all_hosts) - len(hosts)} dropped host(s) will have "
+              f"{len(hosts)} — the {truncated_hosts} dropped host(s) will have "
               f"no baseline and will classify as UNKNOWN downstream.")
 
     baselines = {}
@@ -124,11 +125,29 @@ def main():
         json.dump(baselines, f, indent=2)
 
     stable = sum(1 for b in baselines.values() if b.get("stable"))
+    meta = {
+        "schema": "bugbountyci.baseline_meta.v1",
+        "hosts_in_file": len(all_hosts),
+        "hosts_probed": len(hosts),
+        "max_hosts": args.max_hosts,
+        "hosts_truncated": truncated_hosts,
+        "baselines_written": len(baselines),
+        "stable_baselines": stable,
+        "failed_probe_count": len(failed_probe),
+        "failed_probe_hosts_sample": failed_probe[:10],
+    }
+    meta_path = os.path.join(out_dir, "baseline_meta.json")
+    with open(meta_path, "w") as f:
+        json.dump(meta, f, indent=2)
+        f.write("\n")
+
     if failed_probe:
         print(f"⚠️ {len(failed_probe)} host(s) had no successful baseline probe "
               f"(both requests failed/timed out) and will classify as UNKNOWN "
               f"downstream: {failed_probe[:5]}{' ...' if len(failed_probe) > 5 else ''}")
-    print(f"✅ baseline.json written ({len(baselines)} host(s), {stable} stable) -> {out_path}")
+    mark = "⚠️" if truncated_hosts or failed_probe else "✅"
+    print(f"{mark} baseline.json written ({len(baselines)} host(s), {stable} stable, "
+          f"truncated={truncated_hosts}) -> {out_path}")
 
 
 if __name__ == "__main__":
