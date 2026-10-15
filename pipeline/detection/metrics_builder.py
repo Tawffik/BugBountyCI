@@ -27,36 +27,61 @@ import os
 from collections import defaultdict
 
 
-def load_engine_results(results_dir: str) -> list:
+def load_engine_results(results_dir: str) -> tuple:
+    """Return (results_list, load_status).
+
+    load_status: ok | missing | malformed | unexpected_type
+    Malformed must not look like an empty successful run.
+    """
     path = os.path.join(results_dir, "detection", "engine_results.json")
     if not os.path.isfile(path):
-        return []
+        return [], "missing"
     try:
         with open(path, "r", errors="ignore") as f:
-            return json.load(f)
-    except (OSError, json.JSONDecodeError):
-        return []
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError, ValueError):
+        return [], "malformed"
+    if data is None:
+        return [], "malformed"
+    if isinstance(data, dict):
+        # Single engine object or wrapper
+        if "engine" in data:
+            return [data], "ok"
+        if "results" in data and isinstance(data["results"], list):
+            return data["results"], "ok"
+        return [], "unexpected_type"
+    if not isinstance(data, list):
+        return [], "unexpected_type"
+    return data, "ok"
 
 
-def load_smart_fuzzing_as_pseudo_engine(results_dir: str) -> dict:
-    """response_diff.py isn't built on the Detection Engine Framework
-    (it predates it), so it has no EngineRunResult of its own. This
-    wraps its output into the same shape so it gets the same metrics
-    treatment rather than being invisible to this file."""
+def load_smart_fuzzing_as_pseudo_engine(results_dir: str) -> tuple:
+    """Return (pseudo_engine_or_None, load_status).
+
+    load_status: ok | missing | malformed | unexpected_type
+    """
     path = os.path.join(results_dir, "smart-fuzzing", "response_diffs.json")
     if not os.path.isfile(path):
-        return None
+        return None, "missing"
     try:
         with open(path, "r", errors="ignore") as f:
             diffs = json.load(f)
-    except (OSError, json.JSONDecodeError):
-        return None
+    except (OSError, json.JSONDecodeError, ValueError):
+        return None, "malformed"
+    if not isinstance(diffs, list):
+        return None, "unexpected_type"
 
     evidence = [{"classification": d.get("classification", "UNKNOWN"),
                  "candidate": {"target": d.get("url", "?")},
                  "reason": d.get("reason", ""), "stable": None} for d in diffs]
-    return {"engine": "smart-fuzzing/response_diff", "ran": True, "error": None,
-            "candidates_generated": len(diffs), "evidence": evidence, "duration_s": 0.0}
+    return ({
+        "engine": "smart-fuzzing/response_diff",
+        "ran": True,
+        "error": None,
+        "candidates_generated": len(diffs),
+        "evidence": evidence,
+        "duration_s": 0.0,
+    }, "ok")
 
 
 def _signal_precision(counts: dict) -> float:
@@ -119,8 +144,8 @@ def detect_near_duplicate_clusters(evidence: list, byte_tolerance: int = 500) ->
 
 
 def build_metrics(results_dir: str) -> dict:
-    engine_results = load_engine_results(results_dir)
-    sf = load_smart_fuzzing_as_pseudo_engine(results_dir)
+    engine_results, eng_status = load_engine_results(results_dir)
+    sf, sf_status = load_smart_fuzzing_as_pseudo_engine(results_dir)
     if sf:
         engine_results = engine_results + [sf]
 
@@ -150,6 +175,12 @@ def build_metrics(results_dir: str) -> dict:
         "LEAD", "HIGH_SIGNAL", "CONFIRMED", "INTERESTING",
         "AUTH_REQUIRED", "SERVER_ERROR", "REDIRECT"))
 
+    integrity_issues = []
+    if eng_status in ("malformed", "unexpected_type"):
+        integrity_issues.append(f"engine_results:{eng_status}")
+    if sf_status in ("malformed", "unexpected_type"):
+        integrity_issues.append(f"response_diffs:{sf_status}")
+
     return {
         "engines": per_engine,
         "overall": {
@@ -162,6 +193,12 @@ def build_metrics(results_dir: str) -> dict:
             "effective_signal_count_after_clustering": max(
                 0, total_signal - sum(c["size"] - 1 for c in clusters)
             ),
+        },
+        "input_integrity": {
+            "engine_results": eng_status,
+            "response_diffs": sf_status,
+            "issues": integrity_issues,
+            "trusted": len(integrity_issues) == 0,
         },
     }
 
@@ -179,7 +216,11 @@ def main():
         json.dump(metrics, f, indent=2)
 
     o = metrics["overall"]
-    print(f"✅ metrics.json written -> {out_path}")
+    integ = metrics.get("input_integrity") or {}
+    mark = "⚠️" if not integ.get("trusted", True) else "✅"
+    print(f"{mark} metrics.json written -> {out_path}")
+    if integ.get("issues"):
+        print(f"   input_integrity issues: {integ['issues']} — zero evidence may be untrusted")
     print(f"   signal precision: {o['signal_precision']} "
           f"({o['raw_signal_count']} raw signal / {o['total_evidence']} evidence)")
     if o["likely_duplicate_clusters"]:
