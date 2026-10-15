@@ -1,5 +1,34 @@
 ---
 
+## CYCLE — 2026-10-15 — Close V2 §2 open diagnostics using #162 artifacts (no new scan)
+
+### Evidence source
+- Run **#162** `38611194554` · capital.com · SHA `8291408` · artifact `11923298068`
+
+### §2.1 live/tech.json
+- **Was:** empty / FTL from httpx `-v`+`-silent`
+- **Now:** 4 NDJSON rows; 2 with `technologies` (`curl_tech_detect`); all `host_curl_fallback`
+- **Verdict:** empty-file defect **CLOSED**. Coverage still sparse vs live_hosts≈86 → treat tech as PARTIAL
+
+### §2.2 smart-fuzzing/response_diffs.json
+- **Was:** empty on prior capital/datacamp; competing TLS vs autocalibration hypotheses
+- **Now:** 30 diffs; metrics DIFFS_GENERATED; ffuf 6/30 hosts with matches; all `[ffuf-diag] exit=0`
+- **Verdict:** TLS-death hypothesis **rejected** for this run; autocalibration/WAF filtering **consistent**. `-s` already restored
+
+### Docs
+- `docs/V2_ROADMAP.md` §2 rewritten to CLOSED with metrics
+- `.agent/PROJECT_STATE.md` reconciled to HEAD `a417877` + §2 closed
+
+### Tests
+- Full suite re-run this cycle before commit (see commit message)
+
+### Status
+**IMPLEMENTED_AND_VERIFIED** (evidence-based diagnostic closure; no code change required)
+
+---
+
+---
+
 ## CYCLE — 2026-10-15 — LIVE always-record E2E VERIFIED (#162 harvest)
 
 ### Run #162

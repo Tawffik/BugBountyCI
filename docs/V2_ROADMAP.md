@@ -89,35 +89,28 @@ recorded-but-deliberately-deferred.
 
 ---
 
-## §2. Known open items (live diagnosis, not yet closed)
+## §2. Known open items — CLOSED with evidence from run #162 (2026-10-14)
 
-1. **`live/tech.json` - root cause found, fix pushed, not yet
-   re-verified on a real run.** `-v` had been added to `httpx` in a
-   prior diagnostic commit to investigate why this file came back
-   empty - that `-v` flag turned out to be fatally incompatible with
-   `-silent` in this httpx version (`[FTL] verbose flag is
-   incompatible with silent flag`, confirmed on capital.com and
-   datacamp.com runs: 1200+ and 4170+ log lines, 100% failure). `-v`
-   has been removed. **Next run should show real `technologies: [...]`
-   values** - confirm before trusting anything technology-aware
-   downstream (Wolf Selector's tech-specific list selection depends on
-   this).
-2. **`smart-fuzzing/response_diffs.json` empty on both capital.com and
-   datacamp.com (25/25 `ffuf_raw/*.json` files `"results": []`) -
-   cause not yet confirmed.** Two competing hypotheses: (a) `-ac`
-   autocalibration correctly filtering a heavily-WAF'd target that
-   returns an identical block-page signature for every candidate
-   (legitimate), or (b) the same Go-binary TLS-fingerprint rejection
-   class already found in httpx, now suspected in `ffuf` too. `-s`
-   (silent) was removed from the `ffuf` call in
-   `scripts/smart_fuzzing.sh` as a temporary diagnostic to capture
-   ffuf's own `Errors: N` summary line - **read
-   `logs/smart_ffuf.log`'s `[ffuf-diag]` lines on the next run before
-   deciding.** Restore `-s` once this is resolved, per the lesson from
-   leaving `-v` in httpx too long.
+**Run:** `#162` / `38611194554` · target `capital.com` · light · workflow SHA `8291408`  
+**Results artifact:** `11923298068`
 
-**Current instruction: do not start §6 below until both of these are
-closed with evidence from a real run.**
+1. **`live/tech.json` — CLOSED (not empty; limited coverage).**  
+   - File present and non-empty: **4** NDJSON rows (vs older 0-byte failures).  
+   - **2/4** rows carry `technologies` (e.g. `Incapsula`) via `tech_source=curl_tech_detect`.  
+   - All 4 rows mark `host_curl_fallback: true` (httpx path still weak under WAF; curl enrichment path works).  
+   - `-v` + `-silent` incompatibility remains fixed (no FTL verbose/silent flood).  
+   - **Caveat:** coverage is thin vs `live_hosts≈86` in engine_health. Technology-aware downstream (Wolf Selector) should treat sparse tech as **partial**, not full inventory. Further httpx JA3/tech enrichment is optional improvement, not a reopen of the empty-file defect.
+
+2. **`smart-fuzzing/response_diffs.json` — CLOSED (populated; not TLS death).**  
+   - **30** diffs written; metrics `pipeline_state=DIFFS_GENERATED`, `finding_count=2`.  
+   - Classifications: DUPLICATE=24, NOISE=4, INTERESTING=1, REDIRECT=1.  
+   - `ffuf_raw`: 30 hosts · **6** with matches · **24** empty `results` · **30** raw matches total.  
+   - `[ffuf-diag]` on all 30 hosts: `exit=0`, no TLS/fatal class; Errors line often absent (filtered).  
+   - Hypothesis **(b) TLS-fingerprint rejection of ffuf: NOT supported** on this run.  
+   - Hypothesis **(a) autocalibration / WAF-similar responses: consistent** with exit=0 + mostly empty results + some real diffs.  
+   - `-s` already restored in `scripts/smart_fuzzing.sh` (comment documents datacamp run 90). Diag one-liners retained.
+
+**§2 gate satisfied for starting technology-aware / fuzzing-dependent work.** Sparse tech coverage is a known limitation, not an open empty-file bug.
 
 ---
 
