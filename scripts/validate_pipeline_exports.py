@@ -29,6 +29,10 @@ def main():
                 data = json.load(open(path))
                 if schema and data.get("schema") != schema:
                     errors.append(f"SCHEMA {rel}")
+                if rel == "meta/engine_health.json":
+                    ov = data.get("overall")
+                    if ov not in ("OK", "DEGRADED", "BROKEN", "PARTIAL"):
+                        errors.append(f"OVERALL_ENUM engine_health.overall={ov!r}")
         except Exception as e:
             errors.append(f"PARSE {rel}: {e}")
     if errors:
