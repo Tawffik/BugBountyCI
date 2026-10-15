@@ -53,7 +53,11 @@ def _endpoint_in_scope(endpoint: str, target_domain: str | None) -> bool:
         return False
     if not host:
         return False
-    td = target_domain.lower().lstrip(".")
+    # trailing dots (DNS absolute form) must not break equality
+    host = host.rstrip(".")
+    td = target_domain.lower().strip(".").lstrip(".")
+    if not td:
+        return True
     return host == td or host.endswith("." + td)
 
 
@@ -118,6 +122,42 @@ def _add(store: dict, endpoint: str, param: str, source: str) -> None:
         bucket[param] = set()
     if param in bucket:
         bucket[param].add(source)
+
+
+def resolve_target_domain(
+    results_dir: str,
+    explicit: str | None = None,
+) -> str | None:
+    """Resolve authorized target host for scope filtering.
+
+    Order: explicit arg → TARGET env → smart-fuzzing/target_profile.json
+    → detection/target.txt. Empty strings are treated as absent so a lost
+    env var does not silently mean "no filter" when a profile exists.
+    """
+    if explicit and str(explicit).strip():
+        return str(explicit).strip().lower().strip(".").lstrip(".")
+    env = (os.environ.get("TARGET") or "").strip()
+    if env:
+        return env.lower().strip(".").lstrip(".")
+    profile_path = os.path.join(results_dir, "smart-fuzzing", "target_profile.json")
+    if os.path.isfile(profile_path):
+        try:
+            with open(profile_path, encoding="utf-8", errors="replace") as f:
+                t = (json.load(f) or {}).get("target")
+            if t and str(t).strip():
+                return str(t).strip().lower().strip(".").lstrip(".")
+        except (OSError, json.JSONDecodeError, TypeError):
+            pass
+    for rel in ("detection/target.txt", "meta/target.txt", "target.txt"):
+        tp = os.path.join(results_dir, rel)
+        if os.path.isfile(tp):
+            try:
+                line = open(tp, encoding="utf-8", errors="replace").readline().strip()
+                if line:
+                    return line.lower().strip(".").lstrip(".")
+            except OSError:
+                pass
+    return None
 
 
 def build(results_dir: str, target_domain: str | None = None) -> dict[str, Any]:
@@ -230,6 +270,7 @@ def build(results_dir: str, target_domain: str | None = None) -> dict[str, Any]:
     return {
         "version": 1,
         "target_domain": target_domain or "",
+        "scope_mode": "scoped" if target_domain else "unscoped",
         "endpoint_count": len(endpoints_out),
         "parameter_count": sum(len(e["parameters"]) for e in endpoints_out) + len(global_params),
         "endpoints_dropped_out_of_scope": dropped_oos,
@@ -241,9 +282,10 @@ def build(results_dir: str, target_domain: str | None = None) -> dict[str, Any]:
 def main() -> int:
     ap = argparse.ArgumentParser(description="Build parameter intelligence map from recon artifacts")
     ap.add_argument("--results-dir", required=True)
+    ap.add_argument("--target", default=None, help="authorized domain (default: TARGET env or target_profile)")
     ap.add_argument("--out", default=None, help="default: <results-dir>/detection/parameter_intelligence.json")
     args = ap.parse_args()
-    target = (os.environ.get("TARGET") or "").strip() or None
+    target = resolve_target_domain(args.results_dir, explicit=args.target)
     data = build(args.results_dir, target_domain=target)
     out = args.out or os.path.join(args.results_dir, "detection", "parameter_intelligence.json")
     os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
@@ -251,10 +293,15 @@ def main() -> int:
         json.dump(data, f, indent=2, ensure_ascii=False)
         f.write("\n")
     oos = data.get("endpoints_dropped_out_of_scope") or 0
+    mode = data.get("scope_mode") or "unscoped"
+    td = data.get("target_domain") or ""
+    scope_note = f", scope={mode}" + (f"({td})" if td else "")
+    if mode == "unscoped":
+        scope_note += " — no TARGET/profile; third-party endpoints not filtered"
     print(
         f"✅ parameter_intelligence.json: {data['endpoint_count']} endpoints, "
         f"{data['parameter_count']} params"
-        f"{f', dropped_oos={oos}' if oos else ''} → {out}"
+        f"{f', dropped_oos={oos}' if oos else ''}{scope_note} → {out}"
     )
     return 0
 
