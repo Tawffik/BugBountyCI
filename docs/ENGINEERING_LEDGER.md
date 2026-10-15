@@ -1,5 +1,26 @@
 ---
 
+## CYCLE — 2026-10-15 smart-fuzz target specificity (work-flow, not new subsystem)
+
+### Problem (operator)
+Smart fuzz wordlist looked static; predicted_paths empty on live capital.com.
+
+### Root cause
+`pattern_predictor.predict` only did resource/{id}/action. Targets without id shapes → 0 structural paths → Wolf-heavy list.
+
+### Fix #41
+- sibling_leaf predictions from observed path roots/leaves (same target words only)
+- wordlist: shrink Wolf when structural empty
+- tests; id-based path preserved
+- caps/scope/health #17–#40 untouched
+
+### Verified offline
+capital.com urls/all.txt → 80 sibling predictions (was 0). 292 tests pass.
+
+---
+
+---
+
 ## CYCLE — 2026-10-15 post-#39 scope contract hardening
 
 ### Start
