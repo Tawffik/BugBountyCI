@@ -153,7 +153,10 @@ def main() -> int:
         if status and not rec.get("status_code"):
             rec["status_code"] = status
         if techs:
+            # Dual-write: httpx historically used "tech"; curl path used
+            # "technologies". Downstream jq/wolf/AI mix both keys (#162).
             rec["technologies"] = techs
+            rec["tech"] = techs
             rec["tech_source"] = "curl_tech_detect"
             enriched += 1
         out_lines.append(json.dumps(rec, ensure_ascii=False))

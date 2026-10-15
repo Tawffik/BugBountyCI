@@ -2911,7 +2911,7 @@ jobs:
           if ! grep -qi 'wordpress' "$RD/live/tech.json" 2>/dev/null; then
             echo "ℹ️ No WordPress detected via tech-detect, skipping CMS checks"
           else
-            jq -r 'select(.tech!=null) | select(.tech[] | test("(?i)wordpress")) | .url' "$RD/live/tech.json" 2>/dev/null | sort -u > /tmp/wp_hosts.txt
+            jq -r 'select((.tech!=null) or (.technologies!=null)) | . as $r | (($r.tech // $r.technologies) // []) | .[] | select(test("(?i)wordpress")) | $r.url' "$RD/live/tech.json" 2>/dev/null | sort -u > /tmp/wp_hosts.txt
             while IFS= read -r host; do
               host="$(echo "$host" | tr -d '\r' | xargs)"; [ -z "$host" ] && continue
 
