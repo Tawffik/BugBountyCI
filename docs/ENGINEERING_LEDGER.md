@@ -1,5 +1,28 @@
 ---
 
+## CYCLE — 2026-10-15 — Cross-engine pattern hunt continuation (PRs #24–#27)
+
+### Root-cause repairs
+| PR | Pattern | Fix |
+|----|---------|-----|
+| **#24** | Resource amplification **before** consumer caps | Cap ASN IPs into naabu (`ASN_PORT_IP_CAP=200`, `NAABU_IP_CAP=500`); #162 had 28k ports.txt at source |
+| **#25** | Exact-URL probe body match misses scheme variants | Index probe_results by scheme-swap + `host\|path` |
+| **#26** | Nested `import urlparse` → UnboundLocalError | Module-level import only; restored HISTORICAL∩JS relationships |
+| **#27** | Same nested-import risk in hunter_queue_builder | Cleaned nested urlparse imports |
+
+### Regression
+- `tests/test_naabu_asn_ip_cap.py`, `tests/test_probe_url_index_aliases.py`
+- relationship cross-engine test green again after #26
+
+### Pattern search notes
+- IP pollution chain: asn_ips → naabu → ports.txt → live.txt (both ends now capped)
+- Contract drift: tech/technologies dual-write already on main
+- Silent failure: UnboundLocal swallowed by bare `except` in relationship block
+
+---
+
+---
+
 ## CYCLE — 2026-10-15 — Session continuous execution (PRs #17–#22)
 
 ### Code fixes merged to main
