@@ -158,7 +158,13 @@ def load_detection_evidence(results_dir):
     try:
         with open(path, "r", errors="ignore") as f:
             data = json.load(f)
-    except (OSError, json.JSONDecodeError):
+    except (OSError, json.JSONDecodeError) as e:
+        print(f"⚠️ hunter: malformed detection/engine_results.json ({e}) — treating as no detection evidence")
+        return []
+    if isinstance(data, dict) and "engine" in data:
+        data = [data]
+    if not isinstance(data, list):
+        print("⚠️ hunter: engine_results.json unexpected type — treating as no detection evidence")
         return []
 
     confirmed_labels = _load_oob_confirmed_labels(results_dir)

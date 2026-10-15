@@ -100,8 +100,12 @@ class AccessControlEngine(DetectionEngine):
         try:
             with open(path, "r", errors="ignore") as f:
                 diffs = json.load(f)
-        except (OSError, json.JSONDecodeError):
-            return []
+        except (OSError, json.JSONDecodeError) as e:
+            # Prerequisites only checked file presence; malformed must not
+            # look like EMPTY_VALID (0 candidates after a successful run).
+            raise RuntimeError(f"malformed response_diffs.json: {e}") from e
+        if not isinstance(diffs, list):
+            raise RuntimeError("response_diffs.json must be a JSON array")
 
         # DUPLICATE-classified hits are the same block page repeated —
         # skip them, one representative per (host, status, ~length)

@@ -176,10 +176,17 @@ def result_to_phase_status(result: "EngineRunResult") -> tuple:
     """Map an EngineRunResult onto the shared ok/empty/error/skipped_starved
     vocabulary — the one place this translation happens, so every
     run_*.py script classifies the same way."""
+    err = (result.error or "")
+    # Prerequisites skip is recorded with error text but is not a failure.
+    if "prerequisites not met" in err:
+        return ("skipped_starved", err)
+    # Exception during generate/detect: ran=False + traceback in error
+    if err and not result.ran:
+        return ("error", err)
     if not result.ran:
-        return ("skipped_starved", result.error or "prerequisites not met")
-    if result.error:
-        return ("error", result.error)
+        return ("skipped_starved", err or "prerequisites not met")
+    if err:
+        return ("error", err)
     if result.candidates_generated == 0:
         return ("empty", "ran to completion, 0 candidates generated (prerequisite data present but yielded nothing to test)")
     signal_count = sum(1 for e in result.evidence if e.classification != "NOISE")
@@ -262,8 +269,14 @@ def run_engines(engines: Iterable[DetectionEngine], target_profile: dict, vocabu
         try:
             with open(out_path, "r", errors="ignore") as f:
                 existing = json.load(f)
-        except (OSError, json.JSONDecodeError):
-            existing = []  # corrupt/unreadable existing file — don't crash, just start fresh
+            if not isinstance(existing, list):
+                print(f"⚠️ detection/engine_results.json unexpected type — starting fresh merge")
+                existing = []
+        except (OSError, json.JSONDecodeError) as e:
+            # Corrupt prior file: continue so this engine's results are saved,
+            # but make the overwrite visible (do not silently look like first write).
+            print(f"⚠️ detection/engine_results.json unreadable ({e}) — previous engines may be lost on rewrite")
+            existing = []
 
     new_names = {r.engine for r in results}
     merged = [e for e in existing if e.get("engine") not in new_names] + [r.to_dict() for r in results]
