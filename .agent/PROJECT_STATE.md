@@ -1,21 +1,17 @@
 # BugBountyCI — PROJECT STATE
 
-## MODE
-CONTINUE — post IP-cap + tech alias merges
-
 ## MAIN HEAD
-`7ec7f0ca847544f2e29e4ec1f85637bdd4d20566`
+See `git rev-parse main` after PR #20 merge
 
-## MERGED THIS CYCLE
-- PR #17: cap pure-IP port→live enrichment (#162)
-- PR #18: tech/technologies dual-write + wordpress jq
+## THIS SESSION MERGES
+- #17 IP_LIVE_CAP port→live
+- #18 tech/technologies dual-write
+- #19 top_tech dual-key
+- #20 export hostname vs IP counts
 
-## CLOSED WITHOUT MERGE
-- PR #1 legacy recon-pipeline
-- PR #2 modular replace (would delete production workflow)
-
-## TESTS
-239 passed
+## CLOSED PRS
+- #1 legacy recon-pipeline
+- #2 modular delete of zero-track-hunter (unsafe)
 
 ## BOUNDARIES
 dorking_engine IMPLEMENTED_NOT_INVOKED · SI→Hunter OFF

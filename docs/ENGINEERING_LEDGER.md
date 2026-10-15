@@ -1,5 +1,23 @@
 ---
 
+## CYCLE — 2026-10-15 — Continued: tech consumers + honest live counts (PRs #19, #20)
+
+### Merged
+- PR **#19** `853c425` — `top_tech()` reads `tech` and `technologies`
+- PR **#20** — `live_hostname_urls` / `live_ip_urls` / `ip_port_candidates` in target_profile.counts
+
+### Prior this session
+- PR #17 IP-cap live enrichment
+- PR #18 tech dual-write + wordpress jq
+- Closed stale PR #1, #2
+
+### Tests
+Full suite green after merges.
+
+---
+
+---
+
 ## CYCLE — 2026-10-15 — IP live flood + tech field alias (PRs #17, #18)
 
 ### Defects fixed
