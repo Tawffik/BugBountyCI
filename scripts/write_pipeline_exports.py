@@ -1167,8 +1167,8 @@ def main():
                 provenance="urls/*+js_deep/linkfinder_normalized.jsonl",
                 engines=["historical", "linkfinder"],
             )
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"⚠️ HISTORICAL∩JS relationship export failed: {type(e).__name__}: {e}")
     # Secret candidate → JS file (fingerprint only; not Hunter promotion)
     try:
         scp = os.path.join(rd, "meta", "secret_candidates_si4.json")
