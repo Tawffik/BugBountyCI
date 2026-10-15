@@ -1,5 +1,26 @@
 ---
 
+## CYCLE — 2026-10-15 post-#39 scope contract hardening
+
+### Start
+`fe2aae65ecdb4a8d3e801aea2e19f2ab16a69b37`
+
+### PR #40
+**Defect risk:** Empty/whitespace `TARGET` env skipped filter while `target_profile.json` still held the authorized domain — silent boundary loss relative to #39.
+
+**Root cause:** Single-source resolution (env only).
+
+**Fix:** `resolve_target_domain` (--target → TARGET → profile → target.txt); `scope_mode`; trailing-dot host normalization; tests for empty-env + profile fallback.
+
+**Contract:** Standalone unscoped still allowed when no sources exist; production workflow has TARGET in GITHUB_ENV and profile as backup.
+
+### Live
+Still outstanding.
+
+---
+
+---
+
 ## CYCLE — 2026-10-15 post-#38 independent defect (scope)
 
 ### Start

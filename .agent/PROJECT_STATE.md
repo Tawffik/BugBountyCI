@@ -1,19 +1,19 @@
 # BugBountyCI — PROJECT STATE
 
 ## MAIN HEAD
-verify with git (post #39)
+verify with git (post #40)
 
 ## THIS CYCLE
-#39 parameter_intelligence TARGET scope filter (independent of reporting integrity)
+#40 parameter_intelligence TARGET resolution + scope_mode
 
 ## PRIOR
-#36–#38 health integrity chain
+#39 scope filter · #36–#38 health integrity
 
 ## TESTS
-286+ offline expected
+289+ offline expected
 
 ## LIVE
-Unverified (#17/#24/#30)
+Unverified
 
 ## BOUNDARIES
 dorking OFF · SI→Hunter OFF · IDOR BLOCKED_EXTERNAL
