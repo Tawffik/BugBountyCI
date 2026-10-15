@@ -1,5 +1,27 @@
 ---
 
+## CYCLE — full workflow audit (not only user-reported gaps)
+
+### Method
+Walked 74 Zero Track steps; compared producer→consumer timing vs capital.com artifacts.
+
+### New findings fixed
+**#43** API Discovery ran *after* Content Discovery → swagger empty during vocabulary/smart-fuzz. Reordered. vocabulary also reads urls/params.txt.
+
+### Already fixed earlier in chain
+#41 structural predictions · #42 hostname hunter rank · #17–#40 caps/scope/integrity
+
+### Confirmed remaining (not fixed this pass — intentional scope)
+- Info-disclosure + Security Analysis: overlapping static path matrices
+- dorking_engine IMPLEMENTED_NOT_INVOKED
+- SI→Hunter OFF
+- mid-run adaptive wordlist (V2, not V1)
+- common.txt fallback only when smart-fuzz gate says so (by design)
+
+---
+
+---
+
 ## CYCLE — 2026-10-15 full-pipeline work-flow pass
 
 ### Goal (Notion/chat)

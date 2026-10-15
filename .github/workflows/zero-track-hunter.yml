@@ -2677,6 +2677,54 @@ jobs:
           echo "ℹ️ IP-spoof summary: candidates=$(wc -l < /tmp/blocked_candidates.txt 2>/dev/null || echo 0) flips=$flips (empty flips on modern Cloudflare is expected — not a step failure)"
           echo "✅ IP-spoof bypass findings: $flips"
 
+      - name: "🔌 API Discovery"
+        continue-on-error: true
+        timeout-minutes: 20
+        run: |
+          RD="results/${{ env.TIMESTAMP }}"
+          INPUT="$RD/live/hostname_targets.txt"
+          [ -s "$INPUT" ] || INPUT="$RD/live/expensive_targets.txt"
+          [ -s "$INPUT" ] || INPUT="$RD/live/scan_order.txt"
+          [ -s "$INPUT" ] || { echo "https://${{ env.TARGET }}" > /tmp/fallback.txt; INPUT=/tmp/fallback.txt; }
+          : > "$RD/js/swagger.txt"
+          for path in "/swagger.json" "/v2/api-docs" "/v3/api-docs" "/openapi.json" "/api/docs" "/swagger-ui.html"; do
+            while IFS= read -r host; do
+              host="$(echo "$host" | tr -d '\r' | xargs)"; [ -z "$host" ] && continue
+              s=$(proxychains4 -q curl -sk -o /tmp/body.txt -w "%{http_code}" --max-time 5 "${host}${path}" 2>/dev/null || echo "000")
+              s="${s: -3}"  # curl -w already prints 000 on failure AND exits non-zero, so the || echo "000" fallback doubles it to 000000 - truncate to be safe either way
+              [ "$s" = "200" ] && grep -qiE '(swagger|openapi|"paths")' /tmp/body.txt 2>/dev/null && echo "[$s] ${host}${path}" >> "$RD/js/swagger.txt"
+            done < "$INPUT"
+          done
+          : > "$RD/js/graphql.txt"
+          for path in "/graphql" "/graphiql" "/v1/graphql" "/api/graphql" "/playground"; do
+            while IFS= read -r host; do
+              host="$(echo "$host" | tr -d '\r' | xargs)"; [ -z "$host" ] && continue
+              s=$(proxychains4 -q curl -sk -o /tmp/gql.txt -w "%{http_code}" --max-time 5 -X POST -H "Content-Type: application/json" -d '{"query":"{__typename}"}' "${host}${path}" 2>/dev/null || echo "000")
+              s="${s: -3}"  # curl -w already prints 000 on failure AND exits non-zero, so the || echo "000" fallback doubles it to 000000 - truncate to be safe either way
+              [ "$s" = "200" ] && grep -qiE '("data"|"errors")' /tmp/gql.txt 2>/dev/null && echo "[$s] ${host}${path}" >> "$RD/js/graphql.txt"
+            done < "$INPUT"
+          done
+          echo "/admin /administrator /panel /cpanel /login /wp-admin /dashboard /backend /portal" | tr ' ' '\n' > /tmp/admin_paths.txt
+          # BUGFIX: same broken "-l" bulk-mode pattern proven unreliable elsewhere -
+          # same nested per-(host,path) replacement as the AI infra path check above.
+          : > "$RD/js/admin.txt"
+          running=0; start_sec=$SECONDS
+          while IFS= read -r host; do
+            [ -z "$host" ] && continue
+            while IFS= read -r path; do
+              [ -z "$path" ] && continue
+              if [ $((SECONDS - start_sec)) -ge 180 ]; then break 2; fi
+              ( proxychains4 -q httpx -u "${host}${path}" -mc 200,301,302,401,403 -H "User-Agent: $SCAN_USER_AGENT" -retries 2 -timeout 12 -silent 2>>"$RD/logs/admin.log" ) >> "$RD/js/admin.txt" &
+              running=$((running + 1))
+              if [ "$running" -ge 15 ]; then wait -n 2>/dev/null || wait; running=$((running - 1)); fi
+            done < /tmp/admin_paths.txt
+          done < "$INPUT"
+          wait
+          # NOTE: entries below only matched an expected status code (200/301/302/401/403) -
+          # they are candidate paths to check manually, NOT confirmed admin panels.
+          if [ -s "$RD/js/admin.txt" ]; then sed -i '1i # CANDIDATE paths only (status-code match) - verify manually, not confirmed findings' "$RD/js/admin.txt"; fi
+          echo "✅ Swagger: $(wc -l < "$RD/js/swagger.txt" 2>/dev/null || echo 0) | GraphQL: $(wc -l < "$RD/js/graphql.txt" 2>/dev/null || echo 0) | Admin: $(wc -l < "$RD/js/admin.txt" 2>/dev/null || echo 0)"
+
       - name: "🔎 Content Discovery Fuzzing"
         continue-on-error: true
         timeout-minutes: 20
@@ -2801,53 +2849,6 @@ jobs:
             OPEN_REDIRECT_USE_TOR=false \
             bash scripts/run_open_redirect.sh 2>>"$RD/logs/open_redirect.log" || true
 
-      - name: "🔌 API Discovery"
-        continue-on-error: true
-        timeout-minutes: 20
-        run: |
-          RD="results/${{ env.TIMESTAMP }}"
-          INPUT="$RD/live/hostname_targets.txt"
-          [ -s "$INPUT" ] || INPUT="$RD/live/expensive_targets.txt"
-          [ -s "$INPUT" ] || INPUT="$RD/live/scan_order.txt"
-          [ -s "$INPUT" ] || { echo "https://${{ env.TARGET }}" > /tmp/fallback.txt; INPUT=/tmp/fallback.txt; }
-          : > "$RD/js/swagger.txt"
-          for path in "/swagger.json" "/v2/api-docs" "/v3/api-docs" "/openapi.json" "/api/docs" "/swagger-ui.html"; do
-            while IFS= read -r host; do
-              host="$(echo "$host" | tr -d '\r' | xargs)"; [ -z "$host" ] && continue
-              s=$(proxychains4 -q curl -sk -o /tmp/body.txt -w "%{http_code}" --max-time 5 "${host}${path}" 2>/dev/null || echo "000")
-              s="${s: -3}"  # curl -w already prints 000 on failure AND exits non-zero, so the || echo "000" fallback doubles it to 000000 - truncate to be safe either way
-              [ "$s" = "200" ] && grep -qiE '(swagger|openapi|"paths")' /tmp/body.txt 2>/dev/null && echo "[$s] ${host}${path}" >> "$RD/js/swagger.txt"
-            done < "$INPUT"
-          done
-          : > "$RD/js/graphql.txt"
-          for path in "/graphql" "/graphiql" "/v1/graphql" "/api/graphql" "/playground"; do
-            while IFS= read -r host; do
-              host="$(echo "$host" | tr -d '\r' | xargs)"; [ -z "$host" ] && continue
-              s=$(proxychains4 -q curl -sk -o /tmp/gql.txt -w "%{http_code}" --max-time 5 -X POST -H "Content-Type: application/json" -d '{"query":"{__typename}"}' "${host}${path}" 2>/dev/null || echo "000")
-              s="${s: -3}"  # curl -w already prints 000 on failure AND exits non-zero, so the || echo "000" fallback doubles it to 000000 - truncate to be safe either way
-              [ "$s" = "200" ] && grep -qiE '("data"|"errors")' /tmp/gql.txt 2>/dev/null && echo "[$s] ${host}${path}" >> "$RD/js/graphql.txt"
-            done < "$INPUT"
-          done
-          echo "/admin /administrator /panel /cpanel /login /wp-admin /dashboard /backend /portal" | tr ' ' '\n' > /tmp/admin_paths.txt
-          # BUGFIX: same broken "-l" bulk-mode pattern proven unreliable elsewhere -
-          # same nested per-(host,path) replacement as the AI infra path check above.
-          : > "$RD/js/admin.txt"
-          running=0; start_sec=$SECONDS
-          while IFS= read -r host; do
-            [ -z "$host" ] && continue
-            while IFS= read -r path; do
-              [ -z "$path" ] && continue
-              if [ $((SECONDS - start_sec)) -ge 180 ]; then break 2; fi
-              ( proxychains4 -q httpx -u "${host}${path}" -mc 200,301,302,401,403 -H "User-Agent: $SCAN_USER_AGENT" -retries 2 -timeout 12 -silent 2>>"$RD/logs/admin.log" ) >> "$RD/js/admin.txt" &
-              running=$((running + 1))
-              if [ "$running" -ge 15 ]; then wait -n 2>/dev/null || wait; running=$((running - 1)); fi
-            done < /tmp/admin_paths.txt
-          done < "$INPUT"
-          wait
-          # NOTE: entries below only matched an expected status code (200/301/302/401/403) -
-          # they are candidate paths to check manually, NOT confirmed admin panels.
-          if [ -s "$RD/js/admin.txt" ]; then sed -i '1i # CANDIDATE paths only (status-code match) - verify manually, not confirmed findings' "$RD/js/admin.txt"; fi
-          echo "✅ Swagger: $(wc -l < "$RD/js/swagger.txt" 2>/dev/null || echo 0) | GraphQL: $(wc -l < "$RD/js/graphql.txt" 2>/dev/null || echo 0) | Admin: $(wc -l < "$RD/js/admin.txt" 2>/dev/null || echo 0)"
 
       - name: "🛡️ Security Analysis"
         continue-on-error: true

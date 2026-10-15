@@ -1,13 +1,4 @@
-# BugBountyCI — PROJECT STATE
-
-## HEAD
-verify git (post #42)
-
-## THIS PASS
-#41 structural smart-fuzz · #42 hostname hunter priority
-
-## PRESERVED
-#17–#40 caps/scope/integrity
-
-## OPEN
-info-disclosure path matrix · dorking · SI→Hunter OFF
+# PROJECT STATE
+HEAD post #43
+#41 structural · #42 hostname rank · #43 API before smart-fuzz + params vocab
+OPEN: static ID paths · dorking · SI→Hunter
