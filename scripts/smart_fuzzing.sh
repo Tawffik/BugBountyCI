@@ -163,8 +163,12 @@ if type write_phase_status >/dev/null 2>&1; then
     pipeline_state=$(python3 -c "import json; d=json.load(open('$OUT_DIR/metrics.json')); print(d.get('pipeline_state') or 'UNKNOWN')" 2>/dev/null || echo UNKNOWN)
     raw_matches=$(python3 -c "import json; d=json.load(open('$OUT_DIR/metrics.json')); print(int((d.get('ffuf') or {}).get('raw_match_count') or 0))" 2>/dev/null || echo 0)
   fi
+  parse_fail_n=$(python3 -c "import json; d=json.load(open('$OUT_DIR/metrics.json')); print(int(d.get('ffuf_json_parse_failures') or 0))" 2>/dev/null || echo 0)
   if [ "$FAIL" = "1" ]; then
     write_phase_status "$RD" "smart_fuzzing" "error" "one or more stages (target_profile/vocabulary/wolf_selector/wordlist_builder) failed — see logs/smart_ffuf.log"
+  elif echo "$pipeline_state" | grep -qE 'FFUF_PARSE_FAILURE|PARTIAL_FFUF_PARSE'; then
+    # Parse failures are not EMPTY_VALID — do not collapse into clean empty
+    write_phase_status "$RD" "smart_fuzzing" "error" "state=${pipeline_state} parse_failures=${parse_fail_n} findings=${finding_n} raw_matches=${raw_matches} — corrupt/partial ffuf JSON"
   elif [ "${finding_n:-0}" -eq 0 ]; then
     write_phase_status "$RD" "smart_fuzzing" "empty" "state=${pipeline_state} findings=0 raw_matches=${raw_matches} — EMPTY_VALID or NO_MATCH (not header-line counts); do not treat as SUCCESS_WITH_FINDINGS"
   else
