@@ -217,11 +217,13 @@ def aggregate_ffuf_raw(ffuf_json_dir: str, results_dir: str = "") -> dict:
             wordlist_entries = _wordlist_line_count(local_wl)
             wordlist_path = local_wl
 
+    parse_failures = 0
     for path in files:
         try:
             with open(path, "r", errors="ignore") as f:
                 data = json.load(f)
-        except (OSError, json.JSONDecodeError):
+        except (OSError, json.JSONDecodeError, ValueError):
+            parse_failures += 1
             continue
         hosts += 1
         results = data.get("results") or []
@@ -254,8 +256,13 @@ def aggregate_ffuf_raw(ffuf_json_dir: str, results_dir: str = "") -> dict:
         })
 
     planned_total = wordlist_entries * hosts if hosts and wordlist_entries else 0
-    if hosts == 0:
+    if len(files) == 0:
         state = "NO_FFUF_OUTPUT"
+    elif hosts == 0 and parse_failures > 0:
+        # Files present but none parseable — not "no output", not clean empty
+        state = "FFUF_PARSE_FAILURE"
+    elif parse_failures > 0 and hosts > 0:
+        state = "PARTIAL_FFUF_PARSE"
     elif raw_matches == 0 and planned_total > 0:
         state = "REQUESTS_EXECUTED_NO_MATCH"
     elif raw_matches == 0 and planned_total == 0:
@@ -265,6 +272,7 @@ def aggregate_ffuf_raw(ffuf_json_dir: str, results_dir: str = "") -> dict:
 
     return {
         "ffuf_json_files": len(files),
+        "ffuf_json_parse_failures": parse_failures,
         "hosts_fuzzed": hosts,
         "raw_match_count": raw_matches,
         "post_calibration_match_count": raw_matches,
@@ -421,9 +429,34 @@ def main():
         ),
     }
     ffuf_stats = aggregate_ffuf_raw(args.ffuf_json_dir, results_dir=args.results_dir)
+    # Unify parse-failure counters (diff loop + aggregate over same dir)
+    parse_failures = max(
+        int(parse_failures),
+        int(ffuf_stats.get("ffuf_json_parse_failures") or 0),
+    )
     finding_count = count_interesting_findings(os.path.join(out_dir, "interesting.txt"))
 
-    if ffuf_stats["execution_state"] == "NO_FFUF_OUTPUT":
+    ffuf_exec = ffuf_stats.get("execution_state") or ""
+    # Prefer aggregate parse-aware state; main-loop parse_failures can exceed aggregate
+    # when only the diff loop saw extra bad files (same dir).
+    total_parse_fail = max(
+        int(ffuf_stats.get("ffuf_json_parse_failures") or 0),
+        int(parse_failures),
+    )
+    if ffuf_exec == "FFUF_PARSE_FAILURE" or (
+        total_parse_fail > 0 and int(ffuf_stats.get("hosts_fuzzed") or 0) == 0
+        and int(ffuf_stats.get("ffuf_json_files") or 0) > 0
+    ):
+        pipeline_state = "FFUF_PARSE_FAILURE"
+    elif ffuf_exec == "PARTIAL_FFUF_PARSE" or total_parse_fail > 0:
+        # Partial: some hosts parsed; do not report clean NO_MATCH/DIFFS alone
+        if ffuf_stats["raw_match_count"] == 0 and len(diffs) == 0:
+            pipeline_state = "PARTIAL_FFUF_PARSE"
+        elif finding_count == 0:
+            pipeline_state = "PARTIAL_FFUF_PARSE"
+        else:
+            pipeline_state = "DIFFS_GENERATED_PARTIAL_PARSE"
+    elif ffuf_exec == "NO_FFUF_OUTPUT":
         pipeline_state = "NO_FFUF_OUTPUT"
     elif ffuf_stats["raw_match_count"] == 0:
         pipeline_state = "REQUESTS_EXECUTED_NO_MATCH"
@@ -471,10 +504,12 @@ def main():
         json.dump(ranking, f, indent=2)
         f.write("\n")
 
+    _fail_states = ("FFUF_PARSE_FAILURE", "PARTIAL_FFUF_PARSE", "DIFFS_GENERATED_PARTIAL_PARSE")
+    _mark = "⚠️" if pipeline_state in _fail_states or parse_failures else "✅"
     print(
-        f"✅ response_diff done: state={pipeline_state} diffs={len(diffs)} "
+        f"{_mark} response_diff done: state={pipeline_state} diffs={len(diffs)} "
         f"findings={finding_count} ffuf_raw_matches={ffuf_stats['raw_match_count']} "
-        f"classes={counts}"
+        f"parse_failures={parse_failures} classes={counts}"
     )
 
 
