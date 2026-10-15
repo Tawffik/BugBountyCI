@@ -197,9 +197,20 @@ if command -v naabu >/dev/null; then
     cat "$tmp_ns"/*.txt 2>/dev/null | grep -v '^\s*$' > "$RD/live/nonstandard_live.txt" || : > "$RD/live/nonstandard_live.txt"
     rm -rf "$tmp_ns"
     echo "✅ Live services on non-standard ports: $(wc -l < "$RD/live/nonstandard_live.txt" 2>/dev/null || echo 0)"
-    # Merge host:port URLs into live.txt so nuclei/API/JS/fuzzing all see them
-    # httpx output format is typically: https://host:port [status] [title]
-    awk '{print $1}' "$RD/live/nonstandard_live.txt" 2>/dev/null | grep -E '^https?://' >> "$RD/live/live.txt" || true
+    # Merge non-standard URLs: hostnames unlimited, pure IPs capped (same policy as ports enrichment)
+    : > /tmp/nonstd_host.txt
+    : > /tmp/nonstd_ip.txt
+    while IFS= read -r u; do
+      [ -z "$u" ] && continue
+      h=$(echo "$u" | sed -E 's#https?://##' | cut -d/ -f1 | cut -d: -f1)
+      if echo "$h" | grep -qE '^[0-9]{1,3}(\.[0-9]{1,3}){3}$'; then
+        echo "$u" >> /tmp/nonstd_ip.txt
+      else
+        echo "$u" >> /tmp/nonstd_host.txt
+      fi
+    done < <(awk '{print $1}' "$RD/live/nonstandard_live.txt" 2>/dev/null | grep -E '^https?://' || true)
+    head -n "${IP_LIVE_CAP:-200}" /tmp/nonstd_ip.txt > /tmp/nonstd_ip_capped.txt 2>/dev/null || : > /tmp/nonstd_ip_capped.txt
+    cat /tmp/nonstd_host.txt /tmp/nonstd_ip_capped.txt >> "$RD/live/live.txt" 2>/dev/null || true
     sort -u -o "$RD/live/live.txt" "$RD/live/live.txt"
   fi
 else
@@ -222,35 +233,52 @@ else
 fi
 echo "port_scan phase status=$_ps $_pd"
 
-# Always enrich live.txt from naabu open ports (union, never shrink).
-# Critical for cases where Tor/direct probe failed but DNS+ports succeeded
-# (superdrug: 6 resolved subs with 80/443 open, live probe returned 0).
+# Enrich live.txt from naabu open ports — hostname-first, IP-capped.
+# Evidence (#162 capital.com): ports.txt was 28630 pure-IP lines; unbounded
+# union into live.txt produced 28734 IP URLs, starved tech.json, and made
+# scan_order unusable. Keep full ports.txt as inventory; only promote a
+# bounded IP sample + all hostname-keyed ports into live.txt.
 if [ -s "$RD/live/ports.txt" ]; then
-  echo "🔗 Enriching live.txt from open ports..."
-  : > /tmp/port_urls.txt
+  echo "🔗 Enriching live.txt from open ports (hostname-first, IP-capped)..."
+  : > /tmp/port_urls_host.txt
+  : > /tmp/port_urls_ip.txt
   while IFS= read -r hp; do
     [ -z "$hp" ] && continue
     host="${hp%%:*}"; port="${hp##*:}"
     [ -z "$host" ] || [ -z "$port" ] && continue
     if [ "$port" = "443" ] || [ "$port" = "8443" ] || [ "$port" = "9443" ]; then
-      echo "https://${host}" >> /tmp/port_urls.txt
-      [ "$port" != "443" ] && echo "https://${host}:${port}" >> /tmp/port_urls.txt
+      u1="https://${host}"; u2=""
+      [ "$port" != "443" ] && u2="https://${host}:${port}"
     elif [ "$port" = "80" ]; then
-      echo "http://${host}" >> /tmp/port_urls.txt
-      echo "https://${host}" >> /tmp/port_urls.txt
+      u1="http://${host}"; u2="https://${host}"
     else
-      # non-standard: both schemes with explicit port
-      echo "http://${host}:${port}" >> /tmp/port_urls.txt
-      echo "https://${host}:${port}" >> /tmp/port_urls.txt
+      u1="http://${host}:${port}"; u2="https://${host}:${port}"
+    fi
+    # Pure IPv4 → IP bucket; hostnames → always keep
+    if echo "$host" | grep -qE '^[0-9]{1,3}(\.[0-9]{1,3}){3}$'; then
+      echo "$u1" >> /tmp/port_urls_ip.txt
+      [ -n "$u2" ] && echo "$u2" >> /tmp/port_urls_ip.txt
+    else
+      echo "$u1" >> /tmp/port_urls_host.txt
+      [ -n "$u2" ] && echo "$u2" >> /tmp/port_urls_host.txt
     fi
   done < "$RD/live/ports.txt"
-  sort -u -o /tmp/port_urls.txt /tmp/port_urls.txt
-  before=$(wc -l < "$RD/live/live.txt" 2>/dev/null || echo 0)
-  cat /tmp/port_urls.txt >> "$RD/live/live.txt" 2>/dev/null || true
+  sort -u -o /tmp/port_urls_host.txt /tmp/port_urls_host.txt 2>/dev/null || true
+  sort -u -o /tmp/port_urls_ip.txt /tmp/port_urls_ip.txt 2>/dev/null || true
+  # Persist full IP candidate inventory (not consumed by default scanners)
+  mkdir -p "$RD/live"
+  cp /tmp/port_urls_ip.txt "$RD/live/ip_port_candidates.txt" 2>/dev/null || : > "$RD/live/ip_port_candidates.txt"
+  # Cap pure-IP promotion (default 200 URLs ≈ 100 hosts × 2 schemes)
+  IP_LIVE_CAP="${IP_LIVE_CAP:-200}"
+  head -n "$IP_LIVE_CAP" /tmp/port_urls_ip.txt > /tmp/port_urls_ip_capped.txt 2>/dev/null || : > /tmp/port_urls_ip_capped.txt
+  before=$(wc -l < "$RD/live/live.txt" 2>/dev/null | tr -d ' ' || echo 0)
+  cat /tmp/port_urls_host.txt /tmp/port_urls_ip_capped.txt >> "$RD/live/live.txt" 2>/dev/null || true
   sort -u -o "$RD/live/live.txt" "$RD/live/live.txt"
-  after=$(wc -l < "$RD/live/live.txt" 2>/dev/null || echo 0)
-  echo "✅ live.txt after port enrichment: $after (was $before)"
-  # If we still have zero verified JSON but have candidates, keep path marker honest
+  after=$(wc -l < "$RD/live/live.txt" 2>/dev/null | tr -d ' ' || echo 0)
+  _iph=$(wc -l < /tmp/port_urls_host.txt 2>/dev/null | tr -d ' ' || echo 0)
+  _ipi=$(wc -l < /tmp/port_urls_ip.txt 2>/dev/null | tr -d ' ' || echo 0)
+  _ipc=$(wc -l < /tmp/port_urls_ip_capped.txt 2>/dev/null | tr -d ' ' || echo 0)
+  echo "✅ live.txt after port enrichment: $after (was $before; host_urls=${_iph} ip_urls_total=${_ipi} ip_urls_promoted=${_ipc} cap=${IP_LIVE_CAP})"
   if [ ! -s "$RD/live/live.json" ] && [ -s "$RD/live/live.txt" ]; then
     echo "ports-enriched" > "$RD/meta/live_probe_path.txt"
   fi
@@ -310,16 +338,42 @@ if [ -s "$RD/live/live.txt" ]; then
   echo "✅ Interesting hosts (score>=40): $(wc -l < "$RD/live/interesting.txt" 2>/dev/null || echo 0) / total live $(wc -l < "$RD/live/live.txt" 2>/dev/null || echo 0)"
   head -10 "$RD/live/interesting_ranked.txt" 2>/dev/null | sed 's/^/   /' || true
 fi
-# Unified scan order for ALL downstream tools: interesting first, then the rest.
-# Single source of truth — avoids each scanner re-implementing prioritization.
+# Unified scan order: interesting first, then other hostnames, then capped IPs.
+# Pure-IP URLs last so tech/crawlers/scanners hit real hostnames first (#162).
 : > "$RD/live/scan_order.txt"
+: > /tmp/scan_order_host.txt
+: > /tmp/scan_order_ip.txt
+_split_live_by_host_ip() {
+  local src="$1"
+  while IFS= read -r u; do
+    [ -z "$u" ] && continue
+    h=$(echo "$u" | sed -E 's#https?://##' | cut -d/ -f1 | cut -d: -f1)
+    if echo "$h" | grep -qE '^[0-9]{1,3}(\.[0-9]{1,3}){3}$'; then
+      echo "$u" >> /tmp/scan_order_ip.txt
+    else
+      echo "$u" >> /tmp/scan_order_host.txt
+    fi
+  done < "$src"
+}
 if [ -s "$RD/live/interesting.txt" ]; then
   cat "$RD/live/interesting.txt" > "$RD/live/scan_order.txt"
-  grep -Fxv -f "$RD/live/interesting.txt" "$RD/live/live.txt" >> "$RD/live/scan_order.txt" 2>/dev/null || true
+  : > /tmp/scan_order_host.txt
+  : > /tmp/scan_order_ip.txt
+  _split_live_by_host_ip "$RD/live/live.txt"
+  # remainder hostnames not already in interesting
+  if [ -s /tmp/scan_order_host.txt ]; then
+    grep -Fxv -f "$RD/live/interesting.txt" /tmp/scan_order_host.txt >> "$RD/live/scan_order.txt" 2>/dev/null || true
+  fi
+  if [ -s /tmp/scan_order_ip.txt ]; then
+    grep -Fxv -f "$RD/live/interesting.txt" /tmp/scan_order_ip.txt >> "$RD/live/scan_order.txt" 2>/dev/null || true
+  fi
 elif [ -s "$RD/live/live.txt" ]; then
-  cp "$RD/live/live.txt" "$RD/live/scan_order.txt"
+  : > /tmp/scan_order_host.txt
+  : > /tmp/scan_order_ip.txt
+  _split_live_by_host_ip "$RD/live/live.txt"
+  cat /tmp/scan_order_host.txt /tmp/scan_order_ip.txt > "$RD/live/scan_order.txt"
 fi
-echo "✅ scan_order.txt ready: $(wc -l < "$RD/live/scan_order.txt" 2>/dev/null || echo 0) hosts (interesting-first)"
+echo "✅ scan_order.txt ready: $(wc -l < "$RD/live/scan_order.txt" 2>/dev/null || echo 0) hosts (interesting→hostname→ip)"
 # Cap list for expensive Tor-bound steps when surface is large or unverified
 head -20 "$RD/live/scan_order.txt" > "$RD/live/expensive_targets.txt" 2>/dev/null || true
 probe_path=$(cat "$RD/meta/live_probe_path.txt" 2>/dev/null || echo verified)
