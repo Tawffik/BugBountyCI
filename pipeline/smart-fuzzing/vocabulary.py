@@ -111,6 +111,14 @@ def main():
         for line in read_lines(os.path.join(rd, "js", f)):
             add(vocab, tokenize(line), source)
 
+    # urls/params.txt is often richer than arjun alone (wayback/gau query keys)
+    for line in read_lines(os.path.join(rd, "urls", "params.txt")):
+        for tok in line.replace("&", " ").replace("=", " ").split():
+            param_name = tok.strip().lower()
+            if param_name and param_name not in STOPWORDS and 3 <= len(param_name) <= MAX_WORD_LEN:
+                if not looks_like_hash(param_name):
+                    vocab[param_name]["sources"].add("parameter")
+
     params = read_lines(os.path.join(rd, "targeted", "arjun_params.txt"))
     for line in params:
         # arjun output is typically "param" or "param (url)" per line
