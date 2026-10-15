@@ -56,12 +56,17 @@ if command -v naabu >/dev/null; then
   # naabu then FTL "no valid ipv4 or ipv6 targets" on hostnames under DIRECT.
   # Prefer dig/getent + IPs already observed in live.txt (port scan runs after live).
   : > /tmp/port_scan_ips.txt
-  # 1) IPs already present in live surface (ASN probe / httpx IP URLs)
+  # 1) IPs already present in live surface (prefer app-resolved surface)
   if [ -s "$RD/live/live.txt" ]; then
     grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' "$RD/live/live.txt" 2>/dev/null                 | grep -vE '^(0\.|127\.|10\.|192\.168\.|169\.254\.)'                 | sort -u >> /tmp/port_scan_ips.txt || true
   fi
+  # ASN/CIDR ranges are infrastructure-heavy (#162: 28k asn_ips → 28k ports.txt).
+  # Cap before naabu; full inventory stays in subdomains/asn_ips.txt.
+  ASN_PORT_IP_CAP="${ASN_PORT_IP_CAP:-200}"
   if [ -s "$RD/subdomains/asn_ips.txt" ]; then
-    grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' "$RD/subdomains/asn_ips.txt" 2>/dev/null                 | sort -u >> /tmp/port_scan_ips.txt || true
+    grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' "$RD/subdomains/asn_ips.txt" 2>/dev/null                 | sort -u > /tmp/asn_port_ips_all.txt || true
+    head -n "$ASN_PORT_IP_CAP" /tmp/asn_port_ips_all.txt >> /tmp/port_scan_ips.txt || true
+    echo "ℹ️ ASN IPs for port scan: promoted $(wc -l < /tmp/asn_port_ips_all.txt 2>/dev/null | tr -d ' ' || echo 0) → cap ${ASN_PORT_IP_CAP} (full list remains in subdomains/asn_ips.txt)"
   fi
   # 2) dig/getent for each hostname in INPUT (do not rely on dnsx -l alone)
   while IFS= read -r h || [ -n "$h" ]; do
@@ -87,6 +92,14 @@ if command -v naabu >/dev/null; then
     sort -u /tmp/port_scan_ips.txt -o /tmp/port_scan_ips.txt
     # drop obvious non-routable noise
     grep -vE '^(0\.|127\.|10\.|192\.168\.|169\.254\.|255\.)' /tmp/port_scan_ips.txt                 | sort -u -o /tmp/port_scan_ips.txt || true
+    # Hard ceiling so naabu cannot burn the step budget on pure-IP floods
+    NAABU_IP_CAP="${NAABU_IP_CAP:-500}"
+    _ipn=$(wc -l < /tmp/port_scan_ips.txt | tr -d ' ')
+    if [ "${_ipn:-0}" -gt "$NAABU_IP_CAP" ] 2>/dev/null; then
+      head -n "$NAABU_IP_CAP" /tmp/port_scan_ips.txt > /tmp/port_scan_ips_capped.txt
+      mv /tmp/port_scan_ips_capped.txt /tmp/port_scan_ips.txt
+      echo "ℹ️ port_scan_ips capped ${_ipn} → ${NAABU_IP_CAP} (NAABU_IP_CAP)"
+    fi
   fi
   PORT_INPUT="$INPUT"
   if [ -s /tmp/port_scan_ips.txt ]; then
