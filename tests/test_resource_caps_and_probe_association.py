@@ -117,3 +117,9 @@ def test_resource_caps_json_written_by_port_scan():
     assert "live_enrichment_caps.json" in src
     assert "asn_ips_available" in src
     assert "naabu_truncated" in src
+
+
+def test_soft_seed_host_cap_in_live_probe_recovery():
+    src = (ROOT / "scripts" / "live_host_probing.sh").read_text(encoding="utf-8")
+    assert "SOFT_SEED_HOST_CAP" in src
+    assert 'head -n "$SOFT_SEED_HOST_CAP"' in src
