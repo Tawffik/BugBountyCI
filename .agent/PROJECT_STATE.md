@@ -1,14 +1,16 @@
 # BugBountyCI — PROJECT STATE
 
 ## MAIN HEAD
-verify with git (post #34/#35)
+verify with git (post #36)
 
 ## THIS CYCLE
-#34 metrics input_integrity + baseline_meta
-#35 access-control malformed diffs → error phase
+#36 overall health propagates critical phase errors + metrics integrity
+
+## PRIOR
+#34 input_integrity · #35 access-control malformed → error
 
 ## TESTS
-270+ offline
+278+ offline expected
 
 ## LIVE
 Unverified

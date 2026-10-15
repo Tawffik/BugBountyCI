@@ -1,5 +1,25 @@
 ---
 
+## CYCLE — 2026-10-15 post-#34/#35 system-wide expansion
+
+### Start
+`7a82fce827059980bf723a61360c83e292438f38`
+
+### PR #36
+**Defect:** `engine_health.overall` only re-derived flags from arjun/nuclei, so critical phase `error` (smart_fuzzing parse failure, access_control malformed diffs) and `detection/metrics.json` `input_integrity.trusted=false` left overall=OK.
+
+**Root cause:** Incomplete aggregation of phase integrity into overall status.
+
+**Fix:** Critical phases list + phase_load_issues + detection metrics integrity → flags → DEGRADED.
+
+**Pattern:** Integrity failure erased at reporting layer (related to #31–#35).
+
+### Verified #34/#35 still present; 273 baseline tests green before change.
+
+---
+
+---
+
 ## CYCLE — 2026-10-15 system-wide discovery (post-7a00a0d)
 
 ### Start / End
