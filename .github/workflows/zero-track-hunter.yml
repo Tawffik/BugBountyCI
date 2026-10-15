@@ -4868,6 +4868,21 @@ jobs:
           except Exception:
               pass
 
+          # Critical phase errors must appear in pipeline_health.md flags (#36/#37)
+          try:
+              import subprocess
+              _out = subprocess.check_output(
+                  ["python3", "scripts/collect_phase_integrity_flags.py", rd],
+                  text=True,
+                  stderr=subprocess.DEVNULL,
+              )
+              for _line in _out.splitlines():
+                  _line = _line.strip()
+                  if _line and _line not in flags:
+                      flags.append(_line)
+          except Exception:
+              pass
+
           # --- Regression vs the last run against this same target ---
           # This is the single highest-leverage check here: a metric that was fine
           # last time and has now collapsed is a NEW, previously-unseen bug - worth
