@@ -72,7 +72,7 @@ Scope/target input
 | ID | Gap | Evidence | Priority | Status |
 |----|-----|----------|----------|--------|
 | G-obs-1 | intelligence summaries not in engine_health.phases | #141 | P1 | **FIXED** this cycle |
-| G-live-1 | hostname_targets + flags + AI severity on HEAD | #144 on 3ed22d8 only | P1 | LIVE pending |
+| G-live-1 | hostname_targets + flags + AI severity on HEAD | #162 capital.com SHA 8291408: hostname_targets=30, flags present, HEALTHY | P1 | **VERIFIED** on #162 (+ IP-cap fixes #17 on main) |
 | G-ops-1 | AI provider credentials | #142 flags | P1 | External |
 | G-arjun | upstream AttributeError | #141 | P2 | Input constrained |
 | G-depth-api | deeper authz object correlation | LEAD present; limited multi-engine join | P2 | READY later |
