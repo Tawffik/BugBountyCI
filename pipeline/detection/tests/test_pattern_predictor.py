@@ -198,3 +198,35 @@ class TestOnRealSuperdrugData(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestSiblingLeafPrediction(unittest.TestCase):
+    """Targets without /resource/{id}/action still get structural candidates."""
+
+    def test_sibling_leaves_from_observed_roots(self):
+        urls = [
+            "https://app.example.com/trading/analysis",
+            "https://app.example.com/trading/news",
+            "https://app.example.com/markets/overview",
+            "https://app.example.com/markets/news",
+        ]
+        g = learn_grammar(urls, target_domain="example.com")
+        preds = predict(g, max_predictions=50)
+        fuzz = {p.evidence.get("fuzz_path") for p in preds}
+        # news seen under markets → trade under trading is already there;
+        # analysis under markets is a sibling cross-pollination
+        self.assertTrue(
+            any(p.evidence.get("kind") == "sibling_leaf" for p in preds),
+            msg=f"expected sibling_leaf, got {[p.evidence for p in preds]}",
+        )
+        self.assertIn("markets/analysis", fuzz)
+
+    def test_id_cross_pollination_still_preferred_when_available(self):
+        urls = [
+            "https://app.example.com/invoices/701",
+            "https://app.example.com/orders/9/delivery",
+        ]
+        g = learn_grammar(urls, target_domain="example.com")
+        preds = predict(g, max_predictions=20)
+        kinds = {p.evidence.get("kind") for p in preds}
+        self.assertIn("cross_resource_action", kinds)

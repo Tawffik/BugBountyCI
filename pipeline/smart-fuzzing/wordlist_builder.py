@@ -153,6 +153,10 @@ def main():
     structural_paths = _load_predicted_fuzz_paths(out_dir)[:structural_cap]
 
     wolf_cap = wolf_cap_override if wolf_cap_override is not None else WOLF_SHARE.get(args.mode, WOLF_SHARE["normal"])
+    # When structural predictions are absent, generic Wolf must not dominate
+    # the target-specific wordlist (same failure class as the 73% Wolf bug).
+    if not structural_paths:
+        wolf_cap = min(wolf_cap, max(15, VOCAB_SHARE.get(args.mode, 120) // 3))
     wolf_candidates = wolf_lines[:wolf_cap]
 
     candidates = set(wolf_candidates) | set(vocab_candidates) | set(structural_paths)

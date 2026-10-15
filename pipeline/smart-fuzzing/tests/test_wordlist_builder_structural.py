@@ -165,3 +165,31 @@ class TestWordlistBuilderSourceBalance(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestWolfShrinkWithoutStructural(unittest.TestCase):
+    def test_vocab_dominates_when_no_predictions(self):
+        tmp = tempfile.mkdtemp()
+        rd = tmp
+        os.makedirs(os.path.join(rd, "smart-fuzzing"), exist_ok=True)
+        os.makedirs(os.path.join(rd, "detection"), exist_ok=True)
+        # large wolf
+        with open(os.path.join(rd, "smart-fuzzing", "wolf_selected.txt"), "w") as f:
+            for i in range(500):
+                f.write(f"wolf{i}\n")
+        vocab = {f"appword{i}": {"count": 3, "sources": ["js"]} for i in range(80)}
+        with open(os.path.join(rd, "smart-fuzzing", "vocabulary.json"), "w") as f:
+            json.dump(vocab, f)
+        with open(os.path.join(rd, "detection", "predicted_paths.json"), "w") as f:
+            json.dump([], f)
+        result = subprocess.run(
+            [sys.executable, SCRIPT, "--results-dir", rd, "--mode", "normal"],
+            capture_output=True, text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        lines = open(os.path.join(rd, "smart-fuzzing", "target_wordlist.txt")).read().splitlines()
+        wolf_n = sum(1 for l in lines if l.startswith("wolf"))
+        app_n = sum(1 for l in lines if l.startswith("appword"))
+        # With empty structural, wolf_cap <= VOCAB_SHARE/3 (=40) so app words should appear
+        self.assertGreater(app_n, 0)
+        self.assertLess(wolf_n, 80)
