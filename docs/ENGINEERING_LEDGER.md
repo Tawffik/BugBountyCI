@@ -1,5 +1,29 @@
 ---
 
+## CYCLE — 2026-10-15 post-#36 lineage / reporting integrity
+
+### Start
+`6955c114ce9e3757808b50558c72e24510213e2b`
+
+### PR #37
+**Defect:** #36 incomplete — `pipeline_health.md` overwrote `overall` with HEALTHY and **replaced** phase-derived flags, erasing smart_fuzzing/access_control errors.
+
+**Root cause:** MD overall/flags treated as exclusive authority after phase integrity was computed.
+
+**Fix:** Merge flags; worst-of status ranking; final guard: phase integrity flags ⇒ overall ≠ OK.
+
+**Regression:** `test_pipeline_health_md_healthy_cannot_erase_phase_error`
+
+### Resource-cap env
+`${VAR:-default}` handles empty string; no new defect proven for empty env bypass.
+
+### Live
+Still outstanding for #17/#24/#30.
+
+---
+
+---
+
 ## CYCLE — 2026-10-15 post-#34/#35 system-wide expansion
 
 ### Start

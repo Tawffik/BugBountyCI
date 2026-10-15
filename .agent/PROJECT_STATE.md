@@ -1,19 +1,16 @@
 # BugBountyCI — PROJECT STATE
 
 ## MAIN HEAD
-verify with git (post #36)
+`359b57b77271` (verify with git)
 
 ## THIS CYCLE
-#36 overall health propagates critical phase errors + metrics integrity
-
-## PRIOR
-#34 input_integrity · #35 access-control malformed → error
+#37 phase integrity survives pipeline_health.md (completes #36)
 
 ## TESTS
-278+ offline expected
+280+ offline
 
 ## LIVE
-Unverified
+Unverified (#17/#24/#30)
 
 ## BOUNDARIES
 dorking OFF · SI→Hunter OFF · IDOR BLOCKED_EXTERNAL
