@@ -66,7 +66,16 @@ if command -v naabu >/dev/null; then
   if [ -s "$RD/subdomains/asn_ips.txt" ]; then
     grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' "$RD/subdomains/asn_ips.txt" 2>/dev/null                 | sort -u > /tmp/asn_port_ips_all.txt || true
     head -n "$ASN_PORT_IP_CAP" /tmp/asn_port_ips_all.txt >> /tmp/port_scan_ips.txt || true
-    echo "ℹ️ ASN IPs for port scan: promoted $(wc -l < /tmp/asn_port_ips_all.txt 2>/dev/null | tr -d ' ' || echo 0) → cap ${ASN_PORT_IP_CAP} (full list remains in subdomains/asn_ips.txt)"
+    _asn_all=$(wc -l < /tmp/asn_port_ips_all.txt 2>/dev/null | tr -d ' ' || echo 0)
+    if [ "${_asn_all:-0}" -gt "$ASN_PORT_IP_CAP" ] 2>/dev/null; then
+      _asn_promoted=$ASN_PORT_IP_CAP
+    else
+      _asn_promoted=${_asn_all:-0}
+    fi
+    echo "ℹ️ ASN IPs for port scan: available ${_asn_all} → promoted ${_asn_promoted} (cap ${ASN_PORT_IP_CAP}; full list remains in subdomains/asn_ips.txt)"
+    mkdir -p "$RD/meta"
+    printf '{"asn_ips_available":%s,"asn_ips_promoted":%s,"asn_port_ip_cap":%s}
+'       "${_asn_all:-0}" "${_asn_promoted:-0}" "$ASN_PORT_IP_CAP" > /tmp/cap_asn.json 2>/dev/null || true
   fi
   # 2) dig/getent for each hostname in INPUT (do not rely on dnsx -l alone)
   while IFS= read -r h || [ -n "$h" ]; do
@@ -99,7 +108,22 @@ if command -v naabu >/dev/null; then
       head -n "$NAABU_IP_CAP" /tmp/port_scan_ips.txt > /tmp/port_scan_ips_capped.txt
       mv /tmp/port_scan_ips_capped.txt /tmp/port_scan_ips.txt
       echo "ℹ️ port_scan_ips capped ${_ipn} → ${NAABU_IP_CAP} (NAABU_IP_CAP)"
+      printf '{"port_scan_ips_before_cap":%s,"naabu_ip_cap":%s,"truncated":true}
+'         "${_ipn}" "$NAABU_IP_CAP" > /tmp/cap_naabu.json 2>/dev/null || true
+    else
+      printf '{"port_scan_ips_before_cap":%s,"naabu_ip_cap":%s,"truncated":false}
+'         "${_ipn:-0}" "$NAABU_IP_CAP" > /tmp/cap_naabu.json 2>/dev/null || true
     fi
+    # Observable truncation evidence for exports/diagnosis
+    mkdir -p "$RD/meta"
+    _asn_a=0; _asn_p=0
+    [ -f /tmp/cap_asn.json ] && _asn_a=$(sed -n 's/.*"asn_ips_available":\([0-9]*\).*/\1/p' /tmp/cap_asn.json)
+    [ -f /tmp/cap_asn.json ] && _asn_p=$(sed -n 's/.*"asn_ips_promoted":\([0-9]*\).*/\1/p' /tmp/cap_asn.json)
+    _nb_before=${_ipn:-0}
+    _nb_trunc=false
+    [ -f /tmp/cap_naabu.json ] && grep -q '"truncated":true' /tmp/cap_naabu.json && _nb_trunc=true
+    printf '{"asn_ips_available":%s,"asn_ips_promoted":%s,"asn_port_ip_cap":%s,"port_scan_ips_before_cap":%s,"naabu_ip_cap":%s,"naabu_truncated":%s,"ip_live_cap":%s}
+'       "${_asn_a:-0}" "${_asn_p:-0}" "${ASN_PORT_IP_CAP:-200}" "${_nb_before}" "${NAABU_IP_CAP:-500}" "${_nb_trunc}" "${IP_LIVE_CAP:-200}"       > "$RD/meta/resource_caps.json" 2>/dev/null || true
   fi
   PORT_INPUT="$INPUT"
   if [ -s /tmp/port_scan_ips.txt ]; then
@@ -293,6 +317,9 @@ if [ -s "$RD/live/ports.txt" ]; then
   _ipi=$(wc -l < /tmp/port_urls_ip.txt 2>/dev/null | tr -d ' ' || echo 0)
   _ipc=$(wc -l < /tmp/port_urls_ip_capped.txt 2>/dev/null | tr -d ' ' || echo 0)
   echo "✅ live.txt after port enrichment: $after (was $before; host_urls=${_iph} ip_urls_total=${_ipi} ip_urls_promoted=${_ipc} cap=${IP_LIVE_CAP})"
+  mkdir -p "$RD/meta"
+  printf '{"live_before":%s,"live_after":%s,"host_urls":%s,"ip_urls_total":%s,"ip_urls_promoted":%s,"ip_live_cap":%s}
+'     "${before:-0}" "${after:-0}" "${_iph:-0}" "${_ipi:-0}" "${_ipc:-0}" "${IP_LIVE_CAP}"     > "$RD/meta/live_enrichment_caps.json" 2>/dev/null || true
   if [ ! -s "$RD/live/live.json" ] && [ -s "$RD/live/live.txt" ]; then
     echo "ports-enriched" > "$RD/meta/live_probe_path.txt"
   fi

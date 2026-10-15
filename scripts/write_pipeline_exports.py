@@ -554,6 +554,9 @@ def main():
                         path_key = (pr.path or "").rstrip("/") or "/"
                         host = (pr.hostname or "").lower()
                         if host and path_key:
+                            port = pr.port
+                            if port and port not in (80, 443):
+                                probe_by_url.setdefault(f"{host}:{port}|{path_key}", row)
                             probe_by_url.setdefault(f"{host}|{path_key}", row)
                     except Exception:
                         pass
@@ -572,7 +575,12 @@ def main():
                 pr = urlparse(target_url if "://" in target_url else "https://" + target_url)
                 path_key = (pr.path or "").rstrip("/") or "/"
                 host = (pr.hostname or "").lower()
-                row = probe_by_url.get(f"{host}|{path_key}") or {}
+                port = pr.port
+                row = {}
+                if port and port not in (80, 443):
+                    row = probe_by_url.get(f"{host}:{port}|{path_key}") or {}
+                if not row:
+                    row = probe_by_url.get(f"{host}|{path_key}") or {}
             except Exception:
                 row = {}
         body = row.get("body") if "body" in row else row.get("body_preview")
