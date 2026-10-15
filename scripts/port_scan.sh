@@ -473,6 +473,7 @@ echo "critical_seeds=$(wc -l < "$RD/live/critical_seeds.txt" 2>/dev/null || echo
 # from expensive_targets or live.txt (Info-disclosure burned 28m on #142/#143).
 if command -v python3 >/dev/null 2>&1 && [ -f scripts/hostname_targets.py ]; then
   python3 scripts/hostname_targets.py \
+    "$RD/live/interesting_ranked.txt" \
     "$RD/live/critical_seeds.txt" \
     "$RD/live/scan_order.txt" \
     "$RD/live/expensive_targets.txt" \
