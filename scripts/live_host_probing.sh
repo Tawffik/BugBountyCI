@@ -221,7 +221,8 @@ _LIVE_N=${_LIVE_N:-0}
 if [ "${_LIVE_N:-0}" -lt 20 ] && [ -s "$RD/subdomains/resolved.txt" ]; then
   before=$_LIVE_N
   while IFS= read -r h; do
-    h="$(echo "$h" | tr -d '' | xargs)"; [ -z "$h" ] && continue
+    h="$(echo "$h" | tr -d '
+' | xargs)"; [ -z "$h" ] && continue
     echo "https://$h" >> "$RD/live/live.txt"
     echo "http://$h" >> "$RD/live/live.txt"
   done < "$RD/subdomains/resolved.txt"
@@ -389,10 +390,18 @@ if [ -s "$RD/subdomains/asn_ips.txt" ]; then
 fi
 
 jq -r 'select(.cdn_name != null) | "\(.url) -> \(.cdn_name)"' "$RD/live/live.json" > "$RD/live/waf.txt" 2>/dev/null || true
-# BUGFIX: tech-detect used the same broken "-l" bulk mode as the main probe
-# above - switched to the same proven-working per-host loop. live.txt is
-# small at this point (confirmed hosts only), so no time budget is needed.
-probe_hosts "$RD/live/live.txt" "$RD/live/tech.json" 15 2 4 ""
+# Tech-detect: prefer real hostnames over pure-IP noise. #162 showed live.txt
+# later swollen by IP ports; even pre-port, probing IP-first wastes budget.
+# Build hostname-first input; fall back to live.txt if empty.
+: > /tmp/tech_probe_input.txt
+if [ -s "$RD/live/live.txt" ]; then
+  grep -E 'https?://[A-Za-z]' "$RD/live/live.txt" 2>/dev/null | head -200 > /tmp/tech_probe_input.txt || true
+fi
+if [ ! -s /tmp/tech_probe_input.txt ] && [ -s "$RD/live/live.txt" ]; then
+  head -80 "$RD/live/live.txt" > /tmp/tech_probe_input.txt || true
+fi
+# Hard time budget so tech cannot dominate the step (180s)
+probe_hosts "/tmp/tech_probe_input.txt" "$RD/live/tech.json" 15 2 4 "180"
 
 # Enrich technologies when httpx failed (curl fallback only has status).
 # curl's TLS stack often passes where Go/httpx JA3 is rejected — enough
@@ -403,14 +412,16 @@ fi
 
 # Phase status for quality gates / health
 _live_n=$(safe_count "$RD/live/live.txt" 2>/dev/null || echo 0)
+_live_host_n=$(grep -cE 'https?://[A-Za-z]' "$RD/live/live.txt" 2>/dev/null || echo 0)
+_live_ip_n=$(( ${_live_n:-0} - ${_live_host_n:-0} ))
 if [ "${_live_n:-0}" -eq 0 ] 2>/dev/null; then
   write_phase_status "$RD" "live_probe" "empty" "zero live hosts after DIRECT-first probe"
-elif [ "${_live_n:-0}" -lt 5 ] 2>/dev/null; then
-  write_phase_status "$RD" "live_probe" "ok" "low live count=${_live_n} (possible WAF/IP block — Tor fallback may have been used per-host)"
+elif [ "${_live_host_n:-0}" -lt 5 ] 2>/dev/null && [ "${_live_n:-0}" -lt 5 ] 2>/dev/null; then
+  write_phase_status "$RD" "live_probe" "ok" "low live count=${_live_n} hostnames=${_live_host_n} (possible WAF/IP block — Tor fallback may have been used per-host)"
 else
-  write_phase_status "$RD" "live_probe" "ok" "live_hosts=${_live_n}"
+  write_phase_status "$RD" "live_probe" "ok" "live_hosts=${_live_n} hostnames=${_live_host_n} ip_urls=${_live_ip_n}"
 fi
-echo "✅ Live hosts: $(wc -l < "$RD/live/live.txt")"
+echo "✅ Live hosts: ${_live_n} (hostnames=${_live_host_n} ip_urls=${_live_ip_n})"
 # Classify verified vs unverified for operators + downstream caps
 : > "$RD/live/verified.txt"
 : > "$RD/live/unverified.txt"

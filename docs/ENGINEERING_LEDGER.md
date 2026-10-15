@@ -1,5 +1,32 @@
 ---
 
+## CYCLE — 2026-10-15 — Cap pure-IP port enrichment into live.txt (#162 evidence)
+
+### Proven defect
+- Run **#162** `ports.txt` = **28630** pure-IP lines; unbounded merge → `live.txt` **28734** IP URLs
+- `scan_order.txt` mirrored the flood; tech/scanners deprioritized real hostnames
+- `hostname_targets` (30) already filtered correctly; the bug was upstream live/scan_order pollution
+
+### Fix
+- `scripts/port_scan.sh`: hostname port URLs always promoted; pure-IP URLs capped (`IP_LIVE_CAP` default **200**); full IP inventory → `live/ip_port_candidates.txt`
+- Non-standard port merge uses the same cap
+- `scan_order`: interesting → hostnames → IPs
+- `scripts/live_host_probing.sh`: tech probe input = hostname-first (max 200) + 180s budget; phase status reports hostnames vs ip_urls
+
+### Offline proof on #162 ports.txt
+- merged live size **286** (86 seed hostnames + 200 IP cap) vs **28734** unbounded (~100× reduction)
+
+### Tests
+- `tests/test_port_live_enrichment_cap.py` (new)
+- hostname_targets + workflow integrity still green
+
+### Status
+**IMPLEMENTED** — live verification on next authorized light run (tech coverage + scan_order composition)
+
+---
+
+---
+
 ## CYCLE — 2026-10-15 — Close V2 §2 open diagnostics using #162 artifacts (no new scan)
 
 ### Evidence source

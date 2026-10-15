@@ -1,25 +1,13 @@
 # BugBountyCI — PROJECT STATE
 
 ## MODE
-CONTINUE — always-record LIVE E2E verified; V2 §2 diagnostics closed on #162 evidence
+CONTINUE — IP port→live enrichment capped (#162 root cause)
 
-## MAIN HEAD
-`a417877` (docs #162 harvest) · workflow restore SHA `8291408` (351118 bytes)
+## MAIN HEAD (pre-merge)
+See branch `fix/cap-ip-port-live-enrichment`
 
-## LIVE #162 HARVEST (capital.com light)
-- Run `38611194554` success · artifact `11923298068`
-- probe_results **48** records (PROBE_CAP) · schema v1
-- Classifier offline on live bodies: SPA_CATCHALL=39, CONTENT_SUPPORTED=0
-- Positive hit files empty · overall HEALTHY
-- **tech.json**: non-empty (4 rows, 2 with technologies via curl_tech_detect)
-- **response_diffs.json**: 30 diffs · DIFFS_GENERATED · ffuf exit=0 (not TLS death)
-- Hunter queue: SSRF HIGH_SIGNAL + surface leads; no false ID promotion from SPA probes
-
-## HISTORICAL #147–#151
-probe_results EMPTY under positive-only emitter (ea7fa9a8) — expected
-
-## V2 §2
-CLOSED with #162 evidence (see docs/V2_ROADMAP.md §2)
+## DEFECT FIXED
+Unbounded pure-IP ports.txt merge into live.txt/scan_order (28k URLs on #162)
 
 ## BOUNDARIES
 dorking_engine IMPLEMENTED_NOT_INVOKED · SI→Hunter OFF
