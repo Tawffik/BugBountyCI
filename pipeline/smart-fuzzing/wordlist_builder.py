@@ -154,6 +154,11 @@ def _load_admin_fuzz_paths(out_dir) -> list[str]:
     path = os.path.normpath(os.path.join(out_dir, "..", "js", "admin.txt"))
     return _load_path_file_candidates(path, limit=40)
 
+
+def _load_api_urls_fuzz_paths(out_dir) -> list[str]:
+    path = os.path.normpath(os.path.join(out_dir, "..", "urls", "api_urls.txt"))
+    return _load_path_file_candidates(path, limit=100)
+
 def _load_swagger_fuzz_paths(out_dir):
     """OpenAPI path keys extracted in API Discovery (js/swagger_paths.txt)."""
     path = os.path.normpath(os.path.join(out_dir, "..", "js", "swagger_paths.txt"))
@@ -231,6 +236,7 @@ def main():
         _load_swagger_fuzz_paths(out_dir)
         + _load_linkfinder_fuzz_paths(out_dir)
         + _load_admin_fuzz_paths(out_dir)
+        + _load_api_urls_fuzz_paths(out_dir)
     ):
         if sp not in structural_paths:
             structural_paths.append(sp)
