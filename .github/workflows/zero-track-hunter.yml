@@ -2057,6 +2057,10 @@ jobs:
           }
 
           # Always-record for body classifier E2E (SPA/AUTH/WAF/path-only). Cap keeps artifact bounded.
+          # Tech-aware extra paths from live/tech.json (bounded; same probe loop)
+          : > /tmp/info_disc_extra_paths.txt
+          python3 scripts/info_disclosure_extra_paths.py "$RD/live/tech.json" /tmp/info_disc_extra_paths.txt 2>/dev/null || true
+
           PROBE_CAP=48
           probe_count=0
           record_probe() {
@@ -2107,7 +2111,7 @@ jobs:
           done
 
           : > "$RD/info_disclosure/config_files.txt"
-          for path in "/.env" "/.env.local" "/config.json" "/web.config" "/phpinfo.php" "/server-status" "/.aws/credentials"; do
+          for path in "/.env" "/.env.local" "/config.json" "/web.config" "/phpinfo.php" "/server-status" "/.aws/credentials" $(tr "\n" " " < /tmp/info_disc_extra_paths.txt 2>/dev/null); do
             budget_ok || break
             while IFS= read -r host; do
               [ -z "$host" ] && continue
