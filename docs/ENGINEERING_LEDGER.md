@@ -1,5 +1,27 @@
 ---
 
+## CYCLE — 2026-10-15 post-#38 independent defect (scope)
+
+### Start
+`3cea267257440861f12a18e3319cc794fddc7131`
+
+### PR #39
+**Defect:** `parameter_intelligence` included third-party endpoints from wayback/gf without TARGET host filter → SSRF/open-redirect candidates off authorized scope.
+
+**Root cause:** Missing domain scope at map construction (pattern_predictor already had `in_scope` for the same class of pollution).
+
+**Fix:** `_endpoint_in_scope` + `TARGET` env; `endpoints_dropped_out_of_scope` counter; regression tests.
+
+### #36–#38
+Verified present; not reopened.
+
+### Live
+Still outstanding.
+
+---
+
+---
+
 ## CYCLE — 2026-10-15 post-#37 integrity contract at MD source
 
 ### Start

@@ -1,19 +1,19 @@
 # BugBountyCI — PROJECT STATE
 
 ## MAIN HEAD
-verify with git (post #38)
+verify with git (post #39)
 
 ## THIS CYCLE
-#38 pipeline_health.md flags critical phase errors at source
+#39 parameter_intelligence TARGET scope filter (independent of reporting integrity)
 
 ## PRIOR
-#36 overall from phases · #37 MD cannot erase phase integrity
+#36–#38 health integrity chain
 
 ## TESTS
-283+ offline expected
+286+ offline expected
 
 ## LIVE
-Unverified
+Unverified (#17/#24/#30)
 
 ## BOUNDARIES
 dorking OFF · SI→Hunter OFF · IDOR BLOCKED_EXTERNAL
