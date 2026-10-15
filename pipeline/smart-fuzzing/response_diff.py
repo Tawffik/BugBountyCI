@@ -320,11 +320,13 @@ def main():
                            # in the page, or padding) — this clusters those
                            # together instead of over-counting near-identical pages
 
+    parse_failures = 0
     for jf in glob.glob(os.path.join(args.ffuf_json_dir, "*.json")):
         try:
             with open(jf, "r", errors="ignore") as f:
                 data = json.load(f)
         except Exception:
+            parse_failures += 1
             continue
 
         config_url = (data.get("config") or {}).get("url", "")
@@ -435,6 +437,7 @@ def main():
     outcome["ffuf"] = ffuf_stats
     outcome["finding_count"] = finding_count
     outcome["pipeline_state"] = pipeline_state
+    outcome["ffuf_json_parse_failures"] = parse_failures
     # useful_signals must match structured finding count, not header lines
     outcome["useful_signals"] = finding_count
 
@@ -449,6 +452,7 @@ def main():
         "diff_count": len(diffs),
         "classification_counts": counts,
         "ffuf": ffuf_stats,
+        "ffuf_json_parse_failures": parse_failures,
         "note": (
             "finding_count counts http(s) result lines only — header/comment lines are not findings. "
             "REQUESTS_EXECUTED_NO_MATCH means ffuf ran and returned results=[] (often -ac filtering), "
@@ -462,6 +466,7 @@ def main():
     ranking["finding_count"] = finding_count
     ranking["pipeline_state"] = pipeline_state
     ranking["ffuf"] = ffuf_stats
+    ranking["ffuf_json_parse_failures"] = parse_failures
     with open(os.path.join(out_dir, "response_ranking.json"), "w") as f:
         json.dump(ranking, f, indent=2)
         f.write("\n")
