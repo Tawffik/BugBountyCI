@@ -2687,12 +2687,16 @@ jobs:
           [ -s "$INPUT" ] || INPUT="$RD/live/scan_order.txt"
           [ -s "$INPUT" ] || { echo "https://${{ env.TARGET }}" > /tmp/fallback.txt; INPUT=/tmp/fallback.txt; }
           : > "$RD/js/swagger.txt"
+          : > "$RD/js/swagger_paths.txt"
           for path in "/swagger.json" "/v2/api-docs" "/v3/api-docs" "/openapi.json" "/api/docs" "/swagger-ui.html"; do
             while IFS= read -r host; do
               host="$(echo "$host" | tr -d '\r' | xargs)"; [ -z "$host" ] && continue
               s=$(proxychains4 -q curl -sk -o /tmp/body.txt -w "%{http_code}" --max-time 5 "${host}${path}" 2>/dev/null || echo "000")
               s="${s: -3}"  # curl -w already prints 000 on failure AND exits non-zero, so the || echo "000" fallback doubles it to 000000 - truncate to be safe either way
-              [ "$s" = "200" ] && grep -qiE '(swagger|openapi|"paths")' /tmp/body.txt 2>/dev/null && echo "[$s] ${host}${path}" >> "$RD/js/swagger.txt"
+              if [ "$s" = "200" ] && grep -qiE '(swagger|openapi|"paths")' /tmp/body.txt 2>/dev/null; then
+                echo "[$s] ${host}${path}" >> "$RD/js/swagger.txt"
+                python3 scripts/extract_openapi_paths.py /tmp/body.txt "$RD/js/swagger_paths.txt" 2>/dev/null || true
+              fi
             done < "$INPUT"
           done
           : > "$RD/js/graphql.txt"
@@ -2883,7 +2887,8 @@ jobs:
             BASE_LEN["$host"]=$(wc -c < /tmp/base_body 2>/dev/null || echo 0)
           done < "$INPUT"
           : > "$RD/files/sensitive.txt"
-          for path in "/.env" "/.git/config" "/wp-config.php" "/config.json" "/credentials.json" "/phpinfo.php" "/info.php" "/Dockerfile" "/.aws/credentials" "/backup.sql"; do
+          # Unique vs Information Disclosure (avoid double budget on .env/.git/backup)
+          for path in "/wp-config.php" "/credentials.json" "/info.php" "/Dockerfile" "/web.config.bak" "/appsettings.json" "/.dockerenv"; do
             while IFS= read -r host; do
             budget_ok || { echo "⚠️ Security Analysis soft deadline (${SECONDS}s)"; break; }
               host="$(echo "$host" | tr -d '\r' | xargs)"; [ -z "$host" ] && continue
