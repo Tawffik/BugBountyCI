@@ -1,4 +1,10 @@
 ---
+## CYCLE — remaining workflow gaps closed #46–#47
+#46 linkfinder/admin → wordlist structural; tech-aware ID paths from tech.json
+#47 api_urls → wordlist; Parameter Intelligence before Content Discovery
+Order now: API → PI → Content Discovery (smart-fuzz)
+---
+---
 ## CYCLE — continued workflow audit #44–#45
 #44 OpenAPI path extract + SA path dedup
 #45 swagger_paths in wordlist structural tier
