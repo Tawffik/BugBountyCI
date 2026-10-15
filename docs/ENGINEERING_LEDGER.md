@@ -1,5 +1,41 @@
 ---
 
+## CYCLE — 2026-10-15 post-b567fd4 — resource bounds + association + soft-seed + ffuf visibility
+
+### Starting HEAD
+`b567fd44714b4f5594bf87a97195bb74808a5055`
+
+### Ending HEAD
+see git
+
+### Merged
+| PR | Change |
+|----|--------|
+| **#29** | Port-aware probe host\|path keys; `meta/resource_caps.json` + `live_enrichment_caps.json`; stronger offline cap tests |
+| **#30** | `SOFT_SEED_HOST_CAP=500` on zero-live recovery path |
+| **#31** | `ffuf_json_parse_failures` on smart-fuzzing metrics/outcome/ranking |
+
+### Resource-bound verification (#17+#24)
+- ASN_PORT_IP_CAP and NAABU_IP_CAP applied **before** naabu `-l` (source order verified)
+- IP_LIVE_CAP on nonstd + port_urls enrichment paths
+- scan_order hostname-before-IP preserved
+- Truncation now observable in artifacts (resource_caps.json)
+- Offline tests: below/above/empty/malformed IP extraction
+- Live light verification still requires authorized target (not run)
+
+### Pattern hunt notes
+- Probe association: scheme-swap + port-aware keys (default ports share host\|path; non-default prefer host:port\|path)
+- Soft-seed recovery was remaining amplification path for hostnames
+- Silent ffuf JSON parse skip → counted
+- Many bare `except: pass` remain in write_pipeline_exports (intentional degrade-per-section); critical UnboundLocal path already logged (#28)
+
+### Tests
+250+ expected after new suite
+
+---
+
+---
+
 ## CYCLE — 2026-10-15 — Cross-engine pattern hunt continuation (PRs #24–#27)
 
 ### Root-cause repairs

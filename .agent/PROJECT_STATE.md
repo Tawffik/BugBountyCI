@@ -1,23 +1,21 @@
 # BugBountyCI — PROJECT STATE
 
 ## MAIN HEAD
-`12dd6eb69af266e3fac2fe5af010494a7aa99bcd`
+`89ee30edf948` (verify with git)
 
 ## WORKFLOW
-zero-track-hunter.yml ~351KB · always-record · no placeholder
+zero-track-hunter.yml 351468 · always-record
 
-## MERGES THIS CONTINUATION
-#24 ASN→naabu cap · #25 probe URL aliases · #26/#27 urlparse UnboundLocal
-#28 log HISTORICAL∩JS export failures
-
-## PRIOR SESSION
-#17–#23 IP_LIVE_CAP, tech dual-write, overall enum, etc.
+## THIS CONTINUATION
+#29 port-aware probe + resource_caps observability
+#30 SOFT_SEED_HOST_CAP recovery
+#31 ffuf JSON parse failure visibility
 
 ## TESTS
-246+ green
+250+ green offline
+
+## LIVE VERIFY
+Authorized light run still needed for ports/live bound under #17+#24+#30
 
 ## BOUNDARIES
-dorking_engine IMPLEMENTED_NOT_INVOKED · SI→Hunter OFF · IDOR multi-session BLOCKED_EXTERNAL
-
-## OPTIONAL NEXT
-Authorized light run to verify ports.txt/live.txt bounds under #17+#24
+dorking IMPLEMENTED_NOT_INVOKED · SI→Hunter OFF · IDOR multi-session BLOCKED_EXTERNAL
