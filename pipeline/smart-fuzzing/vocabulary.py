@@ -105,6 +105,7 @@ def main():
 
     for f, source in (
         ("swagger.txt", "swagger"),
+        ("swagger_paths.txt", "swagger"),
         ("graphql.txt", "graphql"),
         ("admin.txt", "admin"),
     ):
