@@ -686,6 +686,9 @@ def load_fixed_path_info_disclosure(results_dir, limit=20):
                         path_key = (pr.path or "").rstrip("/") or "/"
                         host = (pr.hostname or "").lower()
                         if host and path_key:
+                            port = pr.port
+                            if port and port not in (80, 443):
+                                probe.setdefault(f"{host}:{port}|{path_key}", row)
                             probe.setdefault(f"{host}|{path_key}", row)
                     except Exception:
                         pass
@@ -712,7 +715,12 @@ def load_fixed_path_info_disclosure(results_dir, limit=20):
                             pr = urlparse(url if "://" in url else "https://" + url)
                             path_key = (pr.path or "").rstrip("/") or "/"
                             host = (pr.hostname or "").lower()
-                            row = probe.get(f"{host}|{path_key}") or {}
+                            port = pr.port
+                            row = {}
+                            if port and port not in (80, 443):
+                                row = probe.get(f"{host}:{port}|{path_key}") or {}
+                            if not row:
+                                row = probe.get(f"{host}|{path_key}") or {}
                             if not row and pr.scheme in ("http", "https"):
                                 alt_scheme = "https" if pr.scheme == "http" else "http"
                                 alt = url.replace(pr.scheme + "://", alt_scheme + "://", 1)
