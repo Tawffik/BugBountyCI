@@ -34,6 +34,30 @@ PARAM_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_\-]{0,64}$")
 URL_RE = re.compile(r"https?://[^\s\"'<>]+", re.I)
 
 
+def _endpoint_in_scope(endpoint: str, target_domain: str | None) -> bool:
+    """Keep only the authorized target and its subdomains.
+
+    Same failure class as pattern_predictor.in_scope: wayback/gau/gf lists
+    contain third-party domains the target merely links to. Without filtering,
+    SSRF/open-redirect candidates can target hosts outside authorized scope.
+    """
+    if not target_domain:
+        return True
+    if not endpoint or endpoint == "_global":
+        return True
+    if endpoint.startswith("/"):
+        return True
+    try:
+        host = (urlparse(endpoint).hostname or "").lower()
+    except Exception:
+        return False
+    if not host:
+        return False
+    td = target_domain.lower().lstrip(".")
+    return host == td or host.endswith("." + td)
+
+
+
 def _read_lines(path: str, limit: int = MAX_LINE_SCAN) -> list[str]:
     if not path or not os.path.isfile(path) or os.path.getsize(path) == 0:
         return []
@@ -96,7 +120,7 @@ def _add(store: dict, endpoint: str, param: str, source: str) -> None:
         bucket[param].add(source)
 
 
-def build(results_dir: str) -> dict[str, Any]:
+def build(results_dir: str, target_domain: str | None = None) -> dict[str, Any]:
     rd = results_dir
     store: dict[str, dict[str, set]] = defaultdict(dict)
 
@@ -180,8 +204,12 @@ def build(results_dir: str) -> dict[str, Any]:
             pass
 
     endpoints_out = []
-    for ep, params in list(store.items())[:MAX_ENDPOINTS]:
+    dropped_oos = 0
+    for ep, params in store.items():
         if ep == "_global":
+            continue
+        if not _endpoint_in_scope(ep, target_domain):
+            dropped_oos += 1
             continue
         endpoints_out.append({
             "endpoint": ep,
@@ -190,6 +218,8 @@ def build(results_dir: str) -> dict[str, Any]:
                 for n, srcs in sorted(params.items())
             ],
         })
+    # Cap after scope filter so MAX_ENDPOINTS is in-scope budget
+    endpoints_out = endpoints_out[:MAX_ENDPOINTS]
     endpoints_out.sort(key=lambda e: (-len(e["parameters"]), e["endpoint"]))
 
     global_params = [
@@ -199,8 +229,10 @@ def build(results_dir: str) -> dict[str, Any]:
 
     return {
         "version": 1,
+        "target_domain": target_domain or "",
         "endpoint_count": len(endpoints_out),
         "parameter_count": sum(len(e["parameters"]) for e in endpoints_out) + len(global_params),
+        "endpoints_dropped_out_of_scope": dropped_oos,
         "global_parameter_hints": global_params,
         "endpoints": endpoints_out,
     }
@@ -211,15 +243,18 @@ def main() -> int:
     ap.add_argument("--results-dir", required=True)
     ap.add_argument("--out", default=None, help="default: <results-dir>/detection/parameter_intelligence.json")
     args = ap.parse_args()
-    data = build(args.results_dir)
+    target = (os.environ.get("TARGET") or "").strip() or None
+    data = build(args.results_dir, target_domain=target)
     out = args.out or os.path.join(args.results_dir, "detection", "parameter_intelligence.json")
     os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
     with open(out, "w") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
         f.write("\n")
+    oos = data.get("endpoints_dropped_out_of_scope") or 0
     print(
         f"✅ parameter_intelligence.json: {data['endpoint_count']} endpoints, "
-        f"{data['parameter_count']} params → {out}"
+        f"{data['parameter_count']} params"
+        f"{f', dropped_oos={oos}' if oos else ''} → {out}"
     )
     return 0
 
