@@ -1247,6 +1247,32 @@ def main():
         except Exception:
             urls_n = 0
 
+
+    def _count_live_kind(kind: str) -> int:
+        """Count live.txt URLs whose host is a hostname vs pure IPv4 (#162 honesty)."""
+        import re as _re
+        from urllib.parse import urlparse as _urlparse
+        ip_re = _re.compile(r"^\d{1,3}(?:\.\d{1,3}){3}$")
+        n = 0
+        try:
+            with open(os.path.join(rd, "live/live.txt"), errors="ignore") as fh:
+                for line in fh:
+                    u = line.strip()
+                    if not u:
+                        continue
+                    try:
+                        host = (_urlparse(u).hostname or "") if "://" in u else u.split("/")[0].split(":")[0]
+                    except Exception:
+                        continue
+                    is_ip = bool(ip_re.fullmatch(host or ""))
+                    if kind == "ip" and is_ip:
+                        n += 1
+                    elif kind == "hostname" and host and not is_ip:
+                        n += 1
+        except Exception:
+            return 0
+        return n
+
     profile = {
         "schema": "bugbountyci.target_profile.v1",
         "run_id": run_id,
@@ -1254,8 +1280,11 @@ def main():
         "counts": {
             "resolved_hosts": nlines("subdomains/resolved.txt"),
             "live_hosts": nlines("live/live.txt"),
+            "live_hostname_urls": _count_live_kind("hostname"),
+            "live_ip_urls": _count_live_kind("ip"),
             "verified_hosts": nlines("live/verified.txt"),
             "ports": nlines("live/ports.txt"),
+            "ip_port_candidates": nlines("live/ip_port_candidates.txt"),
             "urls": urls_n,
             "arjun_params": nlines("targeted/arjun_params.txt"),
             "nuclei_findings": nlines("nuclei/findings.jsonl"),
