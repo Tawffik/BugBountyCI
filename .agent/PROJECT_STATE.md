@@ -1,22 +1,18 @@
 # BugBountyCI — PROJECT STATE
 
 ## MODE
-CONTINUE — historical harvest closed; post-fix live #162 still running
+CONTINUE — always-record LIVE E2E verified on #162
 
 ## MAIN HEAD
-`6b81bbfdfed08f47228d3369d9af974bd81ae30b` (docs tip; workflow restore at `8291408`)
+`e405a50` (docs); workflow restore `8291408` (351118 bytes)
 
-## HISTORICAL BATCH (ea7fa9a8)
-#147–#151 inspected from artifacts: probe_results EMPTY (positive-only emitter), positive hit files empty, historical/representation/github_recon produced data. No CONFIRMED vulns in observations.
+## LIVE #162 HARVEST
+- Run 38611194554 success · probe_results **48 records** (PROBE_CAP)
+- Classifier: SPA_CATCHALL dominant, CONTENT_SUPPORTED=0
+- Positive hit files empty · HEALTHY
 
-## POST-FIX LIVE
-Run **#162** `38611194554` capital.com light on `8291408` — in_progress; no artifacts yet.
-
-## OFFLINE CONTRACT
-always-record → classify synthetic: CONTENT_SUPPORTED / SPA_CATCHALL / WAF_CHALLENGE OK
+## HISTORICAL #147–#151
+probe_results EMPTY under positive-only emitter (ea7fa9a8) — expected
 
 ## BOUNDARIES
 dorking_engine IMPLEMENTED_NOT_INVOKED · SI→Hunter OFF
-
-## NEXT
-Harvest #162 when complete only — no new multi-target campaign.

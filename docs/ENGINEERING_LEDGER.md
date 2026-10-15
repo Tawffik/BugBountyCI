@@ -1,5 +1,38 @@
 ---
 
+## CYCLE — 2026-10-15 — LIVE always-record E2E VERIFIED (#162 harvest)
+
+### Run #162
+- ID: `38611194554` · run_number 162 · capital.com light
+- SHA: `829140882be63e62810c9c0d98a8474882974b49`
+- Conclusion: **success** · job steps: 75 ok / 0 fail / 5 skip
+- Results artifact: `11923298068` results-38611194554-162-capital.com
+
+### probe_results.jsonl (always-record LIVE)
+- **records=48** (PROBE_CAP hit exactly)
+- schema: `bugbountyci.info_disclosure_probe.v1`
+- families: backup=36, git=12
+- status codes: 403=30, 502=8, 404=8, 301=2
+- positive hit files (git/backup/config/dir/error): **still empty** (correct — no content match)
+- phase detail: `probes=48` · overall **HEALTHY**
+- redaction: no AKIA/ghp_/pat/BEGIN PRIVATE/password= in artifact
+
+### Classifier on live bodies (offline re-run of production classifier)
+- SPA_CATCHALL **39** · INCONCLUSIVE 6 · MALFORMED 2 · EMPTY_BODY 1
+- **CONTENT_SUPPORTED = 0** (no false positive confirmation)
+- info_disclosure observations from path positives: **0** (consistent)
+
+### Contract matrix update
+configured→invoked→executed→persisted→classified: **LIVE VERIFIED** on #162
+
+### Status
+**IMPLEMENTED_AND_VERIFIED** for always-record evidence loop (offline + live #162).
+Historical #147–#151 remain evidence of pre-fix EMPTY emitter only.
+
+---
+
+---
+
 ## CYCLE — 2026-10-14 — Five-run artifact harvest + offline always-record contract
 
 ### Historical runs inspected (SHA `ea7fa9a8` — pre always-record)
