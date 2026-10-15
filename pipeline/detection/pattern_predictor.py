@@ -356,6 +356,63 @@ def predict(grammar: dict, max_predictions: int = MAX_PREDICTIONS) -> list[PathP
             ))
             if len(predictions) >= max_predictions:
                 return predictions
+
+    # --- Sibling leaves (same target, no id required) ---
+    # Many real targets (marketing/CMS) never expose /resource/{id}/action
+    # shapes. Cross-id pollination then yields 0 predictions despite rich
+    # path vocabulary (seen on capital.com: 100 shapes, 0 id-bearing).
+    # Still only combine words observed on THIS target under real paths.
+    if len(predictions) < max_predictions:
+        observed_paths = grammar.get("observed_paths") or set()
+        root_leaves: dict[str, set[str]] = defaultdict(set)
+        leaf_examples: dict[str, str] = {}
+        root_examples: dict[str, str] = {}
+        for path in observed_paths:
+            segs = [s for s in str(path).strip("/").split("/") if s]
+            if len(segs) < 2:
+                continue
+            root, leaf = segs[0], segs[1]
+            if not _looks_like_word(root) or not _looks_like_word(leaf):
+                continue
+            if _looks_like_id(root) or _looks_like_id(leaf):
+                continue
+            root_leaves[root].add(leaf)
+            leaf_examples.setdefault(leaf, path)
+            root_examples.setdefault(root, path)
+        all_leaves: set[str] = set()
+        for leaves in root_leaves.values():
+            all_leaves |= leaves
+        for root in sorted(root_leaves.keys()):
+            missing = sorted(all_leaves - root_leaves[root])
+            for leaf in missing:
+                # Prefer shallow fuzzable paths: root/leaf
+                fuzz_path = f"{root}/{leaf}"
+                candidate = f"/{root}/{leaf}"
+                if candidate in seen_candidates:
+                    continue
+                if candidate in (grammar.get("observed_paths") or set()):
+                    continue
+                # Skip if exact shape already observed as tuple
+                if (root, leaf) in observed_shapes:
+                    continue
+                seen_candidates.add(candidate)
+                predictions.append(PathPrediction(
+                    path=candidate,
+                    evidence={
+                        "kind": "sibling_leaf",
+                        "resource_seen_in": root_examples.get(root, ""),
+                        "action_seen_in": leaf_examples.get(leaf, ""),
+                        "sample_id_used": "",
+                        "fuzz_path": fuzz_path,
+                        "reason": (
+                            f"'{root}' is a path root on this target; '{leaf}' is a "
+                            f"leaf segment used under a different root on the same "
+                            f"target — cross-pollinated without inventing words."
+                        ),
+                    },
+                ))
+                if len(predictions) >= max_predictions:
+                    return predictions
     return predictions
 
 
@@ -398,9 +455,14 @@ def main():
         json.dump([p.to_dict() for p in predictions], f, indent=2)
 
     scope_note = f", scoped to '{target_domain}'" if target_domain else " (unscoped — no target domain found)"
+    kinds = {}
+    for pr in predictions:
+        k = (pr.evidence or {}).get("kind") or "unknown"
+        kinds[k] = kinds.get(k, 0) + 1
+    kinds_s = ",".join(f"{k}={v}" for k, v in sorted(kinds.items())) or "none"
     print(
-        f"✅ predicted_paths.json written ({len(predictions)} predictions from "
-        f"{len(grammar['observed_shapes'])} learned shapes over "
+        f"✅ predicted_paths.json written ({len(predictions)} predictions "
+        f"[{kinds_s}] from {len(grammar['observed_shapes'])} learned shapes over "
         f"{grammar['urls_scanned']} scanned URLs{scope_note}) -> {out_path}"
     )
 
