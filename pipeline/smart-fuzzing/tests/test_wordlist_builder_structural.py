@@ -193,3 +193,36 @@ class TestWolfShrinkWithoutStructural(unittest.TestCase):
         # With empty structural, wolf_cap <= VOCAB_SHARE/3 (=40) so app words should appear
         self.assertGreater(app_n, 0)
         self.assertLess(wolf_n, 80)
+
+
+class TestSanitizePathCandidates(unittest.TestCase):
+    def _mod(self):
+        import importlib.util
+        from pathlib import Path
+        spec = importlib.util.spec_from_file_location(
+            "wordlist_builder",
+            Path(__file__).resolve().parents[1] / "wordlist_builder.py",
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+
+    def test_strips_bracket_hash_prefix(self):
+        mod = self._mod()
+        self.assertEqual(
+            mod._sanitize_fuzz_path_candidate(
+                "[02dcea083b4877ed98dacd73f0c177d4.js] /about-us"
+            ),
+            "about-us",
+        )
+
+    def test_rejects_static_js(self):
+        mod = self._mod()
+        self.assertIsNone(mod._sanitize_fuzz_path_candidate("https://x.com/static/app.js"))
+
+    def test_keeps_api_path(self):
+        mod = self._mod()
+        self.assertEqual(
+            mod._sanitize_fuzz_path_candidate("https://x.com/api/v1/invoices"),
+            "api/v1/invoices",
+        )

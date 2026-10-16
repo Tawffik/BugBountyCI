@@ -104,6 +104,54 @@ def _load_predicted_fuzz_paths(out_dir):
 
 
 
+def _sanitize_fuzz_path_candidate(raw: str) -> str | None:
+    """Normalize a path-like evidence line into an ffuf-safe relative path.
+
+    Live defect (run #165 superdrug): linkfinder lines such as
+    ``[02dcea....js] /about-us`` were loaded verbatim into target_wordlist,
+    producing non-fetchable ffuf entries and polluting the structural tier.
+    """
+    import re
+    from urllib.parse import urlparse
+
+    line = (raw or "").strip()
+    if not line or line.startswith("#"):
+        return None
+    # Drop bracket tags: [200], [hash.js], etc.
+    line = re.sub(r"\[[^\]]*\]", " ", line).strip()
+    if "://" in line:
+        for tok in line.split():
+            if "://" in tok:
+                line = tok
+                break
+        try:
+            path_only = urlparse(line).path or ""
+        except Exception:
+            return None
+    else:
+        # Prefer the last slash-bearing token (handles "tag /path")
+        parts = line.split()
+        path_only = parts[-1] if parts else line
+    path_only = path_only.strip()
+    if not path_only or path_only == "/":
+        return None
+    cand = path_only.lstrip("/")
+    if not cand or cand.startswith("{") or " " in cand:
+        return None
+    # Reject static asset / hash-looking single segments
+    segs = [s for s in cand.split("/") if s]
+    if not segs:
+        return None
+    ASSET_EXT = (".js", ".css", ".map", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".woff", ".woff2", ".ttf", ".ico")
+    if any(s.lower().endswith(ASSET_EXT) for s in segs):
+        return None
+    if len(segs) == 1 and re.fullmatch(r"[0-9a-f]{16,}", segs[0], re.I):
+        return None
+    if len(cand) > 180:
+        return None
+    return cand
+
+
 def _load_path_file_candidates(path: str, limit: int = 200) -> list[str]:
     """Load path-like lines from an evidence file for ffuf (strip scheme/host)."""
     if not path or not os.path.isfile(path):
@@ -113,28 +161,8 @@ def _load_path_file_candidates(path: str, limit: int = 200) -> list[str]:
     try:
         with open(path, "r", errors="ignore") as f:
             for line in f:
-                line = line.strip()
-                if not line or line.startswith("#"):
-                    continue
-                # "[200] https://host/path" or bare /path or path
-                if "://" in line:
-                    try:
-                        from urllib.parse import urlparse
-                        # drop leading status tags
-                        for tok in line.split():
-                            if "://" in tok:
-                                line = tok
-                                break
-                        path_only = urlparse(line).path or ""
-                    except Exception:
-                        continue
-                else:
-                    path_only = line
-                path_only = path_only.strip()
-                if not path_only or path_only == "/":
-                    continue
-                cand = path_only.lstrip("/")
-                if not cand or cand.startswith("{") or cand in seen:
+                cand = _sanitize_fuzz_path_candidate(line)
+                if not cand or cand in seen:
                     continue
                 seen.add(cand)
                 out.append(cand)
