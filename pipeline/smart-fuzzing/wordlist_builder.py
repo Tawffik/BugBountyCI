@@ -97,8 +97,11 @@ def _load_predicted_fuzz_paths(out_dir):
     fuzz_paths = []
     for entry in data:
         fp = (entry.get("evidence") or {}).get("fuzz_path")
-        if fp:
-            fuzz_paths.append(fp)
+        if not fp:
+            continue
+        clean = _sanitize_fuzz_path_candidate(fp)
+        if clean:
+            fuzz_paths.append(clean)
     return fuzz_paths
 
 
@@ -142,8 +145,14 @@ def _sanitize_fuzz_path_candidate(raw: str) -> str | None:
     segs = [s for s in cand.split("/") if s]
     if not segs:
         return None
-    ASSET_EXT = (".js", ".css", ".map", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".woff", ".woff2", ".ttf", ".ico")
+    ASSET_EXT = (
+        ".js", ".css", ".map", ".png", ".jpg", ".jpeg", ".gif", ".svg",
+        ".woff", ".woff2", ".ttf", ".ico", ".html", ".htm", ".webp", ".mp4",
+    )
     if any(s.lower().endswith(ASSET_EXT) for s in segs):
+        return None
+    # Marketing/cache path noise (run #165 superdrug wordlist): ss4314.05.html style
+    if any(re.search(r"\d+\.\d+", s) for s in segs):
         return None
     if len(segs) == 1 and re.fullmatch(r"[0-9a-f]{16,}", segs[0], re.I):
         return None

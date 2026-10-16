@@ -226,3 +226,16 @@ class TestSanitizePathCandidates(unittest.TestCase):
             mod._sanitize_fuzz_path_candidate("https://x.com/api/v1/invoices"),
             "api/v1/invoices",
         )
+
+    def test_rejects_html_segment(self):
+        mod = self._mod()
+        self.assertIsNone(
+            mod._sanitize_fuzz_path_candidate(
+                "https://www.superdrug.com/air/ss4314.05.html/icat"
+            )
+        )
+
+    def test_rejects_versiony_segment(self):
+        mod = self._mod()
+        self.assertIsNone(mod._sanitize_fuzz_path_candidate("brand/ss91400.12.html/scat"))
+

@@ -1,4 +1,9 @@
 ---
+## 2026-10-16 — Notion Fix Control Center reconciled; wordlist noise #50
+- Notion overlay updated: main 27bbfd6→post-merge, #165 success, count regression SUPERSEDED (caps), gaps listed.
+- #50: reject .html/versiony segments; sanitize predicted fuzz_paths on load. Offline tests pass. Live E2E still pending.
+---
+---
 
 ## 2026-10-16 — Canonical prompt slice: Run #165 + count regression localization
 
