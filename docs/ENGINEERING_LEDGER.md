@@ -1,4 +1,40 @@
 ---
+
+## 2026-10-16 — Canonical prompt slice: Run #165 + count regression localization
+
+### Reconcile
+- main HEAD at investigation start: `7199c6938e00`
+- Run **#165** ID `38816345765`: **completed success** on SHA `7199c6938e00` (superdrug.com)
+- Run **#163** capital.com on `4ff3db70ac85`; Run **#162** capital.com on `829140882be6`
+
+### ASN/CIDR + URL count (capital 162→163) — not a discovery inventory regression
+| metric | #162 | #163 | interpretation |
+|--------|------|------|----------------|
+| asn_cidrs | 5 | 5 | unchanged |
+| asn_ips inventory | 28560 | 28560 | inventory preserved |
+| live.txt | 28734 | 308 | **IP_LIVE_CAP / NAABU caps** (`resource_caps.json` present on 163) |
+| ports.txt | 28630 | 500 | **naabu_ip_cap=500** |
+| urls/all.txt | 4110 | 444 | downstream of smaller live seed, not ASN wipe |
+
+Root cause of live/URL drop: intentional resource bounds (#17/#24), observable in meta. **No code change to raise counts.**
+
+### Run #165 live verification of post-#41 code (superdrug)
+- `detection/predicted_paths.json`: **300** (was 0 on capital #163 without id-shaped grammar)
+- `hostname_targets` starts with admin-*/api-* (**#42 ranking**)
+- `resource_caps.json` present; asn_ips inventory 285, promoted 200
+- **Defect found:** `target_wordlist` contained `[hash.js] /about-us` from linkfinder ingestion
+
+### Fix #48
+Sanitize path candidates in wordlist_builder (strip bracket tags, reject static assets). Tests added. PR #48 merged.
+
+### Status vocabulary
+- Count regression (inventory ASN): **SUPERSEDED_WITH_EVIDENCE** (caps, not loss)
+- #41–#47: **IMPLEMENTED** + partial live evidence on #165; wordlist pollution **FIXED** offline (#48), live gate pending next run
+- Dorking: still IMPLEMENTED_NOT_INVOKED · SI→Hunter OFF
+
+---
+
+---
 ## CYCLE — remaining workflow gaps closed #46–#47
 #46 linkfinder/admin → wordlist structural; tech-aware ID paths from tech.json
 #47 api_urls → wordlist; Parameter Intelligence before Content Discovery
