@@ -2111,7 +2111,7 @@ jobs:
           done
 
           : > "$RD/info_disclosure/config_files.txt"
-          for path in "/.env" "/.env.local" "/config.json" "/web.config" "/phpinfo.php" "/server-status" "/.aws/credentials" $(tr "\n" " " < /tmp/info_disc_extra_paths.txt 2>/dev/null); do
+          for path in "/.env" "/.env.local" "/.env.production" "/.env.staging" "/config.json" "/secrets.json" "/config/secrets.yml" "/web.config" "/phpinfo.php" "/server-status" "/.aws/credentials" $(tr "\n" " " < /tmp/info_disc_extra_paths.txt 2>/dev/null); do
             budget_ok || break
             while IFS= read -r host; do
               [ -z "$host" ] && continue
@@ -2368,12 +2368,19 @@ jobs:
           if [ -n "${{ secrets.GITHUB_TOKEN }}" ]; then
             # Prefer exact domain string + credential keywords. Avoid bare BASE_NAME
             # queries (e.g. "kyc") that match thousands of unrelated hobby repos.
+            # Domain-scoped queries only (never org:TARGET unless TARGET is a GH org).
+            # Seed corpus categories: DB / cloud / tokens / keys / config — quoted domain.
             for q in \
               "\"${TARGET}\" password" \
               "\"${TARGET}\" api_key OR apikey OR secret" \
               "\"${TARGET}\" aws_access OR AKIA" \
               "\"${TARGET}\" filename:.env" \
-              "\"${TARGET}\" filename:credentials"
+              "\"${TARGET}\" filename:credentials" \
+              "\"${TARGET}\" DB_PASSWORD OR DATABASE_URL OR MYSQL_PASSWORD" \
+              "\"${TARGET}\" AWS_SECRET_ACCESS_KEY OR AZURE_CLIENT_SECRET" \
+              "\"${TARGET}\" \"-----BEGIN\" OR \"BEGIN PRIVATE KEY\"" \
+              "\"${TARGET}\" ghp_ OR github_pat_ OR gho_" \
+              "\"${TARGET}\" filename:docker-compose.yml OR filename:kubeconfig"
             do
               curl -s --max-time 12 -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -H "Accept: application/vnd.github+json" \
                 "https://api.github.com/search/code?q=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$q")" \
@@ -2384,46 +2391,27 @@ jobs:
             # Noise filter (kyc.com run taught us): drop known junk patterns and
             # require the domain OR a close org token to appear in repo/path.
             # Keep raw file for debugging; write filtered list for triage.
-            python3 << 'GHFILT'
-          import os, re
-          rd = "results/" + os.environ.get("TIMESTAMP", "")
-          target = os.environ.get("TARGET", "").lower()
-          base = re.sub(r"\.(com|net|org|io|co|dev|app|ch)(\.[a-z]{2})?$", "", target)
-          base = base.split(".")[-1] if base else target
-          noise = re.compile(
-              r"expired-domain|cirosantilli|domain-list|wordlist|secLists|payloads|"
-              r"bug-bounty-wordlist|all\.txt|common\.txt|dirbuster",
-              re.I,
-          )
-          raw_path = os.path.join(rd, "js", "github_recon_raw.txt")
-          out_path = os.path.join(rd, "js", "github_recon.txt")
-          kept = []
-          try:
-              lines = open(raw_path).read().splitlines()
-          except Exception:
-              lines = []
-          for line in lines:
-              if not line.strip():
-                  continue
-              if noise.search(line):
-                  continue
-              low = line.lower()
-              # Prefer hits that mention the full domain somewhere in repo/path
-              if target and target in low:
-                  kept.append(line)
-                  continue
-              # Secondary: base name in repo full_name (not only random path noise)
-              repo = low.split("::")[0] if "::" in low else low
-              if base and len(base) >= 3 and base in repo:
-                  kept.append(line)
-          # Cap triage noise
-          kept = sorted(set(kept))[:80]
-          open(out_path, "w").write("\n".join(kept) + ("\n" if kept else ""))
-          print(f"GitHub recon filtered: {len(kept)} kept / {len(lines)} raw")
-          GHFILT
+            mkdir -p "$RD/meta/phases"
+            export TIMESTAMP="${{ env.TIMESTAMP }}"
+            python3 scripts/filter_github_recon.py \
+              --raw "$RD/js/github_recon_raw.txt" \
+              --out "$RD/js/github_recon.txt" \
+              --target "$TARGET" \
+              --dropped "$RD/js/github_recon_dropped.txt" \
+              --summary "$RD/meta/github_recon_filter_summary.json" \
+              --limit 80 || true
+            raw_n=$(wc -l < "$RD/js/github_recon_raw.txt" 2>/dev/null | tr -d ' ' || echo 0)
+            kept_n=$(wc -l < "$RD/js/github_recon.txt" 2>/dev/null | tr -d ' ' || echo 0)
+            if [ "${raw_n:-0}" -gt 0 ]; then
+              echo "{"phase":"github_recon","status":"OK","detail":"raw=${raw_n} kept=${kept_n}"}" > "$RD/meta/phases/github_recon.json"
+            else
+              echo "{"phase":"github_recon","status":"EMPTY","detail":"domain-scoped search returned 0 raw hits"}" > "$RD/meta/phases/github_recon.json"
+            fi
             echo "✅ GitHub recon hits (filtered): $(wc -l < "$RD/js/github_recon.txt" 2>/dev/null || echo 0) (raw: $(wc -l < "$RD/js/github_recon_raw.txt" 2>/dev/null || echo 0))"
           else
             echo "⚠️ GITHUB_TOKEN not available, skipping GitHub recon"
+            mkdir -p "$RD/meta/phases"
+            echo '{"phase":"github_recon","status":"NOT_CONFIGURED","detail":"GITHUB_TOKEN missing"}' > "$RD/meta/phases/github_recon.json"
           fi
 
           echo "🔍 Virtual host discovery on shared IPs (Host + SNI via --resolve)..."
