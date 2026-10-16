@@ -1,4 +1,14 @@
 ---
+## 2026-10-16 — PR #51 merged: GitHub recon attribution + ID coverage
+- **main SHA:** `35be087b5058f435a29c1ac7b3b2c3c9603b261c`
+- **Root cause:** domain-scoped code-search hits dropped when domain only in file body (repo/path-only filter).
+- **Fix:** `scripts/filter_github_recon.py` keeps secret-shaped paths under domain-scoped queries; drop reasons + summary JSON; phase NOT_CONFIGURED/EMPTY/OK.
+- **Queries:** GH-01…GH-10 domain-quoted (no org:DNS); dorking_engine still IMPLEMENTED_NOT_INVOKED.
+- **ID paths:** .env.production/.staging, secrets.json, config/secrets.yml.
+- **Tests:** `pytest tests/test_filter_github_recon.py` (+ structural suite) offline pass.
+- **Live E2E:** pending hunter run with GITHUB_TOKEN on this SHA.
+---
+---
 ## 2026-10-16 — Notion Fix Control Center reconciled; wordlist noise #50
 - Notion overlay updated: main 27bbfd6→post-merge, #165 success, count regression SUPERSEDED (caps), gaps listed.
 - #50: reject .html/versiony segments; sanitize predicted fuzz_paths on load. Offline tests pass. Live E2E still pending.
