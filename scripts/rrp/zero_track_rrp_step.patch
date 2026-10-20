@@ -1,0 +1,31 @@
+diff --git a/.github/workflows/zero-track-hunter.yml b/.github/workflows/zero-track-hunter.yml
+--- a/.github/workflows/zero-track-hunter.yml
++++ b/.github/workflows/zero-track-hunter.yml
+@@ -5317,6 +5317,29 @@ jobs:
+           } > "$OUT"
+           echo "✅ Manual follow-up commands written to manual_followup/commands.md"
+ 
++      # RRP: operator surfaces (GATE_0 / SECRETS_REVIEW / EXPOSURE_QUEUE).
++      # Does not enable SI→Hunter. continue-on-error so triage never fails the job.
++      - name: "📊 RRP Operator Triage Surfaces"
++        if: always()
++        continue-on-error: true
++        timeout-minutes: 3
++        run: |
++          RD="results/${{ env.TIMESTAMP }}"
++          mkdir -p "$RD/triage" "$RD/meta"
++          if [ -f scripts/run_rrp_triage_bundle.sh ]; then
++            bash scripts/run_rrp_triage_bundle.sh "$RD" || echo "[rrp] bundle non-zero (ignored)"
++          else
++            echo "[rrp] run_rrp_triage_bundle.sh missing — skip"
++          fi
++          ls -la "$RD/triage" 2>/dev/null || true
++          for f in GATE_0.md SECRETS_REVIEW.md EXPOSURE_QUEUE.md; do
++            if [ -f "$RD/triage/$f" ]; then
++              echo "[rrp] present triage/$f ($(wc -c < "$RD/triage/$f") bytes)"
++            else
++              echo "[rrp] missing triage/$f (ok if inputs empty)"
++            fi
++          done
++
+       - name: "📄 Professional Report Export"
