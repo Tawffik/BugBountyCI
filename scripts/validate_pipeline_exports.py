@@ -35,6 +35,20 @@ def main():
                         errors.append(f"OVERALL_ENUM engine_health.overall={ov!r}")
         except Exception as e:
             errors.append(f"PARSE {rel}: {e}")
+
+    # RRP operator surfaces (GATE_0 / SECRETS_REVIEW / EXPOSURE_QUEUE).
+    # Best-effort only — never fail validation; does not enable SI→Hunter.
+    try:
+        import subprocess
+        rrp = os.path.join(os.path.dirname(os.path.abspath(__file__)), "run_rrp_triage_bundle.sh")
+        if os.path.isfile(rrp):
+            subprocess.run(["bash", rrp, rd], check=False, timeout=120)
+            print(f"[rrp] triage bundle attempted under {rd}/triage")
+        else:
+            print("[rrp] run_rrp_triage_bundle.sh missing — skip")
+    except Exception as rrp_exc:
+        print(f"[rrp] skip: {rrp_exc}")
+
     if errors:
         print("FAIL"); [print(" ", e) for e in errors]; return 1
     print("OK"); return 0
