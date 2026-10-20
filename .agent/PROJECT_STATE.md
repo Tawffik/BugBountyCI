@@ -1,4 +1,5 @@
 # PROJECT STATE
-HEAD post #43
-#41 structural · #42 hostname rank · #43 API before smart-fuzz + params vocab
-OPEN: static ID paths · dorking · SI→Hunter
+HEAD: post-RRP merge + wiring PR
+RRP-0..4 on main (scripts + dorking-optional.yml)
+Wiring: feat/rrp-wiring-triage-bundle adds hunter step "RRP Operator Triage Surfaces"
+OPEN: SI→Hunter OFF · dorking_engine in-hunter NOT_INVOKED · live E2E GATE after wiring merge
