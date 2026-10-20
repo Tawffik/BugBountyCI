@@ -1,0 +1,64 @@
+name: Optional Dorking (RRP-4)
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Domain or org string for dork substitution (TARGET)"
+        required: true
+        type: string
+      max_results:
+        description: "Max results per dork"
+        required: false
+        default: "5"
+        type: string
+      sources:
+        description: "Comma sources: github,bing (google scraping often blocked on GHA)"
+        required: false
+        default: "github"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  dorking:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install minimal deps
+        run: |
+          pip install -q requests beautifulsoup4
+
+      - name: Run dorking engine
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET: ${{ inputs.target }}
+        run: |
+          set -euo pipefail
+          mkdir -p results/dorking
+          # Prefer repo token; operators may set a PAT secret named GITHUB_PAT for higher code-search quota
+          TOKEN="${{ secrets.GITHUB_PAT }}"
+          if [ -z "$TOKEN" ]; then TOKEN="${GITHUB_TOKEN}"; fi
+          python3 docs/dorking_engine.py \
+            --target "$TARGET" \
+            --dorks docs/dorks_rrp4_minimal.txt \
+            --output results/dorking \
+            --delay 2 \
+            --max-results "${{ inputs.max_results }}" \
+            --sources "${{ inputs.sources }}" \
+            --github-token "$TOKEN" || true
+          echo "Dorking finished (non-fatal empty OK). See results/dorking/"
+
+      - name: Upload dorking artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dorking-${{ inputs.target }}
+          path: results/dorking/
+          if-no-files-found: warn

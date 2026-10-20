@@ -1,0 +1,11 @@
+# RRP-4 minimal dorks — TARGET is replaced by dorking_engine
+# Prefer precision over volume; expand later from Notion Dorks page.
+
+site:TARGET ext:env
+site:TARGET filename:.env
+site:TARGET "AWS_SECRET_ACCESS_KEY"
+site:TARGET "BEGIN PRIVATE KEY"
+"TARGET" filename:.env.production
+"TARGET" filename:.env.staging
+"TARGET" path:.github "API_KEY"
+org:TARGET filename:.env
