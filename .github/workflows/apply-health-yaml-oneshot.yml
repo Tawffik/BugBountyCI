@@ -1,0 +1,52 @@
+name: apply-health-yaml-oneshot
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 1
+
+      - name: Apply health YAML patch
+        run: |
+          set -euo pipefail
+          test -f scripts/apply_github_recon_health_fix.py
+          BEFORE=$(wc -c < .github/workflows/zero-track-hunter.yml)
+          echo "before=$BEFORE"
+          test "$BEFORE" -gt 100000
+          python3 scripts/apply_github_recon_health_fix.py
+          AFTER=$(wc -c < .github/workflows/zero-track-hunter.yml)
+          echo "after=$AFTER"
+          test "$AFTER" -gt 100000
+          grep -q 'EMPTY_VALID' .github/workflows/zero-track-hunter.yml
+          grep -q 'sync_pipeline_health_md.py' .github/workflows/zero-track-hunter.yml
+          # shell-verify phase JSON lines
+          RD=$(mktemp -d)
+          mkdir -p "$RD/meta/phases"
+          raw_n=1; kept_n=1
+          # shellcheck disable=SC1091
+          while IFS= read -r line; do
+            case "$line" in
+              *printf*github_recon.json*) eval "$line" ;;
+            esac
+          done < <(grep 'printf' .github/workflows/zero-track-hunter.yml | grep github_recon.json)
+          python3 -c "import json; d=json.load(open('$RD/meta/phases/github_recon.json')); assert d['phase']=='github_recon'; print('phase_json_ok', d['status'])"
+          python3 -c "import yaml; yaml.safe_load(open('.github/workflows/zero-track-hunter.yml')); print('YAML_OK')"
+
+      - name: Commit and push to main
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/workflows/zero-track-hunter.yml
+          if git diff --staged --quiet; then
+            echo "no changes (already applied)"
+            exit 0
+          fi
+          git commit -m "fix(workflow): valid github_recon phase JSON + health MD sync (#167)"
+          git push origin HEAD:main
