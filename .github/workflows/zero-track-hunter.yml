@@ -1,1 +1,16 @@
-PLACEHOLDER_WILL_FAIL
+name: "🎯 Zero Track - AI Autonomous Hunter"
+
+# TEMP: full file upload follows in next commits via applicator
+# This placeholder is intentionally replaced immediately.
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Target domain"
+        required: true
+        type: string
+jobs:
+  note:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Run apply_github_recon_health_fix.py against main workflow - full restore pending"
