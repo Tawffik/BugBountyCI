@@ -1,1 +1,105 @@
-PLACEHOLDER
+name: "🎯 Zero Track - AI Autonomous Hunter"
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Target domain (e.g., example.com)"
+        required: true
+        type: string
+      hunting_mode:
+        description: "AI hunting intensity (light=fast, normal=balanced, aggressive=deep)"
+        required: false
+        default: "normal"
+        type: choice
+        options:
+          - light
+          - normal
+          - aggressive
+      discord_notify:
+        description: "Send Discord notification"
+        type: boolean
+        default: true
+
+      enable_waf_bypass:
+        description: "Enable WAF bypass recon & header rotation (Tor proxy now handles IP rotation automatically)"
+        type: boolean
+        default: false
+      enable_git_exposure:
+        description: "Enable information disclosure scan (git, backups, configs)"
+        type: boolean
+        default: true
+      enable_source_maps:
+        description: "Enable source map analysis for JS files"
+        type: boolean
+        default: true
+      authorized_open_scan:
+        description: "Allow run when scope.txt is missing/empty"
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      target:
+        description: "Target domain (e.g., example.com)"
+        required: true
+        type: string
+      hunting_mode:
+        description: "AI hunting intensity (light / normal / aggressive)"
+        required: false
+        default: "normal"
+        type: string
+      discord_notify:
+        description: "Send Discord notification"
+        required: false
+        default: true
+        type: boolean
+      enable_waf_bypass:
+        description: "Enable WAF bypass recon & header rotation (Tor proxy now handles IP rotation automatically)"
+        required: false
+        default: false
+        type: boolean
+      enable_git_exposure:
+        description: "Enable information disclosure scan"
+        required: false
+        default: true
+        type: boolean
+      enable_source_maps:
+        description: "Enable source map analysis for JS files"
+        required: false
+        default: true
+        type: boolean
+
+    secrets:
+      DISCORD_WEBHOOK:
+        description: "Discord webhook URL"
+        required: false
+      ANTHROPIC_API_KEY:
+        description: "API key for Anthropic (Claude)"
+        required: false
+      OPENROUTER_API_KEY:
+        description: "API key for OpenRouter (fallback)"
+        required: false
+      GROQ_API_KEY:
+        description: "API key for Groq (fallback)"
+        required: false
+      GEMINI_API_KEY:
+        description: "API key for Google Gemini (fallback)"
+        required: false
+      OPENAI_API_KEY:
+        description: "API key for OpenAI (fallback)"
+        required: false
+      CEREBRAS_API_KEY:
+        description: "API key for Cerebras (fallback)"
+        required: false
+      TOKENROUTER_API_KEY:
+        description: "API key for TokenRouter (fallback)"
+        required: false
+      EXPERIENTIAL_LABS_API_KEY:
+        description: "API key for Experiential Labs (OpenAI-compatible AI gateway, fallback)"
+        required: false
+      TOR_BRIDGE_LINES:
+        description: >
+          Optional. One or more real obfs4 bridge lines (as issued by
+          https://bridges.torproject.org, one per line, format:
+          "obfs4 IP:PORT FINGERPRINT cert=... iat-mode=0"). If set, these are
+          used as an automatic fallback when a direct Tor connection fails.
