@@ -1,0 +1,44 @@
+name: restore-zt-yaml-oneshot
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/workflow-github-recon-json-health-sync
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Restore workflow from main and apply patch
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git show origin/main:.github/workflows/zero-track-hunter.yml > .github/workflows/zero-track-hunter.yml
+          wc -c .github/workflows/zero-track-hunter.yml
+          python3 scripts/apply_github_recon_health_fix.py
+          grep -n "EMPTY_VALID\|sync_pipeline_health_md" .github/workflows/zero-track-hunter.yml | head -5
+          # prove JSON lines parse under bash
+          RD=$(mktemp -d)
+          mkdir -p "$RD/meta/phases"
+          raw_n=1; kept_n=1
+          eval "$(grep -n 'printf' .github/workflows/zero-track-hunter.yml | grep github_recon | grep 'OK' | head -1 | cut -d: -f2-)"
+          python3 -c "import json; print(json.load(open('$RD/meta/phases/github_recon.json')))"
+
+      - name: Commit and push
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/workflows/zero-track-hunter.yml
+          git status
+          if git diff --staged --quiet; then
+            echo "no staged changes"
+            exit 0
+          fi
+          git commit -m "fix(workflow): valid github_recon phase JSON + health MD sync"
+          git push origin HEAD:fix/workflow-github-recon-json-health-sync
