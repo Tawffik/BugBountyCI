@@ -2403,9 +2403,9 @@ jobs:
             raw_n=$(wc -l < "$RD/js/github_recon_raw.txt" 2>/dev/null | tr -d ' ' || echo 0)
             kept_n=$(wc -l < "$RD/js/github_recon.txt" 2>/dev/null | tr -d ' ' || echo 0)
             if [ "${raw_n:-0}" -gt 0 ]; then
-              echo "{"phase":"github_recon","status":"OK","detail":"raw=${raw_n} kept=${kept_n}"}" > "$RD/meta/phases/github_recon.json"
+              printf '%s\n' "{\"phase\":\"github_recon\",\"status\":\"OK\",\"detail\":\"raw=${raw_n} kept=${kept_n}\"}" > "$RD/meta/phases/github_recon.json"
             else
-              echo "{"phase":"github_recon","status":"EMPTY","detail":"domain-scoped search returned 0 raw hits"}" > "$RD/meta/phases/github_recon.json"
+              printf '%s\n' '{"phase":"github_recon","status":"EMPTY_VALID","detail":"domain-scoped search returned 0 raw hits"}' > "$RD/meta/phases/github_recon.json"
             fi
             echo "✅ GitHub recon hits (filtered): $(wc -l < "$RD/js/github_recon.txt" 2>/dev/null || echo 0) (raw: $(wc -l < "$RD/js/github_recon_raw.txt" 2>/dev/null || echo 0))"
           else
@@ -4946,6 +4946,8 @@ jobs:
           python3 scripts/write_pipeline_exports.py "results/${{ env.TIMESTAMP }}" || true
           python3 scripts/export_sra_handoff.py --results-dir "results/${{ env.TIMESTAMP }}" || true
           [ -f scripts/validate_pipeline_exports.py ] && python3 scripts/validate_pipeline_exports.py "results/${{ env.TIMESTAMP }}" || true
+          # Sync pipeline_health.md Overall with engine_health.overall (MD must not look healthier than JSON)
+          [ -f scripts/sync_pipeline_health_md.py ] && python3 scripts/sync_pipeline_health_md.py "results/${{ env.TIMESTAMP }}" || true
           # Rebuild Hunter AFTER relationships/endpoints export so RESEARCH_CONTEXT
           # (HISTORICAL∩JS, JS∩live endpoint) is present — previous rebuilds run too early.
           python3 pipeline/detection/hunter_queue_builder.py --results-dir "results/${{ env.TIMESTAMP }}" --target "${{ env.TARGET }}" || true
