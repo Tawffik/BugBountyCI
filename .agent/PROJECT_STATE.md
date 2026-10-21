@@ -1,5 +1,5 @@
 # PROJECT STATE
-HEAD: post-RRP merge + wiring PR
-RRP-0..4 on main (scripts + dorking-optional.yml)
-Wiring: feat/rrp-wiring-triage-bundle adds hunter step "RRP Operator Triage Surfaces"
-OPEN: SI→Hunter OFF · dorking_engine in-hunter NOT_INVOKED · live E2E GATE after wiring merge
+HEAD target: post health-sync + github_recon phase JSON fix (pending merge)
+RRP-0..4 on main (scripts + dorking-optional.yml + validate_pipeline_exports hook)
+OPEN: live E2E GATE after RRP wiring · SI→Hunter OFF · dorking in-hunter NOT_INVOKED
+FIXED offline: github_recon phase malformed JSON (#167 DEGRADED root) · MD/JSON overall sync
