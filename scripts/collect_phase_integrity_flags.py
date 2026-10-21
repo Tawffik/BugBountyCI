@@ -54,6 +54,21 @@ def collect_phase_integrity_flags(results_dir: str) -> list[str]:
                 f"⚠️ **{name} phase={st}** — {detail}. "
                 f"Do not treat this stage as EMPTY_VALID or complete."
             )
+    for pj in sorted(phases.glob("*.json")):
+        name = pj.stem
+        if name in CRITICAL_PHASES:
+            continue
+        try:
+            data = json.loads(pj.read_text(encoding="utf-8", errors="replace"))
+        except (OSError, json.JSONDecodeError, ValueError):
+            flags.append(
+                f"⚠️ **{name} phase file malformed** — do not treat as clean empty."
+            )
+            continue
+        if not isinstance(data, dict):
+            flags.append(
+                f"⚠️ **{name} phase file unexpected type** — do not treat as clean empty."
+            )
     return flags
 
 
