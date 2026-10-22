@@ -167,6 +167,35 @@ def main():
     for issue in phase_load_issues:
         flags.append(f"phase_file:{issue}")
 
+    # url_sources_health.json — non-IP honesty (empty gau/waymore ≠ clean target)
+    try:
+        ush_path = os.path.join(rd, "meta", "url_sources_health.json")
+        if os.path.isfile(ush_path):
+            with open(ush_path, encoding="utf-8") as fh:
+                ush = json.load(fh)
+            for src in ush.get("passive_failed") or []:
+                detail = ((ush.get("sources") or {}).get(src) or {}).get("detail") or "failed"
+                flags.append(
+                    f"⚠️ **URL source {src} SOURCE_FAILED** ({detail}) — not evidence the target lacks history; check logs/keys/provider."
+                )
+            for src in ush.get("passive_empty_or_failed") or []:
+                if src in (ush.get("passive_failed") or []):
+                    continue
+                st = ((ush.get("sources") or {}).get(src) or {}).get("status") or "SOURCE_EMPTY"
+                flags.append(
+                    f"ℹ️ **URL source {src} {st}** — passive archive empty; active crawl may still have filled all.txt."
+                )
+            # gospider large vs all.txt small is often uro dedup — surface ratio when extreme
+            srcs = ush.get("sources") or {}
+            gosp = int((srcs.get("gospider") or {}).get("count") or 0)
+            all_n = int(ush.get("all_txt") or 0)
+            if gosp >= 10000 and all_n > 0 and all_n < max(500, gosp // 20):
+                flags.append(
+                    f"ℹ️ **URL merge/uro compression** gospider={gosp} → all.txt={all_n} (dedup/normalize; not necessarily a crawl failure)."
+                )
+    except Exception:
+        pass
+
     # Detection metrics input integrity (malformed engine_results / response_diffs)
     det_metrics = os.path.join(rd, "detection", "metrics.json")
     if os.path.isfile(det_metrics):
