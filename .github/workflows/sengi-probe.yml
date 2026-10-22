@@ -1,0 +1,13 @@
+name: sengi-probe
+on:
+  workflow_dispatch:
+jobs:
+  ping:
+    runs-on: sengi
+    steps:
+      - name: Prove sengi is online
+        run: |
+          echo "sengi runner picked up job"
+          echo "host=$(hostname)"
+          echo "date=$(date -u)"
+          uname -a || true
