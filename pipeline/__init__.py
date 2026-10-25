@@ -1,0 +1,1 @@
+"""BugBountyCI pipeline package."""

@@ -175,9 +175,15 @@ def main():
                 ush = json.load(fh)
             for src in ush.get("passive_failed") or []:
                 detail = ((ush.get("sources") or {}).get(src) or {}).get("detail") or "failed"
-                flags.append(
-                    f"⚠️ **URL source {src} SOURCE_FAILED** ({detail}) — not evidence the target lacks history; check logs/keys/provider."
-                )
+                # missing_api_keys is configuration, not pipeline breakage — info, not DEGRADED driver
+                if "missing_api" in str(detail).lower() or "api_key" in str(detail).lower():
+                    flags.append(
+                        f"ℹ️ **URL source {src} optional keys missing** ({detail}) — yield may improve with keys; not a target-clean signal."
+                    )
+                else:
+                    flags.append(
+                        f"⚠️ **URL source {src} SOURCE_FAILED** ({detail}) — not evidence the target lacks history; check logs/keys/provider."
+                    )
             for src in ush.get("passive_empty_or_failed") or []:
                 if src in (ush.get("passive_failed") or []):
                     continue
@@ -865,6 +871,7 @@ def main():
         with open(os.path.join(rd, "urls/all.txt")) as fh:
             for i, line in enumerate(fh):
                 if i >= 5000:
+                    # Cap is intentional for export size; full surface remains in urls/all.txt
                     break
                 u = line.strip().split()[0] if line.strip() else ""
                 if not u.startswith("http"):
@@ -1214,6 +1221,7 @@ def main():
             with open(wp) as fh:
                 for i, line in enumerate(fh):
                     if i >= 5000:
+                    # Cap is intentional for export size; full surface remains in urls/all.txt
                         break
                     line = line.strip()
                     if not line or line.startswith("#"):

@@ -26,7 +26,13 @@ SCHEMA = "bugbountyci.secrets_review.v1"
 
 # Path / line markers that usually mean fixture or docs noise
 NOISE_PATH_RE = re.compile(
-    r"(?i)(example|sample|fixture|testdata|mock|dummy|\.md$|/docs/|readme|placeholder|parity)"
+    r"(?i)(example|sample|fixture|testdata|mock|dummy|\.md$|/docs/|readme|placeholder|parity|"
+    r"\.map$|source(?:[-_]?map)?|sourcemap|/node_modules/|webpack://|"
+    r"bootstrap\.min|jquery\.min|cloudflare-static)"
+)
+# CMS / stack fingerprints are REVIEW-noise when the only signal is a path or header
+FINGERPRINT_ONLY_RE = re.compile(
+    r"(?i)\b(wp-content|wp-includes|wordpress|drupal|joomla|shopify|wix\.com)\b"
 )
 PLACEHOLDER_RE = re.compile(
     r"(?i)(your[_-]?api[_-]?key|changeme|\bxxx+\b|example_public|do_not_use|"
@@ -67,6 +73,12 @@ def is_noise(path: str, line: str) -> bool:
         return True
     # AWS docs example key
     if "AKIAIOSFODNN7EXAMPLE" in line:
+        return True
+    # Path-only CMS fingerprint without secret shape → noise
+    if path and FINGERPRINT_ONLY_RE.search(path) and not shape_tags(line or ""):
+        return True
+    # Bare .js.map path references are not secrets
+    if (path or line or "").rstrip().endswith(".map"):
         return True
     return False
 
