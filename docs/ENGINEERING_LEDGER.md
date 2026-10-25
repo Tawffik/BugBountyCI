@@ -1,4 +1,22 @@
 ---
+## 2026-10-26 — Cloud Exposure Intelligence V1
+
+Implements Notion *Cloud Exposure Intelligence* gates as a **bounded** Zero Track phase:
+
+- `pipeline/detection/cloud_exposure_engine.py` — passive harvest from urls/js + optional read-only GET (cap 12)
+- Classifications: provider_clue / exposure_lead / content_supported — **never CONFIRMED**
+- 403 AccessDenied = existence clue only; listing XML → content_supported
+- Scope: `pipeline.scope` + name_guess / quarantine third-party
+- Outputs: `detection/cloud_exposure_findings.jsonl`, `summary.json`, phase `cloud_exposure`, refreshes `live/cloud_buckets.txt`
+- Hunter: `load_cloud_exposure_findings` → LEAD/INTERESTING only
+- Workflow: replaces inline S3/GCS status loop in Extended Recon
+- Tests: `tests/test_cloud_exposure_engine.py` (4)
+
+Still **not** full product: no s3sec write tests, no CloudFront policy inference, no object brute force.
+Status: IMPLEMENTED offline; live verification pending one authorized run.
+
+---
+---
 ## 2026-10-25 — Close remaining: triage honesty, WAF labels, export caps
 
 ### P0 Triage truth

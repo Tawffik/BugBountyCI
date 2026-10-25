@@ -165,6 +165,54 @@ def dedupe_scheme_pairs(entries: list) -> list:
 
 
 
+
+def load_cloud_exposure_findings(results_dir, limit=25):
+    """Cloud exposure LEADs only — never CONFIRMED (Notion Cloud Exposure gates)."""
+    path = os.path.join(results_dir, "detection", "cloud_exposure_findings.jsonl")
+    out = []
+    if not os.path.isfile(path):
+        return out
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    row = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                disp = row.get("final_disposition") or ""
+                if disp not in ("exposure_lead", "content_supported", "provider_clue"):
+                    continue
+                if disp == "provider_clue" and (row.get("probe") or {}).get("response_class") not in (
+                    "listing_evidence", "content_200", "access_denied",
+                ):
+                    continue
+                cls = "LEAD" if disp in ("exposure_lead", "content_supported") else "INTERESTING"
+                reason = (
+                    f"cloud_exposure {row.get('provider_hypothesis')} "
+                    f"disp={disp} scope={row.get('scope_disposition')} "
+                    f"never_auto_confirmed"
+                )
+                out.append({
+                    "target": row.get("asset_normalized") or row.get("host"),
+                    "classification": cls,
+                    "reason": reason,
+                    "source": "cloud_exposure",
+                    "evidence": {
+                        "provider": row.get("provider_hypothesis"),
+                        "disposition": disp,
+                        "probe": row.get("probe"),
+                        "sources": row.get("source_artifact_refs"),
+                    },
+                })
+                if len(out) >= limit:
+                    break
+    except OSError:
+        pass
+    return out
+
 def load_smart_403_findings(results_dir, limit=25):
     """LEAD-only Smart 403 differentials from Notion framework phase — never CONFIRMED."""
     path = os.path.join(results_dir, "detection", "smart_403_findings.jsonl")
@@ -978,6 +1026,7 @@ def main():
         + load_idor_findings(args.results_dir)
         + load_smart_fuzzing_interesting(args.results_dir)
         + load_smart_403_findings(args.results_dir)
+        + load_cloud_exposure_findings(args.results_dir)
         + load_historical_validations(args.results_dir)
         + load_representation_diffs(args.results_dir)
         + load_linkfinder_api_routes(args.results_dir)
