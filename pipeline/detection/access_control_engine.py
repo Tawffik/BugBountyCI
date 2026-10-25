@@ -45,9 +45,13 @@ PATH_MUTATIONS = [
     lambda p: p + "/.",
     lambda p: p + "/./",
     lambda p: p + "?x=1",
+    lambda p: p + "?x=.js",  # Azure-style query extension (Notion Smart 403)
     lambda p: "//" + p.lstrip("/"),  # double-slash prefix, e.g. "//admin"
     lambda p: p + "%2f",
     lambda p: p + "%3f",
+    lambda p: p + "..;/",
+    lambda p: p + ";.js",
+    lambda p: p + ".json",
 ]
 
 BLOCKED_STATUSES = (401, 403)

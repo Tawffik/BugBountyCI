@@ -1,4 +1,31 @@
 ---
+## 2026-10-25 — Smart 403 phase integration (Notion framework)
+
+### Source
+Notion page **Smart 403 Bypass Framework — Complete Research & Template**
+(`403dac31-e880-8148-a3cf-c85c1b1ba2bb`): adaptive fingerprint, technique selection,
+baseline + 404 calibration, FP rules (no login redirects, no 404-identical).
+
+### Workflow placement (correct structure)
+1. Early optional `ENABLE_WAF_BYPASS` host-root header probes (unchanged) — coarse.
+2. Smart-fuzzing → Access-Control V1 (path mutations on blocked baselines).
+3. **NEW** `Smart 403 Bypass (bounded)` — only observed 401/403 URLs, max 12 endpoints,
+   adaptive technique caps, LEAD only → `detection/smart_403_findings.jsonl`.
+4. Hunter queue ingests smart-403 as LEAD (never CONFIRMED).
+
+### Redundancy policy
+- Full Notion concurrent flood tool is **not** inlined as a free-standing CI job.
+- Access-Control keeps small fixed mutations (+ a few high-value Notion suffixes).
+- Smart 403 owns adaptive/header/extension/Azure-query set with calibration.
+
+### Files
+- `pipeline/detection/smart_403_engine.py`
+- `scripts/run_smart_403.sh`
+- workflow step after Access-Control
+- `tests/test_smart_403_engine.py`
+---
+
+---
 ## 2026-10-25 — P0/P1: scope module, historical host-path, SSRF signal honesty, secrets noise, health flags
 
 ### Scope (P0-1)
