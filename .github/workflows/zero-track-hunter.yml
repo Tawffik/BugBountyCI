@@ -2469,20 +2469,13 @@ jobs:
           fi
           echo "✅ Candidate hidden vhosts: $(wc -l < "$RD/live/vhosts.txt" 2>/dev/null || echo 0)"
 
-          echo "🔍 Cloud storage bucket enumeration (existence check only, read-only)..."
-          : > "$RD/live/cloud_buckets.txt"
-          if [ -n "$BASE_NAME" ]; then
-            for suffix in "" "-backup" "-assets" "-media" "-dev" "-staging" "-files" "-data" "-public" "-uploads" "-static" "-logs"; do
-              bname="${BASE_NAME}${suffix}"
-              s3_code=$(proxychains4 -q curl -sk --max-time 6 -o /dev/null -w "%{http_code}" "https://${bname}.s3.amazonaws.com/" 2>/dev/null || echo "000")
-              s3_code="${s3_code: -3}"  # curl -w already prints 000 on failure AND exits non-zero, so the || echo "000" fallback doubles it to 000000 - truncate to be safe either way
-              [ "$s3_code" = "200" ] || [ "$s3_code" = "403" ] && echo "S3: https://${bname}.s3.amazonaws.com/ [HTTP $s3_code]" >> "$RD/live/cloud_buckets.txt"
-              gcs_code=$(proxychains4 -q curl -sk --max-time 6 -o /dev/null -w "%{http_code}" "https://storage.googleapis.com/${bname}/" 2>/dev/null || echo "000")
-              gcs_code="${gcs_code: -3}"  # curl -w already prints 000 on failure AND exits non-zero, so the || echo "000" fallback doubles it to 000000 - truncate to be safe either way
-              [ "$gcs_code" = "200" ] || [ "$gcs_code" = "403" ] && echo "GCS: https://storage.googleapis.com/${bname}/ [HTTP $gcs_code]" >> "$RD/live/cloud_buckets.txt"
-            done
-          fi
-          echo "✅ Candidate cloud buckets found: $(wc -l < "$RD/live/cloud_buckets.txt" 2>/dev/null || echo 0)"
+          echo "☁️ Cloud Exposure Intelligence V1 (Notion gates — read-only, never auto-CONFIRMED)..."
+          # Harvests S3/GCS/Azure/CF/R2 hints from urls/js + bounded name-guess probes.
+          # Replaces status-only 200/403 lines as the sole cloud story; still writes live/cloud_buckets.txt.
+          mkdir -p "$RD/detection" "$RD/logs" "$RD/meta/phases"
+          chmod +x scripts/run_cloud_exposure.sh 2>/dev/null || true
+          bash scripts/run_cloud_exposure.sh "$RD" "$TARGET" || true
+          echo "✅ Cloud exposure candidates/leads: $(wc -l < "$RD/live/cloud_buckets.txt" 2>/dev/null || echo 0) (see detection/cloud_exposure_summary.json)"
 
       - name: "🌩️ Cloud Origin Discovery (CloudFail + CloakQuest3r)"
         continue-on-error: true
