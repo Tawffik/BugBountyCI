@@ -17,6 +17,15 @@ import argparse
 import json
 import os
 from urllib.parse import urlparse
+import sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+try:
+    from pipeline.scope import in_scope_url, in_scope_host, resolve_target_domain, host_of as scope_host
+except Exception:
+    in_scope_url = lambda u, t: True  # type: ignore
+    in_scope_host = lambda h, t: True  # type: ignore
+    resolve_target_domain = lambda *a, **k: None  # type: ignore
+    scope_host = None  # type: ignore
 
 
 def read_urls(path, cap=20000):
@@ -61,13 +70,36 @@ def main():
     out_dir = os.path.join(rd, "info_disclosure")
     os.makedirs(out_dir, exist_ok=True)
 
-    current = set(read_urls(os.path.join(rd, "urls", "all.txt")))
+    target_domain = resolve_target_domain(rd, explicit=args.target or None) if "resolve_target_domain" in dir() else (args.target or "")
+    if not target_domain:
+        target_domain = (args.target or "").strip() or None
+
+    current_raw = read_urls(os.path.join(rd, "urls", "all.txt"))
+    # Prefer in-scope current surface for path/host correlation
+    current = []
+    for u in current_raw:
+        if target_domain and not in_scope_url(u, target_domain):
+            continue
+        current.append(u)
+    if not current and current_raw:
+        # fallback: no target configured — keep prior behavior
+        current = current_raw
     current_paths = {path_key(u) for u in current if path_key(u)}
     current_hosts = {host_of(u) for u in current if host_of(u)}
+    # host -> set of paths currently observed (prevents cross-host path collision)
+    current_host_paths: dict[str, set[str]] = {}
+    for u in current:
+        h, pk = host_of(u), path_key(u)
+        if h and pk:
+            current_host_paths.setdefault(h, set()).add(pk)
 
     historical = []
+    dropped_oos = 0
     for name in ("wayback.txt", "gau.txt"):
         for u in read_urls(os.path.join(rd, "urls", name), cap=15000):
+            if target_domain and not in_scope_url(u, target_domain):
+                dropped_oos += 1
+                continue
             historical.append((u, name))
 
     # Optional explicit 404 list from smart-fuzzing / probes
@@ -98,10 +130,14 @@ def main():
         if key in seen:
             continue
         seen.add(key)
-        in_current = pk in current_paths
         host = host_of(u)
         host_related = host in current_hosts if host else False
-        if in_current:
+        # Path match only counts on the SAME host (or known related current host),
+        # never "path exists somewhere on another host" → STILL_LIVE.
+        paths_on_host = current_host_paths.get(host) or set()
+        in_current_same_host = bool(pk in paths_on_host)
+        in_current_any = pk in current_paths  # diagnostic only
+        if in_current_same_host:
             classification = "STILL_LIVE"
             ladder = "OBSERVED"
             conf = "medium"
@@ -123,7 +159,8 @@ def main():
             "url": u[:300],
             "path": pk[:200],
             "historical_source": src,
-            "current_path_match": in_current,
+            "current_path_match": in_current_same_host,
+            "current_path_match_any_host": in_current_any,
             "current_host_relation": host_related,
             "classification": classification,
             "evidence_ladder": ladder,
@@ -167,6 +204,9 @@ def main():
         c = row.get("classification") or "UNKNOWN"
         counts[c] = counts.get(c, 0) + 1
     summary = {
+        "target_domain": target_domain or "",
+        "historical_dropped_out_of_scope": dropped_oos,
+
         "schema": "bugbountyci.historical_pivot_summary.v1",
         "total": len(pivots),
         "counts": counts,

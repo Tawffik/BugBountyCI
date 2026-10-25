@@ -336,8 +336,14 @@ class SSRFEngine(DetectionEngine):
             )
         evidence.stable = stable
         if stable:
-            evidence.classification = "HIGH_SIGNAL"
-            evidence.reason += "; stable across 2 replays — HIGH_SIGNAL (differential only unless oob_findings confirms label)"
+            # Differential + stable replay is actionable LEAD for human review.
+            # Do NOT escalate to HIGH_SIGNAL without OOB confirmation — #173-class
+            # runs produced large non-NOISE SSRF counts that are not confirmed vulns.
+            evidence.classification = "LEAD"
+            evidence.reason += (
+                "; stable across 2 replays — remains LEAD (differential only; "
+                "HIGH_SIGNAL requires OOB_CONFIRMED in oob_findings)"
+            )
         else:
             evidence.reason += "; unstable across replay — NOT promoted, confidence lowered"
         return evidence

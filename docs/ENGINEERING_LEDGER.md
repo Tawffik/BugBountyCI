@@ -1,4 +1,34 @@
 ---
+## 2026-10-25 — P0/P1: scope module, historical host-path, SSRF signal honesty, secrets noise, health flags
+
+### Scope (P0-1)
+- Added `pipeline/scope.py`: `in_scope_host` / `in_scope_url` / `resolve_target_domain` (single rule, suffix-safe).
+- `historical_404_pivot.py` filters archive URLs to authorized apex; drops third-party hosts.
+
+### Historical mining (P1-3)
+- **STILL_LIVE** requires same-host path match (not path-only across hosts).
+- Summary records `historical_dropped_out_of_scope`.
+- Tests: `tests/test_historical_host_path_scope.py`, `tests/test_scope_module.py`.
+
+### Triage / SSRF (P0-2, P1-7)
+- SSRF `verify`: stable differential stays **LEAD** (no HIGH_SIGNAL without OOB_CONFIRMED).
+- `hunter_queue_builder.demote_unconfirmed_ssrf` + wired in `load_detection_evidence`.
+- Secrets review: treat source maps / CMS path-only / node_modules as noise.
+
+### Health / exports (P1-4, P1-5)
+- `missing_api_keys` on waymore → ℹ️ info flag (does not drive DEGRADED alone).
+- URL export 5000-cap remains intentional; full surface stays in `urls/all.txt`.
+
+### Explicit non-goals this change
+- Bulk Nuclei **not** restored (SARIF upload already continue-on-error + gated on file).
+- No VPS / Sengi requirement.
+- SI→Hunter remains OFF; no CONFIRMED auto-promotion.
+
+### Tests
+53 focused + existing historical/ssrf/hunter/secrets scope tests green offline.
+---
+
+---
 ## 2026-10-16 — PR #51 merged: GitHub recon attribution + ID coverage
 - **main SHA:** `35be087b5058f435a29c1ac7b3b2c3c9603b261c`
 - **Root cause:** domain-scoped code-search hits dropped when domain only in file body (repo/path-only filter).

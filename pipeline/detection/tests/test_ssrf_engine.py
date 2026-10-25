@@ -185,7 +185,7 @@ class TestDetection(unittest.TestCase):
 
 
 class TestVerify(unittest.TestCase):
-    def test_stable_reflection_promotes_to_high_signal(self):
+    def test_stable_reflection_stays_lead_without_oob(self):
         def prober(url):
             if "169.254.169.254" in url:
                 return {"status": 200, "body": "instance-id meta-data", "elapsed_ms": 80}
@@ -195,7 +195,8 @@ class TestVerify(unittest.TestCase):
         })
         cand = eng.generate_candidates({}, {})[0]
         ev = eng.verify(eng.detect(cand))
-        self.assertEqual(ev.classification, "HIGH_SIGNAL")
+        # Differential + stable replay remains LEAD; HIGH_SIGNAL needs OOB_CONFIRMED
+        self.assertEqual(ev.classification, "LEAD")
         self.assertTrue(ev.stable)
 
     def test_unstable_replay_not_promoted(self):

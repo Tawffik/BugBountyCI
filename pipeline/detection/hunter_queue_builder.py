@@ -59,6 +59,21 @@ ENGINE_TIER = {
 }
 
 
+
+def demote_unconfirmed_ssrf(entry: dict) -> dict:
+    """SSRF HIGH_SIGNAL without OOB_CONFIRMED → LEAD for queue ranking."""
+    eng = (entry.get("engine") or entry.get("source") or "").lower()
+    cls = entry.get("classification") or entry.get("priority_class") or ""
+    reason = entry.get("reason") or entry.get("detail") or ""
+    if "ssrf" in eng and cls == "HIGH_SIGNAL":
+        if "OOB_CONFIRMED" not in reason and not entry.get("oob_confirmed"):
+            entry = dict(entry)
+            entry["classification"] = "LEAD"
+            entry["priority_class"] = "LEAD"
+            entry["classification_note"] = "demoted_ssrf_high_signal_without_oob"
+            entry["reason"] = (reason + "; demoted HIGH_SIGNAL→LEAD (no OOB_CONFIRMED)").strip("; ")
+    return entry
+
 def _load_oob_confirmed_labels(results_dir):
     """Labels that OOB Check actually observed (not merely probed)."""
     confirmed = set()
@@ -180,13 +195,22 @@ def load_detection_evidence(results_dir):
                 ev.get("details") or {},
                 confirmed_labels,
             )
-            entries.append({
+            entry = {
                 "priority_class": cls,
+                "classification": cls,
                 "engine": engine_name,
                 "target": ev.get("candidate", {}).get("target", "?"),
                 "reason": reason,
                 "stable": ev.get("stable"),
-            })
+                "oob_confirmed": "OOB_CONFIRMED" in reason,
+            }
+            entry = demote_unconfirmed_ssrf(entry)
+            entry["priority_class"] = entry.get("classification") or entry["priority_class"]
+            # CONFIRMED is never auto-emitted for SSRF differential
+            if "ssrf" in engine_name.lower() and entry["priority_class"] == "CONFIRMED":
+                entry["priority_class"] = "LEAD"
+                entry["classification"] = "LEAD"
+            entries.append(entry)
     return entries
 
 
