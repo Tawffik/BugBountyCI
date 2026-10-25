@@ -164,6 +164,41 @@ def dedupe_scheme_pairs(entries: list) -> list:
     return out
 
 
+
+def load_smart_403_findings(results_dir, limit=25):
+    """LEAD-only Smart 403 differentials from Notion framework phase — never CONFIRMED."""
+    path = os.path.join(results_dir, "detection", "smart_403_findings.jsonl")
+    if not os.path.isfile(path):
+        return []
+    entries = []
+    try:
+        with open(path, "r", errors="ignore") as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                try:
+                    row = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if row.get("classification") not in ("LEAD", "HIGH_SIGNAL"):
+                    continue
+                entries.append({
+                    "priority_class": "LEAD",
+                    "classification": "LEAD",
+                    "engine": "smart-403",
+                    "target": row.get("request_url") or row.get("target") or "?",
+                    "reason": (
+                        f"smart_403 {row.get('technique')} tech={row.get('tech_profile')} "
+                        f"{row.get('reason')}; NEVER CONFIRMED — human replay required"
+                    ),
+                    "stable": None,
+                })
+                if len(entries) >= limit:
+                    break
+    except OSError:
+        return []
+    return entries
+
 def load_detection_evidence(results_dir):
     """From detection/engine_results.json — Access-Control + Open Redirect
     (and any future engine that plugs into the same framework)."""
@@ -942,6 +977,7 @@ def main():
         load_detection_evidence(args.results_dir)
         + load_idor_findings(args.results_dir)
         + load_smart_fuzzing_interesting(args.results_dir)
+        + load_smart_403_findings(args.results_dir)
         + load_historical_validations(args.results_dir)
         + load_representation_diffs(args.results_dir)
         + load_linkfinder_api_routes(args.results_dir)
