@@ -1453,6 +1453,28 @@ def main():
         json.dump(profile, fh, indent=2)
         fh.write("\n")
 
+    # Export cap provenance (Notion P1): full surface remains urls/all.txt
+    try:
+        all_txt = os.path.join(rd, "urls", "all.txt")
+        all_n = 0
+        if os.path.isfile(all_txt):
+            with open(all_txt, "r", errors="replace") as _af:
+                all_n = sum(1 for _ in _af if _.strip())
+        cap_meta = {
+            "schema": "bugbountyci.export_caps.v1",
+            "urls_jsonl_cap": 5000,
+            "urls_exported": len(urls_rows),
+            "urls_all_txt": all_n,
+            "urls_truncated": bool(all_n > len(urls_rows)),
+            "note": "Export models first N URLs for size; full inventory is urls/all.txt",
+        }
+        os.makedirs(os.path.join(rd, "meta"), exist_ok=True)
+        with open(os.path.join(rd, "meta", "export_caps.json"), "w", encoding="utf-8") as _cf:
+            json.dump(cap_meta, _cf, indent=2)
+            _cf.write("\n")
+    except Exception:
+        pass
+
     stable = {
         "schema": "bugbountyci.recon_export.v1",
         "run_id": run_id,

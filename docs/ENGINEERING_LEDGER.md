@@ -1,4 +1,27 @@
 ---
+## 2026-10-25 — Close remaining: triage honesty, WAF labels, export caps
+
+### P0 Triage truth
+- Extracted `scripts/run_triage_prioritization.py`; workflow step calls it.
+- **Never auto `status=confirmed`** from source maps, backups, WAF, origin IP, CORS, takeover fingerprints.
+- Buckets: `validation_required` | `lead` | `observed` only.
+
+### WAF legacy
+- Renamed `[ORIGIN-BYPASS-CONFIRMED]` → `[ORIGIN-IP-2XX-SIGNAL]`
+- Step titles clarify signals-only / prefer Smart 403 for IP-spoof
+- Edge anycast lines demoted to observed in triage
+
+### P1 Export
+- `meta/export_caps.json`: urls_jsonl_cap=5000, all.txt count, truncated flag
+
+### Still deferred (explicit)
+- Bulk Nuclei stays OFF
+- Full active-request scope guard across every curl in monolith (PI + historical + smart_403 covered)
+- Cloud exposure product
+- Authorized light E2E after this merge (operator)
+---
+
+---
 ## 2026-10-25 — Smart 403 phase integration (Notion framework)
 
 ### Source

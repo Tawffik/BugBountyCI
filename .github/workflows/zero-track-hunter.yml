@@ -2522,7 +2522,7 @@ jobs:
           fi
           echo "✅ Cloud origin discovery completed (results/${{ env.TIMESTAMP }}/cloud/*.txt)"
 
-      - name: "🎯 Direct-to-Origin WAF Bypass (verify discovered IPs)"
+      - name: "🎯 Direct-to-Origin IP Probe (signals only — not confirmed bypass)"
         if: ${{ env.ENABLE_WAF_BYPASS == 'true' }}
         continue-on-error: true
         timeout-minutes: 12
@@ -2575,13 +2575,13 @@ jobs:
               size_diff=$(( test_len > base_len ? test_len - base_len : base_len - test_len ))
               is_block_page=0
               grep -qiE 'access denied|attention required|cloudflare|akamai|request blocked|forbidden|captcha|ray id' /tmp/origin_test.html 2>/dev/null && is_block_page=1
-              # CONFIRMED = real site content via origin IP (2xx only, not redirects).
+              # SIGNAL only = 2xx body differs via origin IP (not a vulnerability; edge IPs often noise).
               # content-differs = lead only (triage must NOT promote to Confirmed).
               # bare 3xx / empty body = IP responds but not a WAF-bypass finding.
               if [ "$status" -ge 200 ] 2>/dev/null && [ "$status" -lt 300 ] 2>/dev/null \
                   && [ "$test_len" -gt 200 ] && [ "$base_len" -gt 0 ] \
                   && [ "$size_diff" -lt $((base_len / 3 + 1)) ] && [ "$is_block_page" -eq 0 ]; then
-                echo "[ORIGIN-BYPASS-CONFIRMED] ${scheme}://${ip}/ (Host: ${{ env.TARGET }}) | status=${status} | body_len=${test_len} vs baseline=${base_len}" >> "$RD/waf_bypass/origin_bypass.txt"
+                echo "[ORIGIN-IP-2XX-SIGNAL] ${scheme}://${ip}/ (Host: ${{ env.TARGET }}) | status=${status} | body_len=${test_len} vs baseline=${base_len}" >> "$RD/waf_bypass/origin_bypass.txt"
               elif [ "$status" != "000" ] && [ "$status" -ge 200 ] 2>/dev/null && [ "$status" -lt 300 ] 2>/dev/null \
                   && [ "$is_block_page" -eq 0 ] && [ "$test_len" -gt 50 ]; then
                 echo "[origin-reachable-but-content-differs] ${scheme}://${ip}/ (Host: ${{ env.TARGET }}) | status=${status} | body_len=${test_len} vs baseline=${base_len}" >> "$RD/waf_bypass/origin_bypass.txt"
@@ -2591,10 +2591,10 @@ jobs:
             done
           done < /tmp/origin_candidates.txt
 
-          confirmed=$(grep -c "ORIGIN-BYPASS-CONFIRMED" "$RD/waf_bypass/origin_bypass.txt" 2>/dev/null || echo 0)
-          echo "✅ Direct-origin bypass findings: $(wc -l < "$RD/waf_bypass/origin_bypass.txt" 2>/dev/null || echo 0) ($confirmed confirmed)"
+          confirmed=$(grep -c "ORIGIN-IP-2XX-SIGNAL" "$RD/waf_bypass/origin_bypass.txt" 2>/dev/null || echo 0)
+          echo "✅ Direct-origin bypass findings: $(wc -l < "$RD/waf_bypass/origin_bypass.txt" 2>/dev/null || echo 0) ($confirmed signal rows — not vulns)"
 
-      - name: "🎭 IP-Spoofing Header Bypass (access-control bypass via forged headers)"
+      - name: "🎭 IP-Spoofing Header Bypass (optional/legacy — prefer Smart 403)"
         if: ${{ env.ENABLE_WAF_BYPASS == 'true' }}
         continue-on-error: true
         timeout-minutes: 15
@@ -4985,275 +4985,21 @@ jobs:
         continue-on-error: true
         timeout-minutes: 3
         run: |
-          python3 << 'PYEOF'
-          import json, os, glob
-
-          rd = "results/" + os.environ.get("TIMESTAMP", "")
-          SEV_RANK = {"critical": 5, "high": 4, "medium": 3, "low": 2, "info": 1, "unknown": 0}
-
-          def rl(path):
-              try:
-                  with open(os.path.join(rd, path)) as f:
-                      return [l.strip() for l in f if l.strip()]
-              except Exception:
-                  return []
-
-          confirmed = []  # (severity_rank, severity_label, category, detail)
-          leads = []  # recon leads — NOT confirmed findings
-          # Information disclosure findings
-          for l in rl("info_disclosure/git_exposure.txt"):
-              confirmed.append((SEV_RANK["high"], "high", "Git Exposure", l))
-          for l in rl("info_disclosure/backup_files.txt"):
-              confirmed.append((SEV_RANK["medium"], "medium", "Backup File", l))
-          for l in rl("info_disclosure/config_files.txt"):
-              confirmed.append((SEV_RANK["high"], "high", "Config Exposure", l))
-          for l in rl("info_disclosure/dir_listing.txt"):
-              confirmed.append((SEV_RANK["medium"], "medium", "Directory Listing", l))
-          for l in rl("info_disclosure/error_disclosure.txt"):
-              confirmed.append((SEV_RANK["medium"], "medium", "Error Disclosure", l))
-          for l in rl("source_maps/found.txt"):
-              confirmed.append((SEV_RANK["low"], "low", "Source Map", l))
-          for l in rl("waf_bypass/bypass_results.txt"):
-              confirmed.append((SEV_RANK["high"], "high", "WAF Bypass (header)", l))
-          for l in rl("waf_bypass/origin_bypass.txt"):
-              if l.startswith("[ORIGIN-BYPASS-CONFIRMED]"):
-                  confirmed.append((SEV_RANK["critical"], "critical", "WAF Bypass (direct origin IP)", l))
-              elif l.startswith("[origin-reachable-but-content-differs]") or l.startswith("[origin-ip-responds-redirect-only]"):
-                  leads.append(("Origin IP signal (not confirmed bypass)", l))
-          for l in rl("waf_bypass/path_bypass.txt"):
-              if l.startswith("[PATH-BYPASS]"):
-                  confirmed.append((SEV_RANK["medium"], "medium", "Path encoding WAF bypass", l))
-              elif l.startswith("[PATH-BYPASS-LEAD]"):
-                  leads.append(("Path encoding lead (verify manually)", l))
-          for l in rl("waf_bypass/ip_spoof_bypass.txt"):
-              confirmed.append((SEV_RANK["high"], "high", "Access Control Bypass (spoofed IP header)", l))
-
-          # Nuclei - has real severity info in each JSONL line
-          for line in rl("nuclei/findings.jsonl"):
-              try:
-                  j = json.loads(line)
-                  sev = j.get("info", {}).get("severity", "unknown").lower()
-                  name = j.get("info", {}).get("name", j.get("template-id", "unknown"))
-                  host = j.get("host", j.get("matched-at", ""))
-                  confirmed.append((SEV_RANK.get(sev, 0), sev, "Nuclei", f"{name} @ {host}"))
-              except Exception:
-                  continue
-
-          # Our own confirmed-with-evidence categories (baseline-compared, non-guessed)
-          for l in rl("ai_agent/injection_findings.txt"):
-              sev = "high" if any(k in l for k in ["SQLi", "SSTI", "RCE", "Command"]) else "medium"
-              confirmed.append((SEV_RANK[sev], sev, "Injection", l))
-          for l in rl("ai_agent/xxe_findings.txt"):
-              if l.startswith("[XXE]"): confirmed.append((SEV_RANK["high"], "high", "XXE", l))
-          for l in rl("ai_agent/oob_findings.txt"):
-              if l.startswith("[OOB"): confirmed.append((SEV_RANK["high"], "high", "Blind/OOB", l))
-          for l in rl("nuclei/nikto_findings.txt"):
-              confirmed.append((SEV_RANK["low"], "low", "Nikto", l))
-          for l in rl("files/cms_findings.txt"):
-              confirmed.append((SEV_RANK["medium"], "medium", "CMS", l))
-          for l in rl("ai_agent/idor_findings.txt"):
-              if l.startswith("[IDOR-CANDIDATE]"): leads.append(("IDOR candidate (needs manual verification)", l))
-              elif l.startswith("[IDOR]"): confirmed.append((SEV_RANK["medium"], "medium", "IDOR", l))
-          for l in rl("ai_agent/graphql_findings.txt"):
-              if l.startswith("[GRAPHQL-INTROSPECTION]") or l.startswith("[GRAPHQL-BATCHING]"): leads.append(("GraphQL capability (not vuln alone)", l))
-              elif l.startswith("[GRAPHQL"): confirmed.append((SEV_RANK["medium"], "medium", "GraphQL", l))
-          for l in rl("cors/vulnerable.txt"):
-              confirmed.append((SEV_RANK["medium"], "medium", "CORS", l))
-          for l in rl("files/sensitive.txt"):
-              confirmed.append((SEV_RANK["high"], "high", "Sensitive File", l))
-          for l in rl("nuclei/takeover.jsonl"):
-              confirmed.append((SEV_RANK["high"], "high", "Subdomain Takeover", l[:200]))
-
-          confirmed.sort(key=lambda x: -x[0])
-
-          # Recon leads - keep leads already added (origin/path/IDOR/GraphQL)
-          if not isinstance(leads, list):
-              leads = []
-          for l in rl("js/github_recon.txt"): leads.append(("GitHub Exposure", l))
-          for l in rl("live/vhosts.txt"): leads.append(("Hidden VHost", l))
-          for l in rl("live/cloud_buckets.txt"): leads.append(("Cloud Bucket", l))
-          for l in rl("fuzzing/discovered.txt"): leads.append(("Content Discovery", l))
-          for l in rl("cloud/cloudfail.txt"): leads.append(("Cloud Origin (CloudFail)", l))
-          for l in rl("cloud/cloakquest.txt"): leads.append(("Cloud Origin (CloakQuest3r)", l))
-          for l in rl("js/admin.txt"):
-              if not l.startswith("#"): leads.append(("Admin Path Candidate", l))
-
-          lines = [f"# 🎯 Triage & Prioritization\n"]
-          lines.append(f"**{len(confirmed)} confirmed findings** (sorted by severity) · **{len(leads)} recon leads** for manual review\n")
-          lines.append("---\n\n## 🔴 Confirmed Findings\n")
-          if confirmed:
-              for rank, sev, cat, detail in confirmed:
-                  badge = {"critical":"🟣 CRITICAL","high":"🔴 HIGH","medium":"🟠 MEDIUM","low":"🟡 LOW"}.get(sev, "⚪ INFO")
-                  lines.append(f"- **[{badge}]** `{cat}` — {detail[:200]}")
-          else:
-              lines.append("_None this run._")
-          lines.append("\n---\n\n## 🟡 Recon Leads (not confirmed - verify manually)\n")
-          if leads:
-              for cat, detail in leads:
-                  lines.append(f"- `{cat}` — {detail[:200]}")
-          else:
-              lines.append("_None this run._")
-
-          os.makedirs(os.path.join(rd, "triage"), exist_ok=True)
-          with open(os.path.join(rd, "triage", "triage.md"), "w") as f:
-              f.write("\n".join(lines))
-          # Canonical findings schema
-          import hashlib
-          findings_path = os.path.join(rd, "triage", "findings.jsonl")
-          leads_path = os.path.join(rd, "triage", "leads.jsonl")
-          seen = set()
-          with open(findings_path, "w") as ff:
-              for rank, sev, cat, detail in confirmed:
-                  dedupe_key = hashlib.sha256(f"{cat}|{sev}|{detail}".encode("utf-8", errors="ignore")).hexdigest()[:16]
-                  if dedupe_key in seen: continue
-                  seen.add(dedupe_key)
-                  ff.write(json.dumps({"id": dedupe_key, "source": (cat.split()[0].lower() if cat else "unknown"), "type": cat, "severity": sev, "status": "confirmed", "confidence": "high" if sev in ("critical", "high") else "medium", "evidence": detail[:2000], "dedupe_key": dedupe_key}, ensure_ascii=False) + chr(10))
-          with open(leads_path, "w") as lf:
-              for cat, detail in leads:
-                  dedupe_key = hashlib.sha256(f"lead|{cat}|{detail}".encode("utf-8", errors="ignore")).hexdigest()[:16]
-                  lf.write(json.dumps({"id": dedupe_key, "source": "recon", "type": cat, "severity": "info", "status": "lead", "confidence": "low", "evidence": detail[:2000], "dedupe_key": dedupe_key}, ensure_ascii=False) + chr(10))
-          print(f"✅ Triage: {len(confirmed)} confirmed (sorted), {len(leads)} recon leads -> triage/triage.md")
-          print(f"Canonical findings: {len(seen)} -> triage/findings.jsonl")
-
-          # --- Hunter Queue (professional continuous-recon delta) ---
-          # Reads machine-readable RD/diff/new_*.txt produced BEFORE snapshot overwrite.
-          hq = []
-          target = os.environ.get("TARGET", "target")
-          hq.append(f"# Hunter Queue — `{target}`\n")
-          hq.append("Operator-first view: **what changed** + **what to test next**.\n")
-          hq.append("Authorized targets only. Validate findings manually before reporting.\n")
-          hq.append("\n---\n")
-
-          def _is_pure_ip_host_line(line: str) -> bool:
-              """True if line is IP-only (or IP:port) with no hostname — operator noise."""
-              import re as _re
-              s = (line or "").strip()
-              if not s:
-                  return True
-              s2 = _re.sub(r"^https?://", "", s, flags=_re.I)
-              host = s2.split("/")[0].split(":")[0]
-              return bool(_re.fullmatch(r"\d{1,3}(?:\.\d{1,3}){3}", host or ""))
-
-          def rl_diff(name, limit=40, prefer_hostnames=False):
-              rows = rl(f"diff/{name}")
-              total_raw = len(rows)
-              if prefer_hostnames:
-                  host_rows = [r for r in rows if not _is_pure_ip_host_line(r)]
-                  ip_rows = [r for r in rows if _is_pure_ip_host_line(r)]
-                  # Prefer hostnames; keep a small IP sample only if no hostnames
-                  if host_rows:
-                      rows = host_rows
-                  else:
-                      rows = ip_rows[:5]
-                  return rows[:limit], len(rows), total_raw, len(ip_rows)
-              return rows[:limit], len(rows), total_raw, 0
-
-          # ---- 1) Delta (the continuous-recon signal) ----
-          # Harvest evidence (#143/#144): delta flooded with pure-IP:port lines.
-          # Prefer hostnames for operator focus; full raw lists remain in diff/*.
-          hq.append("## 1. Delta since last scan\n")
-          delta_sections = [
-              ("new_interesting.txt", "New interesting hosts", 25, True),
-              ("new_live.txt", "New live hosts", 30, True),
-              ("new_subdomains.txt", "New subdomains (DNS)", 30, False),
-              ("new_js.txt", "New JavaScript URLs", 25, False),
-              ("new_secrets_high.txt", "New high-confidence secrets", 20, False),
-              ("new_nuclei.txt", "New Nuclei findings (template|host)", 25, False),
-          ]
-          any_delta = False
-          # baseline detection: no previous counts
-          try:
-              with open(os.path.join(rd, "meta", "previous_run_counts.json")) as pf:
-                  prev_counts = json.load(pf)
-              is_baseline = all(v is None for v in prev_counts.values())
-          except Exception:
-              is_baseline = True
-
-          if is_baseline:
-              hq.append("_First scan for this target (or no restored snapshot) — establishing baseline. Next run will show true deltas._\n")
-          else:
-              for fname, title, lim, prefer_hn in delta_sections:
-                  rows, shown_total, total_raw, ip_suppressed = rl_diff(fname, lim, prefer_hostnames=prefer_hn)
-                  if total_raw == 0:
-                      continue
-                  any_delta = True
-                  label = f"### {title} ({shown_total}"
-                  if prefer_hn and ip_suppressed:
-                      label += f"; {ip_suppressed} pure-IP lines suppressed for operator focus"
-                  label += ")\n"
-                  hq.append(label)
-                  for r in rows:
-                      hq.append(f"- `{r[:200]}`")
-                  if shown_total > lim:
-                      hq.append(f"- … +{shown_total - lim} more in `diff/{fname}`")
-                  hq.append("")
-              if not any_delta:
-                  hq.append("_No new assets/findings vs previous snapshot — surface may be stable._\n")
-
-          hq.append("")
-
-          # ---- 2) Priority hosts (interesting-first) ----
-          ranked = rl("live/interesting_ranked.txt")[:15]
-          hq.append("## 2. Priority hosts (interesting-first)\n")
-          if ranked:
-              for row in ranked:
-                  hq.append(f"- `{row}`")
-          else:
-              for u in (rl("live/scan_order.txt")[:10] or rl("live/live.txt")[:10]):
-                  hq.append(f"- `{u}`")
-          if not ranked and not rl("live/live.txt"):
-              hq.append("_No live hosts this run — see `meta/pipeline_health.md`._")
-          hq.append("")
-
-          # ---- 3) High-confidence secrets (current run) ----
-          high_sec = rl("js/secrets_high.txt")[:25]
-          hq.append("## 3. High-confidence secrets (this run)\n")
-          if high_sec:
-              for s in high_sec:
-                  hq.append(f"- `{s[:180]}`")
-          else:
-              hq.append("_None this run._")
-          hq.append("")
-
-          # ---- 4) Top confirmed findings ----
-          hq.append("## 4. Top confirmed findings\n")
-          if confirmed:
-              for rank, sev, cat, detail in confirmed[:20]:
-                  hq.append(f"- **{sev.upper()}** `{cat}` — {detail[:160]}")
-          else:
-              hq.append("_None this run — use priority hosts + delta for manual focus._")
-          hq.append("")
-
-          # ---- 5) Suggested focus ----
-          hq.append("## 5. Suggested manual focus\n")
-          if not is_baseline and any_delta:
-              hq.append("1. **Start with Delta** — new interesting/live hosts and new JS are highest ROI.")
-              hq.append("2. Validate **new Nuclei** / **new secrets_high** only in scope.")
-              hq.append("3. Then work remaining priority hosts in section 2.")
-          else:
-              hq.append("1. Open priority hosts in a browser/proxy; map auth and APIs.")
-              hq.append("2. Validate high-confidence secrets only against in-scope systems.")
-              hq.append("3. Reproduce any CRITICAL/HIGH findings; document impact.")
-          hq.append("4. Use `fuzzing/discovered.txt` and `targeted/arjun_params.txt` for param hunting.")
-          hq.append("5. Full narrative: `diff/diff.md` · health: `meta/pipeline_health.md`.")
-          hq.append("")
-
-          os.makedirs(os.path.join(rd, "triage"), exist_ok=True)
-          with open(os.path.join(rd, "triage", "hunter_queue.md"), "w") as f:
-              f.write("\n".join(hq))
-          n_live = len(rl("diff/new_live.txt"))
-          n_js = len(rl("diff/new_js.txt"))
-          n_nuc = len(rl("diff/new_nuclei.txt"))
-          print(f"✅ Hunter queue -> triage/hunter_queue.md (delta: live+{n_live} js+{n_js} nuclei+{n_nuc}, baseline={is_baseline})")
-          PYEOF
-          if [ -f "results/${{ env.TIMESTAMP }}/triage/findings.jsonl" ]; then
-            FC=$(wc -l < "results/${{ env.TIMESTAMP }}/triage/findings.jsonl" | tr -d " ")
+          RD="results/${{ env.TIMESTAMP }}"
+          mkdir -p "$RD/triage"
+          # Honest triage: never auto-CONFIRMED from file presence (Notion P0)
+          python3 scripts/run_triage_prioritization.py --results-dir "$RD" || true
+          if [ -f "$RD/triage/findings.jsonl" ]; then
+            FC=$(wc -l < "$RD/triage/findings.jsonl" | tr -d " ")
           else
             FC=0
           fi
+          # findings.jsonl now holds validation_required only — not confirmed vulns
           echo "finding_count=$FC" >> "$GITHUB_OUTPUT"
-          echo "finding_count=$FC (from triage/findings.jsonl)"
-
+          echo "finding_count=$FC (validation_required rows in triage/findings.jsonl; auto_confirmed=0)"
+          if [ -f "$RD/triage/triage_summary.json" ]; then
+            cat "$RD/triage/triage_summary.json"
+          fi
 
       - name: "🔑 Manual Follow-up Commands (credential/SQLi candidates)"
         continue-on-error: true
