@@ -1,4 +1,20 @@
 ---
+## 2026-10-27 — Final fix: hunter_queue empty (priority_class)
+
+**Root cause (#175):** `load_cloud_exposure_findings` omitted `priority_class`.
+`render_markdown` sorted on `e["priority_class"]` → KeyError after `open(..., "w")`
+truncated the file → **0-byte** `detection/hunter_queue.md`.
+
+**Fix:**
+- cloud loader sets `priority_class` / `engine` / `stable`
+- `normalize_entry()` before sort/render
+- atomic write via `.tmp` + `os.replace`
+- tests: `tests/test_hunter_queue_priority_class.py`
+
+Smart 403 RD fix already on main (#69). No contract changes (still LEAD max for cloud/403).
+
+---
+---
 ## 2026-10-26 — Cloud Exposure Intelligence V1
 
 Implements Notion *Cloud Exposure Intelligence* gates as a **bounded** Zero Track phase:

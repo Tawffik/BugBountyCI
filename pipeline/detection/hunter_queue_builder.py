@@ -60,6 +60,24 @@ ENGINE_TIER = {
 
 
 
+
+def normalize_entry(entry: dict) -> dict:
+    """Ensure every queue row has priority_class/engine/target for sort+render."""
+    if not isinstance(entry, dict):
+        return {"priority_class": "RESEARCH_CONTEXT", "engine": "unknown", "target": "?", "reason": str(entry), "stable": None}
+    e = dict(entry)
+    cls = e.get("priority_class") or e.get("classification") or "RESEARCH_CONTEXT"
+    if cls not in PRIORITY_ORDER:
+        cls = "RESEARCH_CONTEXT"
+    e["priority_class"] = cls
+    e["classification"] = e.get("classification") or cls
+    e["engine"] = e.get("engine") or e.get("source") or "unknown"
+    e["target"] = e.get("target") or "?"
+    e["reason"] = e.get("reason") or ""
+    if "stable" not in e:
+        e["stable"] = None
+    return e
+
 def demote_unconfirmed_ssrf(entry: dict) -> dict:
     """SSRF HIGH_SIGNAL without OOB_CONFIRMED → LEAD for queue ranking."""
     eng = (entry.get("engine") or entry.get("source") or "").lower()
@@ -197,8 +215,11 @@ def load_cloud_exposure_findings(results_dir, limit=25):
                 )
                 out.append({
                     "target": row.get("asset_normalized") or row.get("host"),
+                    "engine": "cloud_exposure",
+                    "priority_class": cls,
                     "classification": cls,
                     "reason": reason,
+                    "stable": None,
                     "source": "cloud_exposure",
                     "evidence": {
                         "provider": row.get("provider_hypothesis"),
@@ -212,6 +233,7 @@ def load_cloud_exposure_findings(results_dir, limit=25):
     except OSError:
         pass
     return out
+
 
 def load_smart_403_findings(results_dir, limit=25):
     """LEAD-only Smart 403 differentials from Notion framework phase — never CONFIRMED."""
@@ -931,10 +953,11 @@ def load_surface_context(results_dir):
 
 
 def render_markdown(entries, target_name, context=None):
+    entries = [normalize_entry(e) for e in (entries or [])]
     entries_sorted = sorted(
         entries,
         key=lambda e: (
-            PRIORITY_ORDER.get(e["priority_class"], 99),
+            PRIORITY_ORDER.get(e.get("priority_class") or "RESEARCH_CONTEXT", 99),
             ENGINE_TIER.get(e.get("engine") or "", 5),
             e.get("target") or "",
         ),
@@ -1041,12 +1064,17 @@ def main():
     os.makedirs(out_dir, exist_ok=True)
     out_path = os.path.join(out_dir, "hunter_queue.md")
     context = load_surface_context(args.results_dir)
-    with open(out_path, "w") as f:
-        f.write(render_markdown(entries, args.target, context=context))
+    # Normalize first so render never KeyErrors mid-write (open "w" would truncate to 0 bytes).
+    entries = [normalize_entry(e) for e in entries]
+    body = render_markdown(entries, args.target, context=context)
+    tmp_path = out_path + ".tmp"
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        f.write(body)
+    os.replace(tmp_path, out_path)
 
     counts = {}
     for e in entries:
-        counts[e["priority_class"]] = counts.get(e["priority_class"], 0) + 1
+        counts[e.get("priority_class") or "?"] = counts.get(e.get("priority_class") or "?", 0) + 1
     print(f"✅ hunter_queue.md written ({len(entries)} entries: {counts}) -> {out_path}")
 
 
