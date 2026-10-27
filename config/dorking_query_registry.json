@@ -1,0 +1,14 @@
+{
+  "schema": "bugbountyci.dorking_query_registry.v1",
+  "source": "Playbook §2 + RRP-4 minimal",
+  "note": "Optional workflow only — not default Hunter feed.",
+  "queries": [
+    {"query_id": "dk-env", "family": "disclosure_indicators", "providers": ["github"], "template": "\"{target}\" filename:.env", "hypothesis": "Env file + domain on GitHub"},
+    {"query_id": "dk-openapi", "family": "api_definitions", "providers": ["github"], "template": "\"{target}\" openapi OR swagger", "hypothesis": "API docs lead"},
+    {"query_id": "dk-workflows", "family": "build_deploy", "providers": ["github"], "template": "\"{target}\" path:.github/workflows", "hypothesis": "CI workflow mention"},
+    {"query_id": "dk-aws", "family": "disclosure_indicators", "providers": ["github"], "template": "\"{target}\" AWS_SECRET_ACCESS_KEY", "hypothesis": "AWS secret name co-occurrence"},
+    {"query_id": "dk-private-key", "family": "disclosure_indicators", "providers": ["github"], "template": "\"{target}\" \"BEGIN PRIVATE KEY\"", "hypothesis": "Private key block co-occurrence (redact)"},
+    {"query_id": "dk-docker", "family": "build_deploy", "providers": ["github"], "template": "\"{target}\" filename:docker-compose.yml", "hypothesis": "Compose file mention"},
+    {"query_id": "dk-staging", "family": "environment", "providers": ["github"], "template": "\"{target}\" staging api", "hypothesis": "Staging API strings"}
+  ]
+}

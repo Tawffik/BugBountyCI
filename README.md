@@ -189,7 +189,7 @@ Only run against **in-scope, authorized** assets.
 
 **Done recently:** conservative triage, Smart 403 + RD fix, Cloud Exposure V1, hunter queue integrity, JS endpoints path, health/SARIF honesty, ASN visibility in GATE_0.
 
-**Next (see ledger / Fix Control Center / [`docs/INFO_DISCLOSURE_EXECUTION_PLAN.md`](./docs/INFO_DISCLOSURE_EXECUTION_PLAN.md)):**
+**Next (see ledger / Fix Control Center / [`docs/INFO_DISCLOSURE_EXECUTION_PLAN.md`](./docs/INFO_DISCLOSURE_EXECUTION_PLAN.md) · [`docs/PLAYBOOK_ZERO_TRACK_INTEGRATION.md`](./docs/INFO_DISCLOSURE_EXECUTION_PLAN.md)):**
 1. One light run verifying post-#69/#70/#72 artifacts on current main  
 2. **Disclosure Desk** — single operator markdown aggregating ID/exposure family outputs  
 3. Stage-derived path probes (e.g. `.map` from JS inventory) under budget  

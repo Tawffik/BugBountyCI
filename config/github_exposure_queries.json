@@ -1,0 +1,17 @@
+{
+  "schema": "bugbountyci.github_exposure_query_registry.v1",
+  "source": "Notion Bug Bounty Hunting Playbook — High-Signal Tips (2026-10-27) §2-3",
+  "note": "Domain-scoped only. LEAD/review. Never use discovered secrets.",
+  "queries": [
+    {"query_id": "gh-env-file", "family": "disclosure_indicators", "hypothesis": "Env filename + domain", "template": "\"{target}\" filename:.env", "provider": "github_code_search", "evidence_type": "config_filename_lead"},
+    {"query_id": "gh-config-json", "family": "disclosure_indicators", "hypothesis": "config.json + domain", "template": "\"{target}\" filename:config.json", "provider": "github_code_search", "evidence_type": "config_filename_lead"},
+    {"query_id": "gh-docker-compose", "family": "build_deploy", "hypothesis": "docker-compose mention", "template": "\"{target}\" filename:docker-compose.yml", "provider": "github_code_search", "evidence_type": "ci_config_lead"},
+    {"query_id": "gh-terraform", "family": "build_deploy", "hypothesis": "terraform.tfvars mention", "template": "\"{target}\" filename:terraform.tfvars", "provider": "github_code_search", "evidence_type": "ci_config_lead"},
+    {"query_id": "gh-workflows", "family": "build_deploy", "hypothesis": "GitHub Actions workflows", "template": "\"{target}\" path:.github/workflows", "provider": "github_code_search", "evidence_type": "ci_config_lead"},
+    {"query_id": "gh-openapi", "family": "api_definitions", "hypothesis": "OpenAPI/Swagger + domain", "template": "\"{target}\" (openapi OR swagger OR api-docs)", "provider": "github_code_search", "evidence_type": "documentation_lead"},
+    {"query_id": "gh-aws-secret-name", "family": "disclosure_indicators", "hypothesis": "AWS secret key *name* co-occurrence", "template": "\"{target}\" AWS_SECRET_ACCESS_KEY", "provider": "github_code_search", "evidence_type": "secret_name_lead"},
+    {"query_id": "gh-client-secret", "family": "disclosure_indicators", "hypothesis": "client_secret keyword + domain", "template": "\"{target}\" client_secret", "provider": "github_code_search", "evidence_type": "secret_name_lead"},
+    {"query_id": "gh-staging", "family": "environment", "hypothesis": "staging/internal environment strings", "template": "\"{target}\" (staging OR internal OR localhost)", "provider": "github_code_search", "evidence_type": "environment_lead"},
+    {"query_id": "gh-npmrc", "family": "disclosure_indicators", "hypothesis": "npmrc + domain", "template": "\"{target}\" filename:.npmrc", "provider": "github_code_search", "evidence_type": "config_filename_lead"}
+  ]
+}
