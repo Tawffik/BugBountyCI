@@ -2115,7 +2115,7 @@ jobs:
           done
 
           : > "$RD/info_disclosure/config_files.txt"
-          for path in "/.env" "/.env.local" "/.env.production" "/.env.staging" "/config.json" "/secrets.json" "/config/secrets.yml" "/web.config" "/phpinfo.php" "/server-status" "/.aws/credentials" $(tr "\n" " " < /tmp/info_disc_extra_paths.txt 2>/dev/null); do
+          for path in "/.env" "/.env.local" "/.env.production" "/.env.staging" "/.env.development" "/config.json" "/secrets.json" "/config/secrets.yml" "/web.config" "/phpinfo.php" "/server-status" "/.aws/credentials" "/metrics" "/-/healthy" "/-/ready" "/debug/pprof/" "/swagger.json" "/openapi.json" "/swagger-ui.html" "/api/docs" "/humans.txt" $(tr "\n" " " < /tmp/info_disc_extra_paths.txt 2>/dev/null); do
             budget_ok || break
             while IFS= read -r host; do
               [ -z "$host" ] && continue
@@ -2414,8 +2414,11 @@ jobs:
               printf '%s\n' '{"phase":"github_recon","status":"EMPTY_VALID","detail":"domain-scoped search returned 0 raw hits"}' > "$RD/meta/phases/github_recon.json"
             fi
             echo "✅ GitHub recon hits (filtered): $(wc -l < "$RD/js/github_recon.txt" 2>/dev/null || echo 0) (raw: $(wc -l < "$RD/js/github_recon_raw.txt" 2>/dev/null || echo 0))"
+            # Playbook §2-3: bounded GitHub exposure slice (registry + provider status)
+            python3 scripts/run_github_exposure_slice.py --results-dir "$RD" --target "$TARGET" --token "${{ secrets.GITHUB_TOKEN }}" 2>>"$RD/logs/github_exposure_slice.log" || echo "⚠️ github exposure slice soft-failed"
           else
             echo "⚠️ GITHUB_TOKEN not available, skipping GitHub recon"
+            python3 scripts/run_github_exposure_slice.py --results-dir "$RD" --target "$TARGET" --token "" 2>>"$RD/logs/github_exposure_slice.log" || true
             mkdir -p "$RD/meta/phases"
             echo '{"phase":"github_recon","status":"NOT_CONFIGURED","detail":"GITHUB_TOKEN missing"}' > "$RD/meta/phases/github_recon.json"
           fi

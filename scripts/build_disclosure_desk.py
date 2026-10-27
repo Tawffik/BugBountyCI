@@ -160,6 +160,19 @@ def build(results_dir: Path) -> dict[str, Any]:
         "note": "API_ROUTE/WEB_ROUTE are surface candidates, not vulns.",
     }
 
+    # GitHub exposure slice (Playbook §2-3)
+    gh_sum = _load_json(rd / "github_exposure" / "summary.json") or {}
+    gh_lines = _lines(rd / "js" / "github_exposure_slice.txt")[:CAP]
+    sections["github_exposure_slice"] = {
+        "summary": {
+            "provider_status": gh_sum.get("provider_status"),
+            "queries_run": gh_sum.get("queries_run"),
+            "candidates_kept": gh_sum.get("candidates_kept"),
+        },
+        "sample": gh_lines,
+        "note": "Playbook-aligned GitHub code search — LEAD only, never use secrets.",
+    }
+
     # Derived probes (P1a)
     der_sum = _load_json(idir / "derived_probes_summary.json") or {}
     der_rows = _jsonl(idir / "derived_probes.jsonl", limit=100)
@@ -300,7 +313,16 @@ def render_md(report: dict[str, Any]) -> str:
     lines.append(f"- _{js.get('note', '')}_")
     lines.append("")
 
-    lines += ["## 8) Derived probes (JS→map / path→backup)", ""]
+    lines += ["## 8) GitHub exposure slice (Playbook)", ""]
+    ghs = s.get("github_exposure_slice") or {}
+    gs = ghs.get("summary") or {}
+    lines.append(f"- provider_status={gs.get('provider_status')} queries={gs.get('queries_run')} kept={gs.get('candidates_kept')}")
+    for row in ghs.get("sample") or []:
+        lines.append(f"- `{row[:180]}`")
+    lines.append(f"- _{ghs.get('note', '')}_")
+    lines.append("")
+
+    lines += ["## 9) Derived probes (JS→map / path→backup)", ""]
     der = s.get("derived_probes") or {}
     ds = der.get("summary") or {}
     if ds:

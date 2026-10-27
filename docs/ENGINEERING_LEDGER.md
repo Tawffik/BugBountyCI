@@ -1,4 +1,19 @@
 ---
+## 2026-10-27 — Playbook integration (GitHub slice + dorking contracts)
+
+Notion: Bug Bounty Hunting Playbook — High-Signal Tips (2026-10-27).
+
+- `config/github_exposure_queries.json` — Playbook §2–3 domain-scoped queries
+- `scripts/run_github_exposure_slice.py` — provider status enum; LEAD only; wired after github_recon
+- Path probes expanded: metrics, pprof, swagger/openapi, humans.txt, .env.development
+- `scripts/run_dorking_optional.py` + registry; `dorking-optional.yml` uses contract runner first
+- Disclosure Desk section for github exposure slice
+- `docs/PLAYBOOK_ZERO_TRACK_INTEGRATION.md` — map Playbook → stages
+
+Never auto-Hunter from dorks; never CONFIRMED from search hits.
+
+---
+---
 ## 2026-10-27 — Derived disclosure probes P1a
 
 - `scripts/run_derived_disclosure_probes.py`: JS files → `.map`; endpoint/URL paths → `.bak`/`.old`/`.orig`/`~`

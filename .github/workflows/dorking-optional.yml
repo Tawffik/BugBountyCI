@@ -46,15 +46,24 @@ jobs:
           # Prefer repo token; operators may set a PAT secret named GITHUB_PAT for higher code-search quota
           TOKEN="${{ secrets.GITHUB_PAT }}"
           if [ -z "$TOKEN" ]; then TOKEN="${GITHUB_TOKEN}"; fi
-          python3 docs/dorking_engine.py \
+          # Contract runner (provider status + LEAD only; never auto-Hunter)
+          python3 scripts/run_dorking_optional.py \
             --target "$TARGET" \
-            --dorks docs/dorks_rrp4_minimal.txt \
             --output results/dorking \
-            --delay 2 \
-            --max-results "${{ inputs.max_results }}" \
-            --sources "${{ inputs.sources }}" \
-            --github-token "$TOKEN" || true
-          echo "Dorking finished (non-fatal empty OK). See results/dorking/"
+            --token "$TOKEN" \
+            --max-per-query "${{ inputs.max_results }}" || true
+          # Legacy engine kept as secondary optional pass (github source only)
+          if [ -f docs/dorking_engine.py ]; then
+            python3 docs/dorking_engine.py \
+              --target "$TARGET" \
+              --dorks docs/dorks_rrp4_minimal.txt \
+              --output results/dorking/legacy \
+              --delay 2 \
+              --max-results "${{ inputs.max_results }}" \
+              --sources "github" \
+              --github-token "$TOKEN" || true
+          fi
+          echo "Dorking finished (non-fatal empty OK). See results/dorking/summary.json"
 
       - name: Upload dorking artifact
         uses: actions/upload-artifact@v4
