@@ -1,4 +1,18 @@
 ---
+## 2026-10-27 — Health honesty + GitHub query budget (post-#176)
+
+Audit of run #176 (success, FUNNEL_OK, but overall DEGRADED + empty GitHub):
+
+1. **DEGRADED drivers:** informational flags (e.g. empty gau) and provider 429 were treated like integrity failures.
+   - Fix: `_flag_degrades_overall` — ℹ️ / rate_limit / SOURCE_EMPTY do not force DEGRADED.
+2. **GitHub 17 queries → 429:** default_max_queries=8, priority ordering, early stop (already #80).
+3. **historical_validation:** if all outcomes BLOCKED_OR_RATE_LIMITED → status `blocked` (not fake pure ok).
+4. GATE_0 reason when `meta/github_exposure_rate_limited` present.
+
+No change to SI→Hunter, Nuclei OFF, caps, or CONFIRMED policy.
+
+---
+---
 ## 2026-10-27 — Unify GitHub search + dedupe ID paths
 
 - Removed dual GitHub code-search (inline curl loop + slice) → **single** `run_github_exposure_slice.py`

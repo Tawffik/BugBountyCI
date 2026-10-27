@@ -112,10 +112,21 @@ def main():
             "source": summary_rel,
         }
 
+    def _hist_val_status(s):
+        outcomes = s.get("outcomes") or {}
+        validated = int(s.get("validated") or 0)
+        blocked = int(outcomes.get("BLOCKED_OR_RATE_LIMITED") or 0)
+        # All budget burned on block/rate-limit → honest label (not critical ERROR)
+        if validated > 0 and blocked >= validated and blocked > 0:
+            return "blocked"
+        if validated == 0 and int(s.get("not_run") or 0) > 0:
+            return "empty"
+        return "ok"
+
     _enrich_phase(
         "historical_validation",
         "info_disclosure/historical_validation_summary.json",
-        lambda s: "ok",
+        _hist_val_status,
         lambda s: (
             f"validated={s.get('validated',0)} not_run={s.get('not_run',0)} "
             f"outcomes={s.get('outcomes',{})}"
@@ -218,7 +229,25 @@ def main():
     # Phase/metrics integrity flags must never be discarded by pipeline_health.md.
     # #36 set these from critical phases; #142 made MD overall/flags authoritative,
     # which could overwrite DEGRADED→HEALTHY and drop phase error flags.
-    phase_integrity_flags = list(flags)
+    # Informational flags (ℹ️, empty optional sources, provider rate limits) stay
+    # visible but must NOT alone force overall=DEGRADED (observed #176: gau empty
+    # + GitHub 429 looking like pipeline failure while FUNNEL_OK).
+    def _flag_degrades_overall(msg: str) -> bool:
+        s = (msg or "").strip()
+        if not s:
+            return False
+        if s.startswith("ℹ️"):
+            return False
+        low = s.lower()
+        if "rate_limit" in low or "rate limit" in low or "http_429" in low:
+            return False
+        if "source_empty" in low or "optional keys missing" in low:
+            return False
+        if "not_run" in low and "nuclei" in low:
+            return False
+        return True
+
+    phase_integrity_flags = [f for f in flags if _flag_degrades_overall(f)]
     overall_from_phases = "DEGRADED" if phase_integrity_flags else "OK"
 
     md_overall = None

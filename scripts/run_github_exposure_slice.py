@@ -85,6 +85,14 @@ def run(rd: Path, target: str, token: str | None, registry_path: Path, max_per_q
         return summary
 
     queries = load_registry(registry_path)
+    # Prefer priority=1; cap to avoid secondary rate limits (#176: 17×429)
+    max_q = int(os.environ.get("GITHUB_EXPOSURE_MAX_QUERIES") or 0)
+    if max_q <= 0:
+        try:
+            max_q = int(json.loads(registry_path.read_text(encoding="utf-8")).get("default_max_queries") or 8)
+        except Exception:
+            max_q = 8
+    queries = sorted(queries, key=lambda q: int(q.get("priority") or 99))[: max(1, max_q)]
     executions = []
     kept_rows = []
     for q in queries:
@@ -172,8 +180,12 @@ def run(rd: Path, target: str, token: str | None, registry_path: Path, max_per_q
     else:
         phase_status = str(overall).lower()
     (rd / "meta" / "phases" / "github_exposure_slice.json").write_text(
-        json.dumps({"phase": "github_exposure_slice", "status": phase_status, "detail": f"status={overall} kept={len(kept_rows)}"}, indent=2) + "\n"
+        json.dumps({"phase": "github_exposure_slice", "status": phase_status, "detail": f"status={overall} kept={len(kept_rows)} queries_planned={len(queries)}"}, indent=2) + "\n"
     )
+    if overall == "RATE_LIMIT":
+        (rd / "meta" / "github_exposure_rate_limited").write_text(
+            "provider secondary rate limit — not a scope/funnel failure\n", encoding="utf-8"
+        )
     print(json.dumps({"ok": True, "provider_status": overall, "kept": len(kept_rows)}))
     return summary
 
