@@ -139,6 +139,10 @@ def build(results_dir: Path) -> dict[str, Any]:
             "do not treat empty findings as full coverage"
         )
 
+    if (results_dir / "meta" / "github_exposure_rate_limited").is_file():
+        reasons.append(
+            "GitHub code search hit provider RATE_LIMIT — empty github leads ≠ missing code exposure"
+        )
     if (
         asn_ips_available > 0
         and asn_ips_promoted >= 0
