@@ -218,7 +218,8 @@ jobs:
     name: "🛡️ Full Autonomous Scan - ${{ inputs.target }}"
     # TEMP interim: Sengi free minutes exhausted — ubuntu-latest (public free).
     # NETWORK_MODE stays direct_then_tor (DIRECT primary, Tor fallback). Revert runs-on to sengi when quota resets.
-    runs-on: ubuntu-latest
+    concurrency:
+    sengi-standard-2-ubuntu-2404
     timeout-minutes: 358  # max job bound; public GHA free on this public repo
     # YAML_TR_CR_FIX + BUDGET_REDIST_2026_09: screenshots/nikto/fuzz trimmed; direct-origin/cloud/info bumped
     outputs:
