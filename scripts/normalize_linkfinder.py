@@ -192,6 +192,40 @@ def normalize_file(
             "Raw file linkfinder_endpoints.txt is preserved."
         ),
     }
+
+    # Stable paths for downstream stages (representation, PI readers, operators)
+    api_web = []
+    if os.path.isfile(out_jsonl):
+        with open(out_jsonl, "r", encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                cls = (rec.get("classification") or "").upper()
+                if cls not in ("API_ROUTE", "WEB_ROUTE"):
+                    continue
+                val = rec.get("resolved_url") or rec.get("raw_value") or ""
+                if val and val not in api_web:
+                    api_web.append(val)
+    ep_deep = os.path.join(out_dir, "linkfinder_endpoints.txt")
+    with open(ep_deep, "w", encoding="utf-8") as fh:
+        fh.write("\n".join(api_web[:5000]))
+        if api_web:
+            fh.write("\n")
+    js_dir = os.path.join(results_dir, "js")
+    os.makedirs(js_dir, exist_ok=True)
+    ep_js = os.path.join(js_dir, "endpoints.txt")
+    with open(ep_js, "w", encoding="utf-8") as fh:
+        fh.write("\n".join(api_web[:5000]))
+        if api_web:
+            fh.write("\n")
+    summary["endpoints_materialized"] = len(api_web)
+    summary["endpoints_paths"] = ["js_deep/linkfinder_endpoints.txt", "js/endpoints.txt"]
+
     with open(os.path.join(out_dir, "linkfinder_summary.json"), "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2)
         f.write("\n")

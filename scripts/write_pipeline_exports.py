@@ -1514,6 +1514,17 @@ def main():
     with open(os.path.join(rd, "meta", "recon_export.json"), "w") as fh:
         json.dump(stable, fh, indent=2)
         fh.write("\n")
+    try:
+        from pathlib import Path as _P
+        import importlib.util as _ilu
+        _sp = _P(__file__).resolve().parent / "sync_pipeline_health_md.py"
+        if _sp.is_file():
+            _spec = _ilu.spec_from_file_location("_sync_ph", _sp)
+            _mod = _ilu.module_from_spec(_spec)
+            _spec.loader.exec_module(_mod)
+            _mod.sync(rd)
+    except Exception:
+        pass
     print(
         f"Wrote meta/engine_health.json + target_profile.json + "
         f"hosts.jsonl ({len(hosts)}) + observations.jsonl ({len(observations)}) + "

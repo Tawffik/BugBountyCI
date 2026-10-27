@@ -2514,6 +2514,8 @@ jobs:
             echo "⚠️ CloakQuest3r not installed, skipping"
           fi
           echo "✅ Cloud origin discovery completed (results/${{ env.TIMESTAMP }}/cloud/*.txt)"
+          # Strip ASCII banners so operators see IPs/hints only (not tool art)
+          python3 scripts/sanitize_cloud_origin_outputs.py "$RD" 2>>"$RD/logs/cloud.log" || true
 
       - name: "🎯 Direct-to-Origin IP Probe (signals only — not confirmed bypass)"
         if: ${{ env.ENABLE_WAF_BYPASS == 'true' }}
@@ -5194,7 +5196,13 @@ jobs:
         id: sarif_check
         continue-on-error: true
         run: |
-          test -s "results/${{ env.TIMESTAMP }}/nuclei/findings.sarif"
+          # Bulk Nuclei is intentionally NOT_RUN on Zero Track — never fail the job for missing SARIF.
+          RD="results/${{ env.TIMESTAMP }}"
+          if [ -f "$RD/meta/phases/nuclei.json" ] && grep -q 'NOT_RUN' "$RD/meta/phases/nuclei.json" 2>/dev/null; then
+            echo "ℹ️ nuclei phase NOT_RUN — skip SARIF upload (expected)"
+            exit 1
+          fi
+          test -s "$RD/nuclei/findings.sarif"
 
       - name: "🛡️ Upload Nuclei SARIF to Security Tab (upload)"
         if: always() && steps.sarif_check.outcome == 'success'

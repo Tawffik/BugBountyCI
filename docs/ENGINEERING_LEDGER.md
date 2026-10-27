@@ -1,4 +1,19 @@
 ---
+## 2026-10-27 — Final closeout (JS endpoints, health sync, SARIF, cloud noise)
+
+Safe incremental fixes only — no contract changes (no auto CONFIRMED, Nuclei stays OFF):
+
+1. **JS endpoints materialization** — `normalize_linkfinder.py` writes `js/endpoints.txt` + `js_deep/linkfinder_endpoints.txt` (API_ROUTE+WEB_ROUTE) so downstream/representation/operators have a stable path (was missing on #175).
+2. **Health MD sync after exports** — `write_pipeline_exports.py` calls `sync_pipeline_health_md` so Overall matches `engine_health.overall` after recomputation.
+3. **Nuclei SARIF** — skip upload explicitly when phase `NOT_RUN` (expected on Zero Track).
+4. **Cloud origin sanitize** — strip tool banners; keep IP/hint lines (`sanitize_cloud_origin_outputs.py` after CloudFail step).
+
+Prior closeouts retained: Smart403 RD (#69), hunter_queue priority_class (#70), cloud V1, triage honesty.
+
+Tests: `tests/test_finalize_closeout_helpers.py` + prior suites green.
+
+---
+---
 ## 2026-10-27 — Final fix: hunter_queue empty (priority_class)
 
 **Root cause (#175):** `load_cloud_exposure_findings` omitted `priority_class`.
