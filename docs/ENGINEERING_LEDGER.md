@@ -1,4 +1,15 @@
 ---
+## 2026-10-27 — waymore works without keys; harden empty-run
+
+#175: waymore ~586k with no URLSCAN/VT keys.
+#176: waymore 0 — same "no keys" log + CommonCrawl connection error (flaky provider).
+
+Fixes:
+- Always retry waymore once if empty (longer timeout, -p 3) — keys still optional
+- Health: classify provider_connection_error before missing_api_keys for empty waymore
+
+---
+---
 ## 2026-10-27 — Health honesty + GitHub query budget (post-#176)
 
 Audit of run #176 (success, FUNNEL_OK, but overall DEGRADED + empty GitHub):

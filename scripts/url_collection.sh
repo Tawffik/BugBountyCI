@@ -173,21 +173,34 @@ else
 fi
 if command -v waymore >/dev/null 2>&1; then
   mkdir -p /tmp/waymore_out
-  # BUGFIX (2026-09-16): "-o /tmp/waymore_out" is not a real waymore flag in
-  # the installed version - confirmed in a real run's log: "waymore: error:
-  # ambiguous option: -o could match -oU, -oR, -ow, -oijs". argparse's
-  # prefix-matching rejected it outright, so waymore exited immediately
-  # with zero output every single time this ran, silently, since the
-  # surrounding `|| true` swallows the failure. -oU already writes the URL
-  # list directly to the target file, so the extra flag was never needed.
-  timeout $(scale_timeout 240) waymore -i "$TARGET" -mode U -oU "$RD/urls/waymore.txt" -p 2 -r 2 2>>"$RD/logs/waymore.log" || true
+  # BUGFIX (2026-09-16): do not use ambiguous -o (must be -oU).
+  # Keys are OPTIONAL — waymore routinely yields hundreds of thousands without
+  # URLSCAN/VT (#175). #176 zero yield was provider/network flakiness
+  # (CommonCrawl ERR in log), not "requires keys". Always retry once if empty.
+  WM_T1=$(scale_timeout 240)
+  WM_T2=$(scale_timeout 300)
+  echo "ℹ️ waymore attempt 1 (timeout=${WM_T1}s, no keys required)..." | tee -a "$RD/logs/waymore.log"
+  set +e
+  timeout "$WM_T1" waymore -i "$TARGET" -mode U -oU "$RD/urls/waymore.txt" -p 2 -r 2 2>>"$RD/logs/waymore.log"
+  wm_exit=$?
+  set -e
+  echo "ℹ️ waymore attempt 1 exit=${wm_exit} lines=$(wc -l < "$RD/urls/waymore.txt" 2>/dev/null || echo 0)" | tee -a "$RD/logs/waymore.log"
+  if [ ! -s "$RD/urls/waymore.txt" ]; then
+    echo "⚠️ waymore empty after attempt 1 — retry (timeout=${WM_T2}s, -p 3) without API keys..." | tee -a "$RD/logs/waymore.log"
+    sleep 5
+    set +e
+    timeout "$WM_T2" waymore -i "$TARGET" -mode U -oU "$RD/urls/waymore.txt" -p 3 -r 3 2>>"$RD/logs/waymore.log"
+    wm_exit2=$?
+    set -e
+    echo "ℹ️ waymore attempt 2 exit=${wm_exit2} lines=$(wc -l < "$RD/urls/waymore.txt" 2>/dev/null || echo 0)" | tee -a "$RD/logs/waymore.log"
+  fi
   if [ ! -s "$RD/urls/waymore.txt" ]; then
     find /tmp/waymore_out -type f \( -name '*.txt' -o -name '*urls*' \) -exec cat {} + 2>/dev/null \
       | grep -Eo 'https?://[^[:space:]]+' | sort -u > "$RD/urls/waymore.txt" || true
   fi
   sort -u "$RD/urls/waymore.txt" -o "$RD/urls/waymore.txt" 2>/dev/null || true
 else
-  echo "⚠️ waymore not installed - skipping"
+  echo "⚠️ waymore not installed - skipping" | tee -a "$RD/logs/waymore.log"
 fi
 echo "ℹ️ waymore URLs: $(wc -l < "$RD/urls/waymore.txt" 2>/dev/null || echo 0)"
 echo "🔍 Katana..."
@@ -461,12 +474,17 @@ def classify(name, n, logname):
     if "config file" in blob and "not found" in blob and name == "gau":
         # config now written; still empty → provider/network (IP deferred)
         return "SOURCE_EMPTY", "no_results_after_retry"
-    if "no value for" in blob and "api_key" in blob:
-        return "SOURCE_FAILED", "missing_api_keys"
-    if "access denied" in blob or "unable to get links" in blob:
-        return "SOURCE_FAILED", "provider_blocked_or_denied"
+    # Prefer network/provider failure over optional-key noise (#176 labeled
+    # missing_api_keys while waymore works without keys when providers respond).
     if "connection error" in blob or "connection refused" in blob:
         return "SOURCE_FAILED", "provider_connection_error"
+    if "access denied" in blob or "unable to get links" in blob:
+        return "SOURCE_FAILED", "provider_blocked_or_denied"
+    if "no value for" in blob and "api_key" in blob and name == "waymore":
+        # Keys optional — only note after network signals; empty may still be providers
+        pass
+    elif "no value for" in blob and "api_key" in blob:
+        return "SOURCE_FAILED", "missing_api_keys"
     if "not installed" in blob or (name == "waymore" and not blob and n == 0):
         # waymore may log to waymore.log only
         if "not installed" in blob:
