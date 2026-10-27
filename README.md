@@ -1,249 +1,216 @@
-# Zero Track — AI-Assisted Bug Bounty CI
+# BugBountyCI — Zero Track
 
-> **Continuing development on this repo? Read [`docs/ENGINEERING_LEDGER.md`](./docs/ENGINEERING_LEDGER.md) first.**
-> It's the project's memory: the actual goal, the architecture map, a
-> full evidence-based bug history (what broke, how it was proven, how
-> it was fixed), open gaps, and the real next priority. Chat sessions
-> don't persist — that file is what does.
+**Authorized reconnaissance and security-signal pipeline on GitHub Actions.**
 
-[![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-Automated-2088FF?logo=githubactions&logoColor=white)](https://github.com/Tawffik/BugBountyCI/actions)
-[![Workflow](https://img.shields.io/badge/Pipeline-60%2B%20steps-success)](./.github/workflows/zero-track-hunter.yml)
+This repository is a **CI system**: phased discovery, bounded active checks, honest health, and operator-facing triage surfaces.  
+It is **not** an autonomous AI agent that “finds and confirms bugs by itself.” Optional AI steps exist only as soft helpers; the core product is deterministic tooling + ranking + review queues.
+
+> **Project memory:** [`docs/ENGINEERING_LEDGER.md`](./docs/ENGINEERING_LEDGER.md) — goals, bug history, merges, and open gaps. Chat sessions do not persist; the ledger does.  
+> **Ops status (Notion):** Fix Control Center (synced with recent PRs #66–#72).
+
+[![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-Zero%20Track-2088FF?logo=githubactions&logoColor=white)](https://github.com/Tawffik/BugBountyCI/actions)
+[![Workflow](https://img.shields.io/badge/Pipeline-~75%20named%20steps-success)](./.github/workflows/zero-track-hunter.yml)
 [![Scope](https://img.shields.io/badge/Scope-Authorized%20targets%20only-orange)](#legal--ethics)
+[![Nuclei](https://img.shields.io/badge/Bulk%20Nuclei-OFF%20(intentional)-lightgrey)](#what-zero-track-is-not)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 
-> **Autonomous reconnaissance & vulnerability discovery pipeline** that runs on GitHub Actions.
-> Built for serious bug bounty workflows: prioritize high-value assets, reduce noise, and produce actionable reports — not just tool dumps.
+---
+
+## North Star (operator outcomes)
+
+After **one authorized run**, you should answer within minutes:
+
+1. **Did the funnel work?** — DNS → live → URLs → JS (see `triage/GATE_0.md`)
+2. **What do I open first?** — not twenty random folders (`GATE_0` → secrets/exposure/hunter)
+3. **Does empty mean clean, or starved / blocked / partial?** — phase health + RRP, not “0 findings = safe”
 
 ---
 
-## Why this project exists
+## What Zero Track is
 
-Most automated recon pipelines:
+| Layer | Role |
+|--------|------|
+| **Discovery** | Subdomains, ASN/CIDR inventory, live hosts, ports, URL corpus |
+| **Enrichment** | JS collection/deep extract, parameters, historical correlation |
+| **Detection engines (V1)** | Access-Control, SSRF, Open Redirect, Smart 403, Cloud exposure — **signals / LEADs**, not auto-confirmed vulns |
+| **Ranking** | Smart-fuzz response diffs, metrics, unified hunter queue |
+| **Operator surfaces (RRP)** | `GATE_0`, `SECRETS_REVIEW`, `EXPOSURE_QUEUE`, conservative triage |
+| **Export / health** | Artifacts, export caps metadata, engine/phase health |
 
-- Scan the **apex domain** and miss admin / API / staging hosts
-- Dump **thousands of false-positive “secrets”** from minified JS
-- Break under **Tor / proxy** concurrency and produce empty results
-- Are a **single unmaintainable YAML** that nobody can extend safely
-
-**Zero Track** is engineered against those failure modes:
-
-| Problem | Approach in this repo |
-|--------|------------------------|
-| Apex-only scanning | Host scoring (`admin`, `api`, `staging`, `dev`, non-standard ports) → unified `scan_order.txt` |
-| Noisy JS secrets | Split into **high-confidence** key formats vs filtered low-confidence |
-| Flaky live probing over Tor | Safe per-host result merge + bounded concurrency |
-| Empty passive URL sources | CDX limited fallback + urlscan.io + multi-source merge |
-| Scanner budget wasted | Nuclei, ffuf, Arjun, Nikto, crawlers all consume **interesting-first** order |
-
----
-
-## Pipeline overview
+Primary workflow: [`.github/workflows/zero-track-hunter.yml`](./.github/workflows/zero-track-hunter.yml) (~75 named steps).
 
 ```text
-┌─────────────────────────────────────────────────────────────────────────┐
-│  SETUP                                                                   │
-│  Scope check → Tor proxy → Toolchain (Go/Python) → Nuclei templates      │
-└───────────────────────────────┬─────────────────────────────────────────┘
-                                ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│  RECON                                                                   │
-│  Subdomains → ASN/CIDR → Takeover check → Live probe → Ports             │
-│  → Interesting-host ranking → scan_order (single source of truth)        │
-└───────────────────────────────┬─────────────────────────────────────────┘
-                                ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│  DISCOVERY                                                               │
-│  URLs (wayback/gau/katana/hakrawler/urlscan) → JS analysis → Deep JS     │
-│  → Content discovery → API / GraphQL / Swagger → Cloud origin            │
-└───────────────────────────────┬─────────────────────────────────────────┘
-                                ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│  DETECTION                                                               │
-│  Nuclei (critical/high + exposure tags) → Targeted (Dalfox, Arjun,       │
-│  Corsy, CRLFuzz, Subzy) → Info disclosure → Optional AI agent phases     │
-└───────────────────────────────┬─────────────────────────────────────────┘
-                                ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│  OUTPUT                                                                  │
-│  Triage → Diff vs previous scan → HTML/Markdown report → Artifacts       │
-│  → Optional Discord notify → Nuclei SARIF → Security tab                 │
-└─────────────────────────────────────────────────────────────────────────┘
+Authorized scope
+  → Discovery (subs / ASN inventory)
+  → Live surface + ports (promotion under resource caps)
+  → URL collection + quality gates
+  → JS / secrets / parameters
+  → Detection engines (bounded)
+  → Historical pivot + validation budget
+  → Hunter queue + triage / RRP
+  → Artifacts + health
 ```
-
-**60+ orchestrated steps** in one workflow, with reliability fixes validated against real runs.
 
 ---
 
-## Features
+## What Zero Track is not
 
-### Reconnaissance
-- Passive + active subdomain enumeration (Subfinder, Amass, Assetfinder, DNS brute, permutations)
-- ASN / CIDR expansion and live host probing (httpx over Tor with safe concurrency)
-- Port discovery (naabu) including high-value ports (8080, 8443, 9200, 27017, …)
-- **Interesting-host scoring** and unified scan order for all downstream tools
-- URL collection with resilient fallbacks when archive.org rate-limits runners
-- JavaScript body download, deep extraction (LinkFinder, SecretFinder, TruffleHog, Gitleaks, Cariddi)
-- Cloud origin discovery and optional WAF-related header checks
+- **Not** a guarantee of paid bounties  
+- **Not** “every Hunter row = confirmed vulnerability”  
+- **Not** automatic SI → Hunter promotion of secrets  
+- **Not** bulk **Nuclei** in this pipeline (**NOT_RUN** by design; CVE-scoped work belongs elsewhere, e.g. VulnRadar)  
+- **Not** “raise ASN/live/port caps until numbers look like old runs” — inventory can be large while **promotion is capped** (`meta/resource_caps.json`, now summarized in `GATE_0`)  
+- **Not** full Notion dorking manuals executed by default (`docs/dorking_engine.py` remains **IMPLEMENTED_NOT_INVOKED** until disclosure-desk + contracts)
 
-### Vulnerability signal
-- Nuclei multi-pass (severity/high, tech-aware, exposure/panel/config tags)
-- Parameter discovery (Arjun), XSS (Dalfox), CORS (Corsy), CRLF, takeover (Subzy)
-- Information disclosure paths (`.git`, backups, common config files)
-- Optional authenticated scanning via cookie / header secrets
-- Optional multi-provider AI phases for prioritization and report narrative
+Optional multi-provider **AI Agent** steps may run when API keys exist; they are **assistive**, not the definition of the system.
 
-### Operations
-- Diff mode against the previous scan of the same target
-- Screenshot capture (gowitness via Chrome SOCKS proxy)
-- Structured artifacts per run + triage helpers
-- Discord notification hook
-- Designed to run on **GitHub-hosted runners** with no self-hosted infra required
+---
+
+## Current system capabilities (accurate as of main `e1f710a+`)
+
+### Discovery and gates
+- Passive/active subdomain sources, resolve, live probe, ports  
+- **ASN/CIDR:** full inventory retained; live/port **promotion capped** (documented in GATE_0 — low live ≠ asnmap failure)  
+- URL merge with passive sources; quality gates for live/URL surface  
+- `triage/GATE_0.md` + `meta/funnel_gate.json` — funnel integrity verdict  
+
+### JavaScript and secrets
+- JS file harvest + deep extract (LinkFinder, etc.)  
+- Secret detectors → SI-2 / SI-4 classification; **review via SECRETS_REVIEW**, not auto-confirm  
+- Stable `js/endpoints.txt` materialized from LinkFinder API/WEB routes  
+
+### Information disclosure family
+- Path probes (git / backup / config / listing / errors) with body-aware classification where wired  
+- **Historical** host+path pivot + bounded validation  
+- Representation differential (observational)  
+- **Cloud Exposure V1:** provider clues (e.g. 403 on guessed buckets) — **never auto-confirmed**  
+- Path hits often **empty on hardened targets** = EMPTY_VALID, not necessarily a dead stage  
+
+### Detection engines
+| Engine | Intent |
+|--------|--------|
+| Access-Control V1 | Diff signals → LEAD / NOISE |
+| SSRF V1 | No OOB ⇒ not HIGH_SIGNAL/CONFIRMED |
+| Open Redirect V1 | Candidates / evidence honesty |
+| **Smart 403** | Bounded adaptive bypass techniques (Notion-informed); **LEAD only** |
+| Hunter queue | Unified ranked markdown for humans |
+
+### Operator RRP
+- `triage/GATE_0.md`  
+- `triage/SECRETS_REVIEW.md`  
+- `triage/EXPOSURE_QUEUE.md`  
+- `triage/triage_summary.json` — **`auto_confirmed: 0`** by policy  
+- `detection/hunter_queue.md`  
+
+### Health and exports
+- `meta/engine_health.json`, phase JSON under `meta/phases/`  
+- `meta/export_caps.json` when URL export is truncated  
+- Pipeline health markdown synced to overall status after exports  
+
+---
+
+## After a run — open this order
+
+1. `triage/GATE_0.md` — funnel + ASN inventory vs caps  
+2. `triage/SECRETS_REVIEW.md` / `triage/EXPOSURE_QUEUE.md`  
+3. `detection/hunter_queue.md`  
+4. `detection/smart_403_summary.json` (if present)  
+5. `detection/cloud_exposure_summary.json`  
+6. `triage/triage_summary.json`  
+7. `meta/engine_health.json` / `meta/pipeline_health.md`  
+
+Artifacts are uploaded per workflow run under Actions.
+
+---
+
+## Design contracts (non-negotiable)
+
+| Contract | Meaning |
+|----------|---------|
+| Authorized targets only | Scope check; no “scan everything for activity” |
+| LEAD ≠ CONFIRMED | Human verification required for impact |
+| Caps stay | Do not “fix” low live counts by removing caps |
+| Nuclei bulk off | Zero Track is recon + signal ranking |
+| SI→Hunter off | Secrets stay in review surfaces |
+| Soft-fail phases | One tool failure should not erase the run’s operator surfaces |
 
 ---
 
 ## Quick start
 
-### 1. Fork or clone
+### 1. Clone
 
 ```bash
 git clone https://github.com/Tawffik/BugBountyCI.git
 cd BugBountyCI
 ```
 
-### 2. Configure secrets (optional but recommended)
+### 2. Secrets (optional)
 
 Repo → **Settings → Secrets and variables → Actions**
 
 | Secret | Purpose |
 |--------|---------|
-| `DISCORD_WEBHOOK` | Run summary notifications |
-| `ANTHROPIC_API_KEY` / `OPENROUTER_API_KEY` / `GROQ_API_KEY` / `GEMINI_API_KEY` / … | AI agent phases (any one can work as fallback) |
-| `AUTH_COOKIE` / `AUTH_HEADER` | Authenticated surface scanning |
-| `TOR_BRIDGE_LINES` | Tor bridges if the runner network blocks direct Tor |
-| `PDCP_API_KEY` | ProjectDiscovery Cloud (ASN helpers) |
+| `DISCORD_WEBHOOK` | Summary notifications |
+| `GROQ_API_KEY` / `GEMINI_API_KEY` / … | Optional AI helper phases |
+| `PDCP_API_KEY` | ProjectDiscovery cloud features where used |
+| `URLSCAN_API_KEY` / `VIRUSTOTAL_API_KEY` | Optional passive enrichment (if configured) |
+| `AUTH_COOKIE` / `AUTH_HEADER` | Optional authenticated context |
 
-### 3. Run a scan
+### 3. Run Zero Track
 
-1. Open **Actions** → **Zero Track - AI Autonomous Hunter**
-2. Click **Run workflow**
-3. Set:
-   - **target** — domain you are authorized to test (e.g. `example.com`)
-   - **hunting_mode** — `light` / `normal` / `aggressive`
-   - toggles for WAF recon, git exposure, source maps as needed
-4. Wait for completion → download the **results artifact**
+**Actions → Zero Track / AI Autonomous Hunter → Run workflow**
 
-### 4. Read the output
+Typical inputs:
+- **Target** domain you are authorized to test  
+- Prefer **light** / bounded mode for verification runs  
+- Keep default WAF flood flags off; prefer Smart 403 path  
 
-Typical artifact layout:
-
-```text
-results/<run-id>-<target>/
-├── live/           # live hosts, ports, interesting ranking, scan_order
-├── urls/           # merged URLs, gf categories
-├── js/             # bodies, api_endpoints, secrets_high / secrets_low
-├── targeted/       # arjun, dalfox, corsy, …
-├── nuclei/         # findings.jsonl, exposure pass
-├── fuzzing/        # content discovery hits
-├── ai/             # security report (if AI configured)
-├── report/         # exported report
-└── logs/           # per-tool logs for debugging
-```
-
-Start with:
-
-1. **`triage/hunter_queue.md`** — operator queue: **delta since last scan**, priority hosts, high secrets, top findings
-2. `live/interesting_ranked.txt` — where the pipeline focused
-3. `js/secrets_high.txt` — high-confidence credentials/patterns
-4. `nuclei/findings.jsonl` — confirmed template hits
-5. `targeted/` and `fuzzing/discovered.txt` — manual follow-up leads
+Only run against **in-scope, authorized** assets.
 
 ---
 
-## Hunting modes
+## Repository map
 
-| Mode | Intent | Typical trade-off |
-|------|--------|-------------------|
-| `light` | Fast signal | Shorter budgets, fewer hosts/URLs |
-| `normal` | Balanced (default) | Production default for most programs |
-| `aggressive` | Maximum coverage | Longer runtime, deeper fuzz/JS caps |
-
----
-
-## Architecture notes (for reviewers)
-
-- **Single orchestration workflow:** `.github/workflows/zero-track-hunter.yml`
-- **Reliability engineering:** parallel JSON/text corruption fixed via per-task temp files; Tor-friendly concurrency caps
-- **Data flow:** `live.txt` → score → `interesting.txt` → `scan_order.txt` → all scanners
-- **Quality over volume:** secrets and findings are structured for triage, not raw greps only
-- **Roadmap:** modular composite actions (see `docs/MODULAR_ROADMAP.md`) so the monolith can be split without losing behavior
-
-How we compare to other frameworks: [`docs/COMPETITIVE_ANALYSIS.md`](./docs/COMPETITIVE_ANALYSIS.md)  
-Technical deep-dive: [`docs/DOCUMENTATION.md`](./docs/DOCUMENTATION.md)  
-Phase manifest: [`docs/PIPELINE_MANIFEST.md`](./docs/PIPELINE_MANIFEST.md)  
-Methodology notes: [`docs/methodology.md`](./docs/methodology.md)
+| Path | Role |
+|------|------|
+| `.github/workflows/zero-track-hunter.yml` | Main monolith pipeline |
+| `pipeline/detection/` | Detection engines + hunter queue builder |
+| `pipeline/scope.py` | Shared in-scope helpers |
+| `scripts/` | RRP, historical, exports, triage, phase helpers |
+| `docs/ENGINEERING_LEDGER.md` | Engineering history and decisions |
+| `docs/RESULTS_RECOVERY_PROGRAM.md` | RRP design |
+| `docs/dorking_engine.py` | Dorking prototype (**not** default-invoked) |
+| `tests/` | Offline regression for engines and gates |
 
 ---
 
-## Project structure
+## Roadmap highlights (honest)
 
-```text
-BugBountyCI/
-├── .github/
-│   ├── workflows/
-│   │   ├── zero-track-hunter.yml   # Main autonomous hunter
-│   │   └── 01.yml                  # Optional subdomain monitor (manual)
-│   └── wordlists/
-├── docs/
-│   ├── DOCUMENTATION.md            # Full technical reference
-│   ├── PIPELINE_MANIFEST.md        # Step-level manifest
-│   ├── MODULAR_ROADMAP.md          # Evolution / modularization plan
-│   ├── methodology.md
-│   └── dorking_engine.py           # Supporting recon utilities
-├── results/                        # Optional local samples (not required to run)
-├── LICENSE
-└── README.md
-```
+**Done recently:** conservative triage, Smart 403 + RD fix, Cloud Exposure V1, hunter queue integrity, JS endpoints path, health/SARIF honesty, ASN visibility in GATE_0.
+
+**Next (see ledger / Fix Control Center):**
+1. One light run verifying post-#69/#70/#72 artifacts on current main  
+2. **Disclosure Desk** — single operator markdown aggregating ID/exposure family outputs  
+3. Stage-derived path probes (e.g. `.map` from JS inventory) under budget  
+4. Bounded GitHub passive query slice with provider status honesty  
+5. Dorking enablement only after contracts/benchmarks — still **not** default Hunter feed  
 
 ---
 
-## Legal & ethics
+## Legal / ethics
 
-This project is intended **only** for:
-
-- Targets you own
-- Targets covered by an explicit bug bounty / VDP authorization
-- Lab and educational environments
-
-Unauthorized scanning may be illegal. You are solely responsible for compliance with applicable laws and program rules. The pipeline is designed for **detection and evidence collection**, not destructive exploitation.
+Use only on systems you own or are **explicitly authorized** to test under a bug bounty or written agreement.  
+Misuse can be illegal. Authors are not responsible for unauthorized scanning.
 
 ---
 
-## Skills demonstrated
+## License
 
-Built and iterated as a production-style security automation system:
-
-- End-to-end **CI/CD for offensive security** on GitHub Actions
-- **Failure-mode analysis** from real runs (empty artifacts, SIGPIPE, Tor circuit limits)
-- **Signal ranking** and budget-aware scanning
-- Multi-tool orchestration (Go, Python, Nuclei ecosystem)
-- Operational reporting, diffing, and triage workflow design
+[MIT](./LICENSE)
 
 ---
 
-## Contributing
+## Maintainers
 
-See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for how to propose changes safely (this workflow is large; small, tested diffs are preferred).
-
----
-
-## Author
-
-**Tawffik** — [GitHub](https://github.com/Tawffik)
-
-If this repo is useful for your workflow or hiring evaluation, a star is appreciated.
-
----
-
-## Disclaimer
-
-Provided as-is, without warranty. Use responsibly and only on authorized targets.
+Built and iterated as a **pipeline product** for authorized bug-bounty reconnaissance — ranking and review first, not AI theater.
