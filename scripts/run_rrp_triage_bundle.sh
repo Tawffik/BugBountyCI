@@ -18,4 +18,5 @@ run_if() {
 run_if run_funnel_gate.sh
 run_if run_secrets_review.sh
 run_if run_exposure_queue.sh
+run_if run_disclosure_desk.sh
 echo "[rrp] triage bundle done under $RESULTS_DIR/triage"

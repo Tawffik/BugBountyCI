@@ -256,7 +256,15 @@ def render_md(report: dict[str, Any]) -> str:
         lines += ["", "## Phases seen", ""]
         for k, v in report["phases_seen"].items():
             lines.append(f"- `{k}`: `{v}`")
-    lines.append("")
+    lines += [
+        "",
+        "## Operator next",
+        "",
+        "- `triage/DISCLOSURE_DESK.md` — information-disclosure family rollup",
+        "- `triage/SECRETS_REVIEW.md` / `triage/EXPOSURE_QUEUE.md`",
+        "- `detection/hunter_queue.md`",
+        "",
+    ]
     return "\n".join(lines)
 
 
