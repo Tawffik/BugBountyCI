@@ -54,8 +54,8 @@ def github_search(token: str, query: str, per_page: int = 5) -> tuple[str, list[
     except urllib.error.HTTPError as e:
         if e.code == 401:
             return "ERROR", [], "http_401"
-        if e.code == 403:
-            return "RATE_LIMIT", [], "http_403"
+        if e.code in (403, 429):
+            return "RATE_LIMIT", [], f"http_{e.code}"
         if e.code == 422:
             return "ERROR", [], "http_422"
         return "ERROR", [], f"http_{e.code}"
@@ -122,7 +122,9 @@ def run(rd: Path, target: str, token: str | None, registry_path: Path, max_per_q
             })
             exec_rec["kept"] += 1
         executions.append(exec_rec)
-        time.sleep(1.2)
+        if status == "RATE_LIMIT":
+            break
+        time.sleep(2.5)
 
     statuses = [e["provider_status"] for e in executions]
     if any(s == "COMPLETED_WITH_CANDIDATES" for s in statuses):
@@ -161,7 +163,14 @@ def run(rd: Path, target: str, token: str | None, registry_path: Path, max_per_q
             path = r.get("path") or ""
             if repo or path:
                 fh.write(f"{repo} :: {path}\n")
-    phase_status = "ok" if overall in ("COMPLETED_ZERO", "COMPLETED_WITH_CANDIDATES") else str(overall).lower()
+    if overall in ("COMPLETED_ZERO", "COMPLETED_WITH_CANDIDATES"):
+        phase_status = "ok"
+    elif overall == "RATE_LIMIT":
+        phase_status = "rate_limit"
+    elif overall == "NOT_CONFIGURED":
+        phase_status = "NOT_CONFIGURED"
+    else:
+        phase_status = str(overall).lower()
     (rd / "meta" / "phases" / "github_exposure_slice.json").write_text(
         json.dumps({"phase": "github_exposure_slice", "status": phase_status, "detail": f"status={overall} kept={len(kept_rows)}"}, indent=2) + "\n"
     )
