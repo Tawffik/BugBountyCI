@@ -1,4 +1,16 @@
 ---
+## 2026-10-27 — Disclosure Desk P0 (ID family)
+
+Implemented Phase 1 of `docs/INFO_DISCLOSURE_EXECUTION_PLAN.md`:
+- `scripts/build_disclosure_desk.py` → `triage/DISCLOSURE_DESK.md` + `meta/disclosure_desk.json`
+- Hooked via `run_rrp_triage_bundle.sh` (same path as GATE/SECRETS/EXPOSURE)
+- GATE_0 “Operator next” points at the desk
+- Tests: `tests/test_disclosure_desk.py`
+
+No new active probes; no CONFIRMED; SI→Hunter still OFF. Phases 2–4 (derived paths, GitHub slice, dorking) remain open.
+
+---
+---
 ## 2026-10-27 — ASN/CIDR operator truth (not cap loosening)
 
 **User signal:** ASN/CIDR “looked smaller” than older runs.

@@ -1,6 +1,6 @@
 # Information Disclosure / Exposure — Execution Plan
 
-**Status:** PLAN (not fully implemented)  
+**Status:** PLAN — **Phase 1 (Disclosure Desk) IMPLEMENTED** on main path via `scripts/build_disclosure_desk.py` + RRP bundle hook (2026-10-27). Phases 2–4 still open.  
 **Date:** 2026-10-27  
 **Scope:** BugBountyCI Zero Track only  
 **Authority:** Chat audit series + Notion (Module 24, Passive Intelligence & Dorking Blueprint, GitHub Dorking Manual, Fix Control Center, Tips) + run #175 evidence + OWASP WSTG alignment  
@@ -99,16 +99,16 @@ Not only the workflow step named “Information Disclosure Scan”.
 
 ---
 
-### Phase 1 — P0 Disclosure Desk (highest ROI)
+### Phase 1 — P0 Disclosure Desk (highest ROI) — **DONE**
 
 **Intent:** one file operators open for the whole family.
 
-| ID | Task | Implementation sketch | Tests |
-|----|------|----------------------|-------|
-| 1.1 | `scripts/build_disclosure_desk.py` | Read existing artifacts only | Fixtures with partial sources |
-| 1.2 | Write `triage/DISCLOSURE_DESK.md` + `meta/disclosure_desk.json` | Sections below | Schema stable |
-| 1.3 | Hook after RRP bundle | `if: always()`, `continue-on-error: true` | Workflow YAML valid |
-| 1.4 | Link from GATE_0 or triage summary one-liner | Optional soft | — |
+| ID | Task | Status |
+|----|------|--------|
+| 1.1 | `scripts/build_disclosure_desk.py` | **DONE** |
+| 1.2 | `triage/DISCLOSURE_DESK.md` + `meta/disclosure_desk.json` | **DONE** |
+| 1.3 | Hook in `scripts/run_rrp_triage_bundle.sh` | **DONE** |
+| 1.4 | Link from GATE_0 operator next | **DONE** |
 
 **Desk sections (order):**
 1. Executive counts (hits vs empty-but-ran)
