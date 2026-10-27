@@ -1,4 +1,20 @@
 ---
+## 2026-10-27 — ASN/CIDR operator truth (not cap loosening)
+
+**User signal:** ASN/CIDR “looked smaller” than older runs.
+
+**Evidence (#175):** asn_ips file ~2304 / available 2120 / **promoted 200** under `asn_port_ip_cap` & `ip_live_cap`. Inventory was healthy; promotion was intentional.
+
+**Change (no cap increase):**
+- `GATE_0` + `funnel_gate.json` show ASN inventory vs promoted + caps
+- Explicit reason when inventory >> promoted
+- `scripts/write_asn_discovery_phase.py` + workflow hook → `meta/phases/asn_discovery.json`
+- Note: low live ≠ asnmap failure
+
+Does **not** raise ASN_PORT_IP_CAP / IP_LIVE_CAP (North Star: not chasing bigger numbers).
+
+---
+---
 ## 2026-10-27 — Final closeout (JS endpoints, health sync, SARIF, cloud noise)
 
 Safe incremental fixes only — no contract changes (no auto CONFIRMED, Nuclei stays OFF):

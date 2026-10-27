@@ -1237,6 +1237,7 @@ jobs:
           fi
           [ -f "$RD/subdomains/asn_cidrs.txt" ] || : > "$RD/subdomains/asn_cidrs.txt"
           echo "✅ ASN CIDRs: $(wc -l < "$RD/subdomains/asn_cidrs.txt" 2>/dev/null || echo 0) | live candidates: $(wc -l < "$RD/subdomains/asn_ips.txt" 2>/dev/null || echo 0) (source: $(cat "$RD/meta/asn_source.txt" 2>/dev/null || echo none))"
+          python3 scripts/write_asn_discovery_phase.py --results-dir "$RD" || true
 
       - name: "🏚️ Subdomain Takeover Check"
         continue-on-error: true
