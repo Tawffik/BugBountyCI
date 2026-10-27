@@ -68,12 +68,33 @@ def build(results_dir: Path) -> dict[str, Any]:
     gau_lines = _count_lines(results_dir / "urls" / "gau.txt")
     js_files = _count_lines(results_dir / "js" / "files.txt")
     secrets_high = _count_lines(results_dir / "js" / "secrets_high.txt")
+    ports_txt = _count_lines(results_dir / "live" / "ports.txt")
+    asn_cidrs = _count_lines(results_dir / "subdomains" / "asn_cidrs.txt")
+    asn_ips_file = _count_lines(results_dir / "subdomains" / "asn_ips.txt")
+
+    # Resource caps: inventory vs promoted (do NOT treat lower live as ASN failure)
+    caps: dict[str, Any] = {}
+    caps_path = results_dir / "meta" / "resource_caps.json"
+    if caps_path.is_file():
+        try:
+            caps = json.loads(caps_path.read_text(encoding="utf-8", errors="replace"))
+            if not isinstance(caps, dict):
+                caps = {}
+        except (OSError, json.JSONDecodeError, ValueError):
+            caps = {}
+    asn_ips_available = int(caps.get("asn_ips_available") or asn_ips_file or 0)
+    asn_ips_promoted = int(caps.get("asn_ips_promoted") or 0)
+    asn_port_cap = caps.get("asn_port_ip_cap")
+    ip_live_cap = caps.get("ip_live_cap")
+    naabu_cap = caps.get("naabu_ip_cap")
 
     phases = {
         "live_probe": _read_phase(results_dir, "live_probe"),
         "url_collection": _read_phase(results_dir, "url_collection"),
         "information_disclosure": _read_phase(results_dir, "information_disclosure"),
         "dns": _read_phase(results_dir, "dns"),
+        "asn_discovery": _read_phase(results_dir, "asn_discovery"),
+        "port_scan": _read_phase(results_dir, "port_scan"),
     }
 
     dns_failed_flag = (results_dir / "meta" / "DNS_FAILED").is_file()
@@ -118,6 +139,16 @@ def build(results_dir: Path) -> dict[str, Any]:
             "do not treat empty findings as full coverage"
         )
 
+    if (
+        asn_ips_available > 0
+        and asn_ips_promoted >= 0
+        and asn_ips_available > max(asn_ips_promoted, 1) * 2
+    ):
+        reasons.append(
+            f"ASN inventory {asn_ips_available} IPs → promoted {asn_ips_promoted} under caps "
+            f"(asn_port_ip_cap={asn_port_cap}, ip_live_cap={ip_live_cap}) — expected, not ASN failure"
+        )
+
     if not reasons and verdict == "FUNNEL_OK":
         reasons.append("DNS/live/URL counts look usable for operator review")
 
@@ -148,7 +179,20 @@ def build(results_dir: Path) -> dict[str, Any]:
             "gau_lines": gau_lines,
             "js_files": js_files,
             "secrets_high": secrets_high,
+            "ports_txt": ports_txt,
+            "asn_cidrs": asn_cidrs,
+            "asn_ips_file": asn_ips_file,
+            "asn_ips_available": asn_ips_available,
+            "asn_ips_promoted": asn_ips_promoted,
+            "asn_port_ip_cap": asn_port_cap,
+            "ip_live_cap": ip_live_cap,
+            "naabu_ip_cap": naabu_cap,
         },
+        "resource_caps": caps,
+        "asn_note": (
+            "ASN/CIDR inventory is intentionally larger than promoted live/ports. "
+            "Lower live counts vs old runs usually mean resource_caps, not a failed asnmap."
+        ),
         "flags": {
             "dns_failed": dns_failed_flag,
             "skip_heavy_scan": skip_heavy,
@@ -184,6 +228,21 @@ def render_md(report: dict[str, Any]) -> str:
         f"| gau lines | {c['gau_lines']} |",
         f"| js/files | {c['js_files']} |",
         f"| secrets_high | {c['secrets_high']} |",
+        f"| ports.txt | {c.get('ports_txt', 0)} |",
+        "",
+        "## ASN / CIDR vs caps (not a failure if inventory >> live)",
+        "",
+        f"| Metric | Value |",
+        f"|--------|------:|",
+        f"| asn_cidrs | {c.get('asn_cidrs', 0)} |",
+        f"| asn_ips (file) | {c.get('asn_ips_file', 0)} |",
+        f"| asn_ips_available | {c.get('asn_ips_available', 0)} |",
+        f"| asn_ips_promoted | {c.get('asn_ips_promoted', 0)} |",
+        f"| asn_port_ip_cap | {c.get('asn_port_ip_cap', '—')} |",
+        f"| ip_live_cap | {c.get('ip_live_cap', '—')} |",
+        f"| naabu_ip_cap | {c.get('naabu_ip_cap', '—')} |",
+        "",
+        f"_{report.get('asn_note', '')}_",
         "",
         "## Reasons",
         "",
