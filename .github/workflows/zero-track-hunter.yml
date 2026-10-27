@@ -2835,11 +2835,13 @@ jobs:
           SMART_403_MAX_ENDPOINTS: "12"
         run: |
           RD="results/${{ env.TIMESTAMP }}"
+          export RD TARGET
           mkdir -p "$RD/logs" "$RD/detection" "$RD/meta/phases"
           # Notion Smart 403 Framework — adaptive techniques on observed 401/403 only
           # Placement: after Access-Control so candidates exist; LEAD only, never CONFIRMED
           chmod +x scripts/run_smart_403.sh 2>/dev/null || true
-          bash scripts/run_smart_403.sh 2>>"$RD/logs/smart_403.log" || true
+          # Pass RD/TARGET as args — child shell does not inherit unexported RD=
+          bash scripts/run_smart_403.sh "$RD" "$TARGET" 2>>"$RD/logs/smart_403.log" || true
           if [ -f "$RD/detection/smart_403_summary.json" ]; then
             echo "✅ smart_403 summary:"
             head -c 800 "$RD/detection/smart_403_summary.json" || true
