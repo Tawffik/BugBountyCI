@@ -1,4 +1,14 @@
 ---
+## 2026-10-27 — Derived disclosure probes P1a
+
+- `scripts/run_derived_disclosure_probes.py`: JS files → `.map`; endpoint/URL paths → `.bak`/`.old`/`.orig`/`~`
+- Budget default 80; body classifier; never CONFIRMED
+- Artifacts: `info_disclosure/derived_probes.jsonl`, `derived_probes_summary.json`, phase `derived_disclosure`
+- Appends content-supported maps/backups to existing lists; Disclosure Desk section 8
+- Tests: `tests/test_derived_disclosure_probes.py`
+
+---
+---
 ## 2026-10-27 — Disclosure Desk P0 (ID family)
 
 Implemented Phase 1 of `docs/INFO_DISCLOSURE_EXECUTION_PLAN.md`:
