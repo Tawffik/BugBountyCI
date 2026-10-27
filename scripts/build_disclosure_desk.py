@@ -160,6 +160,20 @@ def build(results_dir: Path) -> dict[str, Any]:
         "note": "API_ROUTE/WEB_ROUTE are surface candidates, not vulns.",
     }
 
+    # Derived probes (P1a)
+    der_sum = _load_json(idir / "derived_probes_summary.json") or {}
+    der_rows = _jsonl(idir / "derived_probes.jsonl", limit=100)
+    der_hits = [
+        r for r in der_rows
+        if (r.get("disposition") == "CONTENT_SUPPORTED")
+        or (r.get("kind") == "source_map" and (r.get("status") or 0) == 200)
+    ][:CAP]
+    sections["derived_probes"] = {
+        "summary": der_sum,
+        "content_supported_sample": der_hits,
+        "note": "Stage-derived .map / backup siblings — LEAD/review only.",
+    }
+
     # Pointers
     sections["pointers"] = {
         "GATE_0": "triage/GATE_0.md",
@@ -284,6 +298,19 @@ def render_md(report: dict[str, Any]) -> str:
     for row in js.get("endpoints_sample") or []:
         lines.append(f"- `{row[:160]}`")
     lines.append(f"- _{js.get('note', '')}_")
+    lines.append("")
+
+    lines += ["## 8) Derived probes (JS→map / path→backup)", ""]
+    der = s.get("derived_probes") or {}
+    ds = der.get("summary") or {}
+    if ds:
+        lines.append(
+            f"- probed={ds.get('probed')} map_hits={ds.get('map_hits')} "
+            f"backup_content_hits={ds.get('backup_content_hits')} by_disposition={ds.get('by_disposition')}"
+        )
+    for row in der.get("content_supported_sample") or []:
+        lines.append(f"- `{row.get('url','')[:160]}` · {row.get('kind')} · {row.get('disposition')}")
+    lines.append(f"- _{der.get('note', '')}_")
     lines.append("")
     lines.append("---")
     lines.append("")

@@ -2178,6 +2178,8 @@ jobs:
             > "$RD/meta/phases/information_disclosure.json"
           echo "✅ Info-disclosure phase=${status} ${detail}"
           echo "✅ Git: ${git_n} | Backups: ${bak_n} | Configs: ${cfg_n} | Dirs: ${dir_n} | Errors: ${err_n} | Probes: ${probe_n}"
+          # P1a: stage-derived .map / backup-sibling probes (budget-capped, never CONFIRMED)
+          python3 scripts/run_derived_disclosure_probes.py --results-dir "$RD" --target "${{ env.TARGET }}" 2>>"$RD/logs/derived_disclosure.log" || echo "⚠️ derived disclosure probes soft-failed"
 
       - name: "🗺️ Source Map Analysis"
         if: ${{ env.ENABLE_SOURCE_MAPS == 'true' }}

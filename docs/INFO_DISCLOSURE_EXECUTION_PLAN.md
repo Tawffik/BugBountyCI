@@ -1,6 +1,6 @@
 # Information Disclosure / Exposure — Execution Plan
 
-**Status:** PLAN — **Phase 1 (Disclosure Desk) IMPLEMENTED** on main path via `scripts/build_disclosure_desk.py` + RRP bundle hook (2026-10-27). Phases 2–4 still open.  
+**Status:** PLAN — **Phase 1 Desk + Phase 2 derived probes IMPLEMENTED** (2026-10-27). Phases 3–4 (GitHub slice, dorking) still open.  
 **Date:** 2026-10-27  
 **Scope:** BugBountyCI Zero Track only  
 **Authority:** Chat audit series + Notion (Module 24, Passive Intelligence & Dorking Blueprint, GitHub Dorking Manual, Fix Control Center, Tips) + run #175 evidence + OWASP WSTG alignment  
@@ -125,7 +125,9 @@ Not only the workflow step named “Information Disclosure Scan”.
 
 ---
 
-### Phase 2 — P1a Stage-derived path intelligence
+### Phase 2 — P1a Stage-derived path intelligence — **DONE**
+
+**Code:** `scripts/run_derived_disclosure_probes.py` (budget default 80), workflow after Info Disclosure, desk section 8.
 
 **Intent:** custom probe list from **this run’s** surface, not SecLists megadump.
 
