@@ -2115,7 +2115,7 @@ jobs:
           done
 
           : > "$RD/info_disclosure/config_files.txt"
-          for path in "/.env" "/.env.local" "/.env.production" "/.env.staging" "/.env.development" "/config.json" "/secrets.json" "/config/secrets.yml" "/web.config" "/phpinfo.php" "/server-status" "/.aws/credentials" "/metrics" "/-/healthy" "/-/ready" "/debug/pprof/" "/swagger.json" "/openapi.json" "/swagger-ui.html" "/api/docs" "/humans.txt" $(tr "\n" " " < /tmp/info_disc_extra_paths.txt 2>/dev/null); do
+          for path in "/.env" "/.env.local" "/.env.production" "/.env.staging" "/.env.development" "/config.json" "/secrets.json" "/config/secrets.yml" "/web.config" "/phpinfo.php" "/server-status" "/.aws/credentials" "/metrics" "/-/healthy" "/-/ready" "/debug/pprof/" "/humans.txt" $(tr "\n" " " < /tmp/info_disc_extra_paths.txt 2>/dev/null); do
             budget_ok || break
             while IFS= read -r host; do
               [ -z "$host" ] && continue
@@ -2368,37 +2368,18 @@ jobs:
           TARGET="${{ env.TARGET }}"
           BASE_NAME="$(echo "$TARGET" | sed -E 's/\.(com|net|org|io|ch|co|dev|app)(\.[a-z]{2})?$//' | sed -E 's/.*\.//')"
 
-          echo "🔍 GitHub code search for leaked secrets mentioning ${TARGET}..."
+          echo "🔍 GitHub code search (unified slice — Playbook registry, single pass)..."
           : > "$RD/js/github_recon.txt"
           : > "$RD/js/github_recon_raw.txt"
-          if [ -n "${{ secrets.GITHUB_TOKEN }}" ]; then
-            # Prefer exact domain string + credential keywords. Avoid bare BASE_NAME
-            # queries (e.g. "kyc") that match thousands of unrelated hobby repos.
-            # Domain-scoped queries only (never org:TARGET unless TARGET is a GH org).
-            # Seed corpus categories: DB / cloud / tokens / keys / config — quoted domain.
-            for q in \
-              "\"${TARGET}\" password" \
-              "\"${TARGET}\" api_key OR apikey OR secret" \
-              "\"${TARGET}\" aws_access OR AKIA" \
-              "\"${TARGET}\" filename:.env" \
-              "\"${TARGET}\" filename:credentials" \
-              "\"${TARGET}\" DB_PASSWORD OR DATABASE_URL OR MYSQL_PASSWORD" \
-              "\"${TARGET}\" AWS_SECRET_ACCESS_KEY OR AZURE_CLIENT_SECRET" \
-              "\"${TARGET}\" \"-----BEGIN\" OR \"BEGIN PRIVATE KEY\"" \
-              "\"${TARGET}\" ghp_ OR github_pat_ OR gho_" \
-              "\"${TARGET}\" filename:docker-compose.yml OR filename:kubeconfig"
-            do
-              curl -s --max-time 12 -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -H "Accept: application/vnd.github+json" \
-                "https://api.github.com/search/code?q=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$q")" \
-                2>/dev/null | jq -r '.items[]? | "\(.repository.full_name) :: \(.path)"' 2>/dev/null >> "$RD/js/github_recon_raw.txt" || true
-              sleep 3
-            done
-            sort -u -o "$RD/js/github_recon_raw.txt" "$RD/js/github_recon_raw.txt"
-            # Noise filter (kyc.com run taught us): drop known junk patterns and
-            # require the domain OR a close org token to appear in repo/path.
-            # Keep raw file for debugging; write filtered list for triage.
-            mkdir -p "$RD/meta/phases"
-            export TIMESTAMP="${{ env.TIMESTAMP }}"
+          mkdir -p "$RD/meta/phases" "$RD/logs" "$RD/js"
+          GHTOK="${{ secrets.GITHUB_TOKEN }}"
+          python3 scripts/run_github_exposure_slice.py \
+            --results-dir "$RD" \
+            --target "$TARGET" \
+            --token "$GHTOK" \
+            2>>"$RD/logs/github_exposure_slice.log" || echo "⚠️ github exposure slice soft-failed"
+          # filter keeps noise down; slice already wrote github_recon_raw.txt
+          if [ -s "$RD/js/github_recon_raw.txt" ]; then
             python3 scripts/filter_github_recon.py \
               --raw "$RD/js/github_recon_raw.txt" \
               --out "$RD/js/github_recon.txt" \
@@ -2406,20 +2387,17 @@ jobs:
               --dropped "$RD/js/github_recon_dropped.txt" \
               --summary "$RD/meta/github_recon_filter_summary.json" \
               --limit 80 || true
-            raw_n=$(wc -l < "$RD/js/github_recon_raw.txt" 2>/dev/null | tr -d ' ' || echo 0)
-            kept_n=$(wc -l < "$RD/js/github_recon.txt" 2>/dev/null | tr -d ' ' || echo 0)
-            if [ "${raw_n:-0}" -gt 0 ]; then
-              printf '%s\n' "{\"phase\":\"github_recon\",\"status\":\"OK\",\"detail\":\"raw=${raw_n} kept=${kept_n}\"}" > "$RD/meta/phases/github_recon.json"
+          fi
+          kept_n=$(wc -l < "$RD/js/github_recon.txt" 2>/dev/null | tr -d ' ' || echo 0)
+          if [ -n "$GHTOK" ]; then
+            if [ "${kept_n:-0}" -gt 0 ]; then
+              printf '%s\n' "{\"phase\":\"github_recon\",\"status\":\"OK\",\"detail\":\"unified_slice kept=${kept_n}\"}" > "$RD/meta/phases/github_recon.json"
             else
-              printf '%s\n' '{"phase":"github_recon","status":"EMPTY_VALID","detail":"domain-scoped search returned 0 raw hits"}' > "$RD/meta/phases/github_recon.json"
+              printf '%s\n' "{\"phase\":\"github_recon\",\"status\":\"EMPTY_VALID\",\"detail\":\"unified_slice zero kept\"}" > "$RD/meta/phases/github_recon.json"
             fi
-            echo "✅ GitHub recon hits (filtered): $(wc -l < "$RD/js/github_recon.txt" 2>/dev/null || echo 0) (raw: $(wc -l < "$RD/js/github_recon_raw.txt" 2>/dev/null || echo 0))"
-            # Playbook §2-3: bounded GitHub exposure slice (registry + provider status)
-            python3 scripts/run_github_exposure_slice.py --results-dir "$RD" --target "$TARGET" --token "${{ secrets.GITHUB_TOKEN }}" 2>>"$RD/logs/github_exposure_slice.log" || echo "⚠️ github exposure slice soft-failed"
+            echo "✅ GitHub recon (unified slice) kept: ${kept_n}"
           else
-            echo "⚠️ GITHUB_TOKEN not available, skipping GitHub recon"
-            python3 scripts/run_github_exposure_slice.py --results-dir "$RD" --target "$TARGET" --token "" 2>>"$RD/logs/github_exposure_slice.log" || true
-            mkdir -p "$RD/meta/phases"
+            echo "⚠️ GITHUB_TOKEN not available — github_recon NOT_CONFIGURED"
             echo '{"phase":"github_recon","status":"NOT_CONFIGURED","detail":"GITHUB_TOKEN missing"}' > "$RD/meta/phases/github_recon.json"
           fi
 

@@ -1,17 +1,143 @@
 {
   "schema": "bugbountyci.github_exposure_query_registry.v1",
-  "source": "Notion Bug Bounty Hunting Playbook — High-Signal Tips (2026-10-27) §2-3",
-  "note": "Domain-scoped only. LEAD/review. Never use discovered secrets.",
+  "source": "Notion Bug Bounty Hunting Playbook \u2014 High-Signal Tips (2026-10-27) \u00a72-3",
+  "note": "Unified GitHub search registry (Playbook \u00a72-3 + former inline github_recon). Single runner only.",
   "queries": [
-    {"query_id": "gh-env-file", "family": "disclosure_indicators", "hypothesis": "Env filename + domain", "template": "\"{target}\" filename:.env", "provider": "github_code_search", "evidence_type": "config_filename_lead"},
-    {"query_id": "gh-config-json", "family": "disclosure_indicators", "hypothesis": "config.json + domain", "template": "\"{target}\" filename:config.json", "provider": "github_code_search", "evidence_type": "config_filename_lead"},
-    {"query_id": "gh-docker-compose", "family": "build_deploy", "hypothesis": "docker-compose mention", "template": "\"{target}\" filename:docker-compose.yml", "provider": "github_code_search", "evidence_type": "ci_config_lead"},
-    {"query_id": "gh-terraform", "family": "build_deploy", "hypothesis": "terraform.tfvars mention", "template": "\"{target}\" filename:terraform.tfvars", "provider": "github_code_search", "evidence_type": "ci_config_lead"},
-    {"query_id": "gh-workflows", "family": "build_deploy", "hypothesis": "GitHub Actions workflows", "template": "\"{target}\" path:.github/workflows", "provider": "github_code_search", "evidence_type": "ci_config_lead"},
-    {"query_id": "gh-openapi", "family": "api_definitions", "hypothesis": "OpenAPI/Swagger + domain", "template": "\"{target}\" (openapi OR swagger OR api-docs)", "provider": "github_code_search", "evidence_type": "documentation_lead"},
-    {"query_id": "gh-aws-secret-name", "family": "disclosure_indicators", "hypothesis": "AWS secret key *name* co-occurrence", "template": "\"{target}\" AWS_SECRET_ACCESS_KEY", "provider": "github_code_search", "evidence_type": "secret_name_lead"},
-    {"query_id": "gh-client-secret", "family": "disclosure_indicators", "hypothesis": "client_secret keyword + domain", "template": "\"{target}\" client_secret", "provider": "github_code_search", "evidence_type": "secret_name_lead"},
-    {"query_id": "gh-staging", "family": "environment", "hypothesis": "staging/internal environment strings", "template": "\"{target}\" (staging OR internal OR localhost)", "provider": "github_code_search", "evidence_type": "environment_lead"},
-    {"query_id": "gh-npmrc", "family": "disclosure_indicators", "hypothesis": "npmrc + domain", "template": "\"{target}\" filename:.npmrc", "provider": "github_code_search", "evidence_type": "config_filename_lead"}
+    {
+      "query_id": "gh-env-file",
+      "family": "disclosure_indicators",
+      "hypothesis": "Env filename + domain",
+      "template": "\"{target}\" filename:.env",
+      "provider": "github_code_search",
+      "evidence_type": "config_filename_lead"
+    },
+    {
+      "query_id": "gh-config-json",
+      "family": "disclosure_indicators",
+      "hypothesis": "config.json + domain",
+      "template": "\"{target}\" filename:config.json",
+      "provider": "github_code_search",
+      "evidence_type": "config_filename_lead"
+    },
+    {
+      "query_id": "gh-docker-compose",
+      "family": "build_deploy",
+      "hypothesis": "docker-compose mention",
+      "template": "\"{target}\" filename:docker-compose.yml",
+      "provider": "github_code_search",
+      "evidence_type": "ci_config_lead"
+    },
+    {
+      "query_id": "gh-terraform",
+      "family": "build_deploy",
+      "hypothesis": "terraform.tfvars mention",
+      "template": "\"{target}\" filename:terraform.tfvars",
+      "provider": "github_code_search",
+      "evidence_type": "ci_config_lead"
+    },
+    {
+      "query_id": "gh-workflows",
+      "family": "build_deploy",
+      "hypothesis": "GitHub Actions workflows",
+      "template": "\"{target}\" path:.github/workflows",
+      "provider": "github_code_search",
+      "evidence_type": "ci_config_lead"
+    },
+    {
+      "query_id": "gh-openapi",
+      "family": "api_definitions",
+      "hypothesis": "OpenAPI/Swagger + domain",
+      "template": "\"{target}\" (openapi OR swagger OR api-docs)",
+      "provider": "github_code_search",
+      "evidence_type": "documentation_lead"
+    },
+    {
+      "query_id": "gh-aws-secret-name",
+      "family": "disclosure_indicators",
+      "hypothesis": "AWS secret key *name* co-occurrence",
+      "template": "\"{target}\" AWS_SECRET_ACCESS_KEY",
+      "provider": "github_code_search",
+      "evidence_type": "secret_name_lead"
+    },
+    {
+      "query_id": "gh-client-secret",
+      "family": "disclosure_indicators",
+      "hypothesis": "client_secret keyword + domain",
+      "template": "\"{target}\" client_secret",
+      "provider": "github_code_search",
+      "evidence_type": "secret_name_lead"
+    },
+    {
+      "query_id": "gh-staging",
+      "family": "environment",
+      "hypothesis": "staging/internal environment strings",
+      "template": "\"{target}\" (staging OR internal OR localhost)",
+      "provider": "github_code_search",
+      "evidence_type": "environment_lead"
+    },
+    {
+      "query_id": "gh-npmrc",
+      "family": "disclosure_indicators",
+      "hypothesis": "npmrc + domain",
+      "template": "\"{target}\" filename:.npmrc",
+      "provider": "github_code_search",
+      "evidence_type": "config_filename_lead"
+    },
+    {
+      "query_id": "gh-password",
+      "family": "disclosure_indicators",
+      "hypothesis": "password keyword + domain",
+      "template": "\"{target}\" password",
+      "provider": "github_code_search",
+      "evidence_type": "secret_name_lead"
+    },
+    {
+      "query_id": "gh-api-key-words",
+      "family": "disclosure_indicators",
+      "hypothesis": "api_key/secret keywords",
+      "template": "\"{target}\" api_key OR apikey OR secret",
+      "provider": "github_code_search",
+      "evidence_type": "secret_name_lead"
+    },
+    {
+      "query_id": "gh-akia",
+      "family": "disclosure_indicators",
+      "hypothesis": "AWS key material keywords",
+      "template": "\"{target}\" aws_access OR AKIA",
+      "provider": "github_code_search",
+      "evidence_type": "secret_name_lead"
+    },
+    {
+      "query_id": "gh-credentials-file",
+      "family": "disclosure_indicators",
+      "hypothesis": "credentials filename",
+      "template": "\"{target}\" filename:credentials",
+      "provider": "github_code_search",
+      "evidence_type": "config_filename_lead"
+    },
+    {
+      "query_id": "gh-db-url",
+      "family": "disclosure_indicators",
+      "hypothesis": "DB URL/password names",
+      "template": "\"{target}\" DB_PASSWORD OR DATABASE_URL OR MYSQL_PASSWORD",
+      "provider": "github_code_search",
+      "evidence_type": "secret_name_lead"
+    },
+    {
+      "query_id": "gh-begin-key",
+      "family": "disclosure_indicators",
+      "hypothesis": "PEM begin markers",
+      "template": "\"{target}\" \"BEGIN PRIVATE KEY\"",
+      "provider": "github_code_search",
+      "evidence_type": "secret_name_lead"
+    },
+    {
+      "query_id": "gh-github-pat",
+      "family": "disclosure_indicators",
+      "hypothesis": "GitHub token prefixes",
+      "template": "\"{target}\" ghp_ OR github_pat_",
+      "provider": "github_code_search",
+      "evidence_type": "secret_name_lead"
+    }
   ]
 }

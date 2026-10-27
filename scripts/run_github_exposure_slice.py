@@ -154,6 +154,13 @@ def run(rd: Path, target: str, token: str | None, registry_path: Path, max_per_q
     with (rd / "js" / "github_exposure_slice.txt").open("w", encoding="utf-8") as fh:
         for r in kept_rows[:80]:
             fh.write(f"{r.get('html_url')} # {r.get('query_id')} {r.get('repo')}/{r.get('path')}\n")
+    # Compat for filter_github_recon: "repo :: path"
+    with (rd / "js" / "github_recon_raw.txt").open("w", encoding="utf-8") as fh:
+        for r in kept_rows[:120]:
+            repo = r.get("repo") or ""
+            path = r.get("path") or ""
+            if repo or path:
+                fh.write(f"{repo} :: {path}\n")
     phase_status = "ok" if overall in ("COMPLETED_ZERO", "COMPLETED_WITH_CANDIDATES") else str(overall).lower()
     (rd / "meta" / "phases" / "github_exposure_slice.json").write_text(
         json.dumps({"phase": "github_exposure_slice", "status": phase_status, "detail": f"status={overall} kept={len(kept_rows)}"}, indent=2) + "\n"

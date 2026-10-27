@@ -1,4 +1,14 @@
 ---
+## 2026-10-27 — Unify GitHub search + dedupe ID paths
+
+- Removed dual GitHub code-search (inline curl loop + slice) → **single** `run_github_exposure_slice.py`
+- Registry expanded with former secret-oriented queries (17 total)
+- Slice writes `github_recon_raw.txt` (`repo :: path`) for filter compatibility
+- Removed swagger/openapi paths from info-disclosure list (keep dedicated swagger step)
+- metrics/pprof/humans retained on ID path list
+
+---
+---
 ## 2026-10-27 — Playbook integration (GitHub slice + dorking contracts)
 
 Notion: Bug Bounty Hunting Playbook — High-Signal Tips (2026-10-27).
