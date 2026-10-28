@@ -37,6 +37,14 @@ on:
         description: "Allow run when scope.txt is missing/empty"
         type: boolean
         default: false
+      runner_label:
+        description: "Runner: sengi-standard-2-ubuntu-2404 (free tier) or ubuntu-latest (GitHub)"
+        required: false
+        default: "sengi-standard-2-ubuntu-2404"
+        type: choice
+        options:
+          - sengi-standard-2-ubuntu-2404
+          - ubuntu-latest
   workflow_call:
     inputs:
       target:
@@ -217,8 +225,9 @@ jobs:
   full_scan:
     name: "🛡️ Full Autonomous Scan - ${{ inputs.target }}"
     # TEMP interim: Sengi free minutes exhausted — ubuntu-latest (public free).
-    # NETWORK_MODE stays direct_then_tor (DIRECT primary, Tor fallback). Revert runs-on to sengi when quota resets.
-    runs-on: sengi-standard-2-ubuntu-2404
+    # Sengi (3k free min/mo) when GitHub App connected; else pick ubuntu-latest in workflow_dispatch.
+    # Jobs with sengi label stay QUEUED forever if App is not installed on this repo.
+    runs-on: ${{ inputs.runner_label || 'sengi-standard-2-ubuntu-2404' }}
     timeout-minutes: 358  # max job bound; public GHA free on this public repo
     # YAML_TR_CR_FIX + BUDGET_REDIST_2026_09: screenshots/nikto/fuzz trimmed; direct-origin/cloud/info bumped
     outputs:
