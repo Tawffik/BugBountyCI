@@ -1,4 +1,15 @@
 ---
+## 2026-10-29 — Default runner ubuntu-latest (Sengi App not attached)
+
+Sengi label `sengi-standard-2-ubuntu-2404` leaves jobs QUEUED with zero matching
+runners until the Sengi GitHub App is installed on Tawffik/BugBountyCI via
+https://app.sengi.run (browser OAuth — cannot be completed with PAT alone).
+
+Default workflow_dispatch runner is now **ubuntu-latest** so Zero Track always
+starts. Operators can still select sengi when App is connected.
+
+---
+---
 ## 2026-10-27 — waymore works without keys; harden empty-run
 
 #175: waymore ~586k with no URLSCAN/VT keys.
