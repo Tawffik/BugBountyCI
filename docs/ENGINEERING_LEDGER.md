@@ -1,4 +1,26 @@
 ---
+## 2026-10-29 — Quality Gate + Delta Hunter v1 (Notion P0)
+
+Implements the top two “smart workflow” ideas without new recon tools:
+
+1. **Quality Gate** (`scripts/build_quality_gate.py`)
+   - Aggregates phases / url_sources_health / engine_health / funnel
+   - Writes `triage/QUALITY_GATE.md` + `meta/quality_gate.json`
+   - ERROR/PARTIAL critical → BLOCKED; passive fail → DEGRADED_SOURCES; rate limit → DEGRADED_PROVIDER
+
+2. **Delta Hunter** (`scripts/build_delta_hunter.py`)
+   - Optional `--prev-dir` / `PREV_RESULTS_DIR`
+   - Without prev → status NOT_AVAILABLE (honest)
+   - Change ≠ vulnerability
+
+3. **Wiring**
+   - `run_rrp_triage_bundle.sh` now runs funnel → quality → delta → secrets → exposure → desk
+   - Zero Track calls the bundle **after** `write_pipeline_exports` (RRP was script-only before)
+
+Contracts unchanged: SI→Hunter OFF, Nuclei bulk OFF, auto_confirmed policy.
+
+---
+---
 ## 2026-10-29 — Default runner ubuntu-latest (Sengi App not attached)
 
 Sengi label `sengi-standard-2-ubuntu-2404` leaves jobs QUEUED with zero matching

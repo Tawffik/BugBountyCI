@@ -4960,6 +4960,13 @@ jobs:
 
           python3 scripts/nuclei_track_summary.py --results-dir "results/${{ env.TIMESTAMP }}" || true
           python3 scripts/write_pipeline_exports.py "results/${{ env.TIMESTAMP }}" || true
+          # RRP + Quality Gate + Delta (aggregation only; scripts no-op soft if thin meta)
+          if [ -f scripts/run_rrp_triage_bundle.sh ]; then
+            bash scripts/run_rrp_triage_bundle.sh "results/${{ env.TIMESTAMP }}" || true
+            echo "QUALITY_GATE=$(test -f results/${{ env.TIMESTAMP }}/triage/QUALITY_GATE.md && echo yes || echo no)"
+            echo "GATE_0=$(test -f results/${{ env.TIMESTAMP }}/triage/GATE_0.md && echo yes || echo no)"
+            echo "DELTA=$(test -f results/${{ env.TIMESTAMP }}/triage/DELTA.md && echo yes || echo no)"
+          fi
           python3 scripts/export_sra_handoff.py --results-dir "results/${{ env.TIMESTAMP }}" || true
           [ -f scripts/validate_pipeline_exports.py ] && python3 scripts/validate_pipeline_exports.py "results/${{ env.TIMESTAMP }}" || true
           # Sync pipeline_health.md Overall with engine_health.overall (MD must not look healthier than JSON)
