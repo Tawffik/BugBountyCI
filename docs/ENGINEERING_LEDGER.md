@@ -1,4 +1,14 @@
 ---
+## 2026-10-29 — Evidence Graph surface + Opportunity board (Notion 3+6)
+
+Continues smart-workflow layer without new scanners:
+
+- `triage/EVIDENCE_GRAPH.md` rolls up existing `meta/relationships.jsonl`
+- `triage/OPPORTUNITY.md` ranks **review time** from Quality Gate, Delta, graph, Hunter text
+- Still never auto-CONFIRMED; Historical/Hidden remain prior stages (GitHub slice, derived probes)
+
+---
+---
 ## 2026-10-29 — Quality Gate + Delta Hunter v1 (Notion P0)
 
 Implements the top two “smart workflow” ideas without new recon tools:

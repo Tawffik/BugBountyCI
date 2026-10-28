@@ -58,3 +58,31 @@ def test_delta_added_hosts(tmp_path: Path):
     assert report["counts"]["hosts_added"] == 1
     assert "b.example.com" in report["added_hosts"]
     assert report["counts"]["urls_added"] == 1
+
+
+def test_evidence_graph_counts(tmp_path: Path):
+    import build_evidence_graph_surface as eg
+    rd = tmp_path / "r"
+    (rd / "meta").mkdir(parents=True)
+    lines = [
+        json.dumps({"type": "JS_TO_ENDPOINT", "from": "js:a", "to": "url:/x"}),
+        json.dumps({"type": "JS_TO_ENDPOINT", "from": "js:b", "to": "url:/y"}),
+        json.dumps({"type": "HOST_HAS_URL", "from": "host:h", "to": "url:/"}),
+    ]
+    (rd / "meta" / "relationships.jsonl").write_text("\n".join(lines) + "\n")
+    report = eg.build(rd)
+    assert report["status"] == "OK"
+    assert report["total"] == 3
+    assert report["counts_by_type"]["JS_TO_ENDPOINT"] == 2
+
+
+def test_opportunity_prefers_blocked_quality(tmp_path: Path):
+    import build_opportunity_board as ob
+    rd = tmp_path / "r"
+    (rd / "meta").mkdir(parents=True)
+    (rd / "meta" / "quality_gate.json").write_text(
+        json.dumps({"verdict": "BLOCKED", "operator": "fix phases"})
+    )
+    report = ob.build(rd)
+    assert report["items"]
+    assert report["items"][0]["kind"] == "integrity"
