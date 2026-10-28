@@ -111,7 +111,9 @@ Optional multi-provider **AI Agent** steps may run when API keys exist; they are
 
 ## After a run — open this order
 
-1. `triage/GATE_0.md` — funnel + ASN inventory vs caps  
+1. `triage/QUALITY_GATE.md` — stage honesty (ERROR≠EMPTY)
+2. `triage/GATE_0.md` — funnel + ASN inventory vs caps
+3. `triage/DELTA.md` — vs previous run when available  
 2. `triage/SECRETS_REVIEW.md` / `triage/EXPOSURE_QUEUE.md`  
 3. `detection/hunter_queue.md`  
 4. `detection/smart_403_summary.json` (if present)  
