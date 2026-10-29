@@ -1,4 +1,12 @@
 ---
+## 2026-10-29 — Smart Fuzz Intigriti hardening
+
+- hostname-first target_profile (filter CDN IPs)
+- wolf_status.json WOLF_UNAVAILABLE/EMPTY visible
+- wordlist shares raised under normal; wolf still cannot dominate (tests)
+- operator_summary.json → QUALITY_GATE + Easy-Wins
+---
+---
 ## 2026-10-29 — Finish promised Tips mile + ranking
 
 - archive_sensitive_probe: filter passive URLs → live probe → snippet

@@ -108,7 +108,22 @@ def main():
     tech_json = read_ndjson(os.path.join(rd, "live", "tech.json"))
     technologies = extract_technologies(tech_json)
 
-    hosts = read_lines(os.path.join(rd, "live", "live.txt"))
+    # Hostname-first (Intigriti-style: fuzz real app hosts, not CDN edge IPs).
+    # Prefer live/hostname_targets.txt; fall back to live.txt only if missing/empty.
+    hosts = read_lines(os.path.join(rd, "live", "hostname_targets.txt"))
+    hosts_source = "live/hostname_targets.txt"
+    if not hosts:
+        hosts = read_lines(os.path.join(rd, "live", "live.txt"))
+        hosts_source = "live/live.txt"
+    # Prefer non-IP URL hosts when mixed lists leak through
+    def _is_ip_host(line: str) -> bool:
+        s = line.strip().split("://")[-1].split("/")[0].split(":")[0]
+        parts = s.split(".")
+        return len(parts) == 4 and all(p.isdigit() for p in parts)
+    named = [h for h in hosts if not _is_ip_host(h)]
+    if named:
+        hosts = named
+        hosts_source = hosts_source + "+hostname_filter"
     swagger = read_lines(os.path.join(rd, "js", "swagger.txt"))
     graphql = read_lines(os.path.join(rd, "js", "graphql.txt"))
     admin = read_lines(os.path.join(rd, "js", "admin.txt"))
@@ -166,6 +181,7 @@ def main():
         "schema": "bugbountyci.smart_fuzzing_target_profile.v2",
         "hosts": hosts,
         "host_count": len(hosts),
+        "hosts_source": hosts_source,
         "technologies": technologies,
         "api_present": bool(swagger or graphql or js_endpoints),
         "swagger_present": bool(swagger),
@@ -181,7 +197,7 @@ def main():
         "auth_challenge_hint": bool(response_behavior.get("AUTH_REQUIRED")),
         "sources": {
             "tech": "live/tech.json",
-            "hosts": "live/live.txt",
+            "hosts": "live/hostname_targets.txt|live/live.txt",
             "swagger": "js/swagger.txt",
             "graphql": "js/graphql.txt",
             "admin": "js/admin.txt",
