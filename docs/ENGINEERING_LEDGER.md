@@ -1,4 +1,12 @@
 ---
+## 2026-10-29 — Phase order: ParamIntel after Fuzz
+
+- Moved Parameter Intelligence after Content Discovery Fuzzing
+- Before Access-Control / Open-Redirect / SSRF consumers
+- Did not remove stages; IP-spoof remains gated by ENABLE_WAF_BYPASS
+- Regression test workflow order
+---
+---
 ## 2026-10-29 — P2 Smart Fuzz integration
 
 - body samples for top INTERESTING hits (budget)
