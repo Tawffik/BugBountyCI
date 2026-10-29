@@ -468,7 +468,9 @@ def run(
         "detector_version": DETECTOR_VERSION,
         "target": target,
         "candidates": len(candidates),
-        "findings": len(findings),
+        "findings": len(findings),  # historical key; treat as observation rows
+        "clues": len(findings),
+        "operator_label": "clues_not_vulnerabilities",
         "probes": probes_done,
         "quarantined": len(quarantined),
         "by_disposition": {},
@@ -511,7 +513,7 @@ def run(
             f.write(json.dumps(q, ensure_ascii=False) + "\n")
 
     print(
-        f"✅ cloud_exposure: candidates={len(candidates)} findings={len(findings)} "
+        f"✅ cloud_exposure: candidates={len(candidates)} clues={len(findings)} (not vulns) "
         f"probes={probes_done} quarantined={len(quarantined)} dispositions={summary['by_disposition']}"
     )
     return summary
