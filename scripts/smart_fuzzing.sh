@@ -150,6 +150,9 @@ done < "$FUZZ_INPUT"
 # --- 7. Response Diff (baseline-aware classification, not raw status codes) ---
 python3 "$PY_DIR/response_diff.py" --results-dir "$RD" --ffuf-json-dir "$FFUF_JSON_DIR" || true
 
+# P2: bounded body samples for top INTERESTING hits (operator read)
+python3 "$PY_DIR/sample_interesting_bodies.py" --results-dir "$RD" --budget "${SMART_FUZZ_BODY_BUDGET:-12}" || true
+
 echo "✅ Smart Fuzzing V1 complete — see $OUT_DIR/interesting.txt"
 
 # Gap C (docs/PROJECT_FULL_STATE / master architecture doc §51): this

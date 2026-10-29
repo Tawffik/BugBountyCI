@@ -196,13 +196,25 @@ def build(rd: Path) -> dict[str, Any]:
             continue
         items.append(
             {
-                "kind": "smart_fuzz_interesting",
+                "kind": "smart_fuzz_body",
+        "smart_fuzz_interesting",
                 "source": "smart-fuzzing/interesting.txt",
                 "value": line[:250],
                 "why": "Content-discovery signal — not a confirmed vulnerability",
             }
         )
 
+    for row in _jsonl(rd / "smart-fuzzing" / "body_samples.jsonl", 20):
+        if row.get("spa_like"):
+            continue
+        items.append(
+            {
+                "kind": "smart_fuzz_body",
+                "source": "smart-fuzzing/body_samples.jsonl",
+                "value": f"{row.get('url')} [{row.get('status')}]",
+                "why": f"snippet={(row.get('snippet') or '')[:100]} — review only",
+            }
+        )
     # Secrets high
     sh = _lines(rd / "js" / "secrets_high.txt", 30)
     for s in sh[:15]:

@@ -1,4 +1,14 @@
 ---
+## 2026-10-29 — P2 Smart Fuzz integration
+
+- body samples for top INTERESTING hits (budget)
+- passive sensitive URL path seeds → wordlist (same-run)
+- archive live leads → wordlist when present
+- common.txt fallback_status.json transparency
+- operator_summary + Easy-Wins consume body/fallback
+- 360 tests green
+---
+---
 ## 2026-10-29 — Audit fix: summary before exit + OOB token
 
 - write_operator_summary_safe before every exit 0 (was dead code after exit)

@@ -35,6 +35,7 @@ Output:
 import argparse
 import json
 import os
+import re
 
 MODE_CAPS = {"light": 120, "normal": 450, "aggressive": 900}
 VERB_HINTS = ["export", "download", "status", "delete", "update", "create", "list"]
@@ -57,6 +58,85 @@ VERB_HINTS = ["export", "download", "status", "delete", "update", "create", "lis
 STRUCTURAL_SHARE = {"light": 30, "normal": 100, "aggressive": 220}
 VOCAB_SHARE = {"light": 50, "normal": 180, "aggressive": 380}
 WOLF_SHARE = {"light": 35, "normal": 120, "aggressive": 280}
+
+
+
+def _load_passive_sensitive_path_seeds(out_dir):
+    """Same-run Tips seeds from passive URL harvest (no live probe required)."""
+    from urllib.parse import urlparse
+    rd = os.path.dirname(out_dir.rstrip("/"))
+    seeds = []
+    seen = set()
+    sens = re.compile(
+        r"(admin|api|backup|\.env|swagger|openapi|debug|internal|staging|graphql|actuator)",
+        re.I,
+    )
+    for rel in ("urls/waymore.txt", "urls/gau.txt", "urls/wayback.txt", "urls/all.txt"):
+        path = os.path.join(rd, rel)
+        if not os.path.isfile(path):
+            continue
+        try:
+            with open(path, "r", errors="ignore") as f:
+                for i, line in enumerate(f):
+                    if i > 20000:
+                        break
+                    u = line.strip()
+                    if not u or not sens.search(u):
+                        continue
+                    try:
+                        path_part = (urlparse(u).path or "").strip("/")
+                    except Exception:
+                        continue
+                    if not path_part or len(path_part) > 100 or path_part in seen:
+                        continue
+                    # single segment or short path
+                    if path_part.count("/") > 3:
+                        continue
+                    seen.add(path_part)
+                    seeds.append(path_part)
+                    if len(seeds) >= 50:
+                        return seeds
+        except OSError:
+            continue
+    return seeds
+
+def _load_archive_sensitive_paths(out_dir):
+    """Tips archive→live leads: path component only, LEAD paths as structural hints."""
+    rd = os.path.dirname(out_dir.rstrip("/"))
+    path = os.path.join(rd, "info_disclosure", "archive_sensitive_probes.jsonl")
+    if not os.path.isfile(path):
+        # out_dir is .../smart-fuzzing; parent is results
+        path = os.path.join(os.path.dirname(out_dir), "info_disclosure", "archive_sensitive_probes.jsonl")
+    out = []
+    if not os.path.isfile(path):
+        return out
+    try:
+        with open(path, "r", errors="ignore") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    row = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if str(row.get("disposition") or "") not in ("CONTENT_LEAD", "AUTH_OR_FORBIDDEN"):
+                    continue
+                url = str(row.get("url") or "")
+                if "://" in url:
+                    path_part = "/" + url.split("://", 1)[1].split("/", 1)[-1] if "/" in url.split("://", 1)[1] else ""
+                    # better: from urllib
+                    from urllib.parse import urlparse
+                    path_part = urlparse(url).path or ""
+                else:
+                    path_part = url
+                path_part = path_part.strip("/")
+                if path_part and len(path_part) < 120:
+                    out.append(path_part)
+    except OSError:
+        return out
+    return out[:40]
+
 
 def _load_previous_strategy_outcome():
     """Compact historical note from Diff Mode snapshot if present.
@@ -268,6 +348,11 @@ def main():
     else:
         wolf_cap_override = None
     structural_paths = _load_predicted_fuzz_paths(out_dir)[:structural_cap]
+    for ap in _load_passive_sensitive_path_seeds(out_dir) + _load_archive_sensitive_paths(out_dir):
+        if ap not in structural_paths:
+            structural_paths.append(ap)
+        if len(structural_paths) >= structural_cap:
+            break
     # OpenAPI paths are target-specific evidence — same tier as structural
     for sp in (
         _load_swagger_fuzz_paths(out_dir)
