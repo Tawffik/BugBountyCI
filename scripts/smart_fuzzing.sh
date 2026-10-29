@@ -25,6 +25,11 @@ PY_DIR="$SCRIPT_DIR/../pipeline/smart-fuzzing"
 WOLF_DIR="${WOLF_DIR:-/tmp/wolf}"
 OUT_DIR="$RD/smart-fuzzing"
 
+write_operator_summary_safe() {
+  python3 "$PY_DIR/write_operator_summary.py" "$RD" 2>/dev/null || true
+}
+
+
 # shellcheck source=pipeline_lib.sh
 source "$SCRIPT_DIR/pipeline_lib.sh" 2>/dev/null || true
 
@@ -72,6 +77,7 @@ python3 "$PY_DIR/wordlist_builder.py" --results-dir "$RD" --mode "$MODE" || FAIL
 WORDLIST="$OUT_DIR/target_wordlist.txt"
 if [ "$FAIL" = "1" ] || [ ! -s "$WORDLIST" ]; then
   echo "⚠️ Smart wordlist build failed or empty — caller should fall back to common.txt."
+  write_operator_summary_safe
   exit 0
 fi
 
@@ -82,6 +88,7 @@ FUZZ_INPUT="$RD/live/hostname_targets.txt"
 [ -s "$FUZZ_INPUT" ] || FUZZ_INPUT="$RD/live/live.txt"
 if [ ! -s "$FUZZ_INPUT" ]; then
   echo "⚠️ No live hosts available — nothing to fuzz."
+  write_operator_summary_safe
   exit 0
 fi
 
@@ -176,7 +183,5 @@ if type write_phase_status >/dev/null 2>&1; then
   fi
 fi
 
+write_operator_summary_safe
 exit 0
-
-# Operator summary for QUALITY_GATE / Easy-Wins
-python3 "$PY_DIR/write_operator_summary.py" "$RD" 2>/dev/null || true

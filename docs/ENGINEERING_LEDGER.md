@@ -1,4 +1,11 @@
 ---
+## 2026-10-29 — Audit fix: summary before exit + OOB token
+
+- write_operator_summary_safe before every exit 0 (was dead code after exit)
+- OOB_NOT_SEEN machine token restored for Hunter contracts
+- regression tests: hostname-first, wolf status, summary placement
+---
+---
 ## 2026-10-29 — Smart Fuzz Intigriti hardening
 
 - hostname-first target_profile (filter CDN IPs)

@@ -123,7 +123,7 @@ def _annotate_oob_status(reason, details, confirmed_labels):
         "OOB probe fired (not confirmed)",
     )
     if "OOB_NOT_SEEN" not in reason:
-        reason = reason + f"; OOB callback not observed (label={label}) — LEAD only"
+        reason = reason + f"; OOB_NOT_SEEN (label={label}) — OOB callback not observed; LEAD only"
     return reason
 
 
