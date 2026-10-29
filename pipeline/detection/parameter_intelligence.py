@@ -3,7 +3,8 @@
 Parameter Intelligence — Priority 1 foundation.
 
 Builds a single endpoint → parameters map from existing recon artifacts
-so future engines (IDOR/SSRF/injection) do not each re-parse urls/all.txt.
+so future engines (Access-Control, Open-Redirect, IDOR/SSRF) do not each re-parse urls/all.txt.
+Workflow order: run AFTER Content Discovery / Smart Fuzzing so vocabulary and discovered paths exist.
 
 Sources (all optional; missing files are skipped):
   - targeted/arjun_params.txt
@@ -11,7 +12,7 @@ Sources (all optional; missing files are skipped):
   - js/api_endpoints.txt
   - js/swagger.txt / js/graphql.txt (path hints)
   - urls/gf_categorized.txt (lines that look like URLs with query strings)
-  - smart-fuzzing/vocabulary.json (param-like tokens as weak hints)
+  - smart-fuzzing/vocabulary.json (param-like tokens as weak hints; available when this runs AFTER Content Discovery)
 
 Output: detection/parameter_intelligence.json
 """
