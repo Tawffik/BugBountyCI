@@ -196,8 +196,7 @@ def build(rd: Path) -> dict[str, Any]:
             continue
         items.append(
             {
-                "kind": "smart_fuzz_body",
-        "smart_fuzz_interesting",
+                "kind": "smart_fuzz_interesting",
                 "source": "smart-fuzzing/interesting.txt",
                 "value": line[:250],
                 "why": "Content-discovery signal — not a confirmed vulnerability",
