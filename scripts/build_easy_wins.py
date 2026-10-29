@@ -1,0 +1,247 @@
+#!/usr/bin/env python3
+"""Easy-Wins lane — Tips-style high-signal rollup before weak differentials.
+
+Consumes existing artifacts only. LEAD/review — never CONFIRMED.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import re
+from pathlib import Path
+from typing import Any
+
+SCHEMA = "bugbountyci.easy_wins.v1"
+SENS = re.compile(
+    r"(\.env|\.git|/backup|\.bak|\.sql|\.map(\?|$)|swagger|openapi|api-docs|"
+    r"docker-compose|kubeconfig|\.gitlab-ci|Jenkinsfile|/metrics|/debug)",
+    re.I,
+)
+
+
+def _lines(path: Path, limit: int = 50000) -> list[str]:
+    if not path.is_file():
+        return []
+    out = []
+    try:
+        with path.open(encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                s = line.strip()
+                if s:
+                    out.append(s)
+                if len(out) >= limit:
+                    break
+    except OSError:
+        return []
+    return out
+
+
+def _load(path: Path) -> dict[str, Any] | None:
+    if not path.is_file():
+        return None
+    try:
+        j = json.loads(path.read_text(encoding="utf-8", errors="replace"))
+        return j if isinstance(j, dict) else None
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def _jsonl(path: Path, limit: int = 80) -> list[dict[str, Any]]:
+    if not path.is_file():
+        return []
+    rows = []
+    try:
+        with path.open(encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    r = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(r, dict):
+                    rows.append(r)
+                if len(rows) >= limit:
+                    break
+    except OSError:
+        return []
+    return rows
+
+
+def build(rd: Path) -> dict[str, Any]:
+    items: list[dict[str, Any]] = []
+
+    # Sensitive URL patterns from passive harvest
+    for rel in ("urls/waymore.txt", "urls/gau.txt", "urls/wayback.txt", "urls/all.txt"):
+        for u in _lines(rd / rel, 30000):
+            if SENS.search(u):
+                items.append(
+                    {
+                        "kind": "archive_sensitive_url",
+                        "source": rel,
+                        "value": u[:300],
+                        "why": "Tips: historical/sensitive path pattern — probe live manually",
+                    }
+                )
+                if sum(1 for i in items if i["kind"] == "archive_sensitive_url") >= 40:
+                    break
+        if sum(1 for i in items if i["kind"] == "archive_sensitive_url") >= 40:
+            break
+
+    # Derived path leads / maps
+    der = _load(rd / "info_disclosure" / "derived_probes_summary.json") or {}
+    for row in _jsonl(rd / "info_disclosure" / "derived_probes.jsonl"):
+        disp = str(row.get("disposition") or row.get("status") or "")
+        if disp in ("PATH_LEAD",) or row.get("kind") == "source_map" and row.get("status") == 200:
+            items.append(
+                {
+                    "kind": "derived_probe",
+                    "source": "derived_probes",
+                    "value": str(row.get("url") or row.get("path") or "")[:300],
+                    "why": f"disposition={disp} — review body (LEAD)",
+                }
+            )
+            if sum(1 for i in items if i["kind"] == "derived_probe") >= 25:
+                break
+    if der.get("map_hits"):
+        items.append(
+            {
+                "kind": "source_maps",
+                "source": "derived_summary",
+                "value": f"map_hits={der.get('map_hits')}",
+                "why": "Source map hits — download and review (Tips JS)",
+            }
+        )
+
+    # GitHub
+    gh = _load(rd / "github_exposure" / "summary.json") or {}
+    st = gh.get("provider_status") or "unknown"
+    kept = int(gh.get("candidates_kept") or 0)
+    if kept > 0:
+        for row in _jsonl(rd / "github_exposure" / "candidates.jsonl", 20):
+            items.append(
+                {
+                    "kind": "github_exposure",
+                    "source": "github_exposure",
+                    "value": str(row.get("html_url") or "")[:300],
+                    "why": f"query={row.get('query_id')} — LEAD, do not use secrets",
+                }
+            )
+    else:
+        items.append(
+            {
+                "kind": "github_exposure",
+                "source": "github_exposure",
+                "value": f"status={st} kept=0",
+                "why": "No API yield this run (often RATE_LIMIT) — use SMART_DORK_BOARD UI links",
+            }
+        )
+
+    # Cloud clues only
+    cloud = _load(rd / "detection" / "cloud_exposure_summary.json") or {}
+    by = cloud.get("by_disposition") or {}
+    if by:
+        items.append(
+            {
+                "kind": "cloud_clue",
+                "source": "cloud_exposure",
+                "value": json.dumps(by),
+                "why": "Provider clues only — 403≠open bucket; verify list/read manually",
+            }
+        )
+
+    # Secrets high
+    sh = _lines(rd / "js" / "secrets_high.txt", 30)
+    for s in sh[:15]:
+        items.append(
+            {
+                "kind": "js_secret_candidate",
+                "source": "js/secrets_high.txt",
+                "value": s[:200],
+                "why": "Secret-shaped string — review only, never authenticate with it",
+            }
+        )
+
+    # Smart dork pointer
+    if (rd / "triage" / "SMART_DORK_BOARD.md").is_file():
+        items.append(
+            {
+                "kind": "dork_board",
+                "source": "triage/SMART_DORK_BOARD.md",
+                "value": "open SMART_DORK_BOARD",
+                "why": "Multi-engine search URLs + any API hits",
+            }
+        )
+
+    return {
+        "schema": SCHEMA,
+        "status": "OK",
+        "count": len(items),
+        "items": items[:120],
+        "note": "Easy wins first — Tips lane. Not vulnerability confirmation.",
+    }
+
+
+def render_md(report: dict[str, Any]) -> str:
+    lines = [
+        "# EASY_WINS — open this before Hunter differentials",
+        "",
+        report.get("note") or "",
+        "",
+        f"**Items:** {report.get('count', 0)}",
+        "",
+    ]
+    by: dict[str, list] = {}
+    for it in report.get("items") or []:
+        by.setdefault(str(it.get("kind")), []).append(it)
+    order = [
+        "github_exposure",
+        "derived_probe",
+        "source_maps",
+        "archive_sensitive_url",
+        "js_secret_candidate",
+        "cloud_clue",
+        "dork_board",
+    ]
+    for kind in order + [k for k in by if k not in order]:
+        rows = by.get(kind) or []
+        if not rows:
+            continue
+        lines.append(f"## {kind} ({len(rows)})")
+        lines.append("")
+        for r in rows[:30]:
+            lines.append(f"- `{r.get('value')}`")
+            lines.append(f"  - {r.get('why')} _(source: {r.get('source')})_")
+        lines.append("")
+    lines += [
+        "## Next",
+        "",
+        "1. `triage/SMART_DORK_BOARD.md`",
+        "2. `triage/QUALITY_GATE.md` / `GATE_0.md`",
+        "3. `triage/DISCLOSURE_DESK.md`",
+        "4. `detection/hunter_queue.md` (after easy wins)",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--results-dir", required=True)
+    args = ap.parse_args()
+    rd = Path(args.results_dir)
+    triage, meta = rd / "triage", rd / "meta"
+    triage.mkdir(parents=True, exist_ok=True)
+    meta.mkdir(parents=True, exist_ok=True)
+    report = build(rd)
+    (meta / "easy_wins.json").write_text(
+        json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    (triage / "EASY_WINS.md").write_text(render_md(report), encoding="utf-8")
+    print(json.dumps({"count": report["count"]}))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

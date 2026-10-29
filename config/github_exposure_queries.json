@@ -1,7 +1,7 @@
 {
   "schema": "bugbountyci.github_exposure_query_registry.v1",
-  "source": "Notion Bug Bounty Hunting Playbook \u2014 High-Signal Tips (2026-10-27) \u00a72-3",
-  "note": "Unified GitHub search (Playbook + former inline recon). Default run uses first default_max_queries (priority=1 first). Set GITHUB_EXPOSURE_MAX_QUERIES to raise. LEAD only.",
+  "source": "Notion Bug Bounty Hunting Playbook — High-Signal Tips (2026-10-27) §2-3",
+  "note": "Unified GitHub search (Playbook + former inline recon). Default run uses first default_max_queries (priority=1 first). Set GITHUB_EXPOSURE_MAX_QUERIES to raise. LEAD only. Expanded: k8s/docker/gitlab-ci/jenkins (Tips + dork families). LEAD only. Rate limits may cut run early.",
   "queries": [
     {
       "query_id": "gh-env-file",
@@ -154,6 +154,60 @@
       "template": "\"{target}\" ghp_ OR github_pat_",
       "provider": "github_code_search",
       "evidence_type": "secret_name_lead",
+      "priority": 2
+    },
+    {
+      "query_id": "gh-kubeconfig",
+      "family": "build_deploy",
+      "hypothesis": "kubeconfig + domain",
+      "template": "\"{target}\" filename:kubeconfig OR filename:kubeconfig.yml",
+      "provider": "github_code_search",
+      "evidence_type": "ci_config_lead",
+      "priority": 1
+    },
+    {
+      "query_id": "gh-k8s-secret",
+      "family": "build_deploy",
+      "hypothesis": "k8s secret yaml",
+      "template": "\"{target}\" kind: Secret apiVersion: v1",
+      "provider": "github_code_search",
+      "evidence_type": "ci_config_lead",
+      "priority": 1
+    },
+    {
+      "query_id": "gh-dockerfile",
+      "family": "build_deploy",
+      "hypothesis": "Dockerfile + domain",
+      "template": "\"{target}\" filename:Dockerfile",
+      "provider": "github_code_search",
+      "evidence_type": "ci_config_lead",
+      "priority": 2
+    },
+    {
+      "query_id": "gh-gitlab-ci",
+      "family": "build_deploy",
+      "hypothesis": "GitLab CI file",
+      "template": "\"{target}\" filename:.gitlab-ci.yml",
+      "provider": "github_code_search",
+      "evidence_type": "ci_config_lead",
+      "priority": 1
+    },
+    {
+      "query_id": "gh-jenkins",
+      "family": "build_deploy",
+      "hypothesis": "Jenkinsfile",
+      "template": "\"{target}\" filename:Jenkinsfile",
+      "provider": "github_code_search",
+      "evidence_type": "ci_config_lead",
+      "priority": 2
+    },
+    {
+      "query_id": "gh-circleci",
+      "family": "build_deploy",
+      "hypothesis": "CircleCI config",
+      "template": "\"{target}\" path:.circleci",
+      "provider": "github_code_search",
+      "evidence_type": "ci_config_lead",
       "priority": 2
     }
   ],
