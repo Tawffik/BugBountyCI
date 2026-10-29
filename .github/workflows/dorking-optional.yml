@@ -44,7 +44,8 @@ jobs:
           set -euo pipefail
           mkdir -p results/dorking
           # Prefer repo token; operators may set a PAT secret named GITHUB_PAT for higher code-search quota
-          TOKEN="${{ secrets.GITHUB_PAT }}"
+          TOKEN="${{ secrets.BBCI_GH_TOKEN }}"
+          if [ -z "$TOKEN" ]; then TOKEN="${{ secrets.WORKFLOW_PAT }}"; fi
           if [ -z "$TOKEN" ]; then TOKEN="${GITHUB_TOKEN}"; fi
           # Contract runner (provider status + LEAD only; never auto-Hunter)
           python3 scripts/run_dorking_optional.py \

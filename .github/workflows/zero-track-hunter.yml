@@ -2381,7 +2381,10 @@ jobs:
           : > "$RD/js/github_recon.txt"
           : > "$RD/js/github_recon_raw.txt"
           mkdir -p "$RD/meta/phases" "$RD/logs" "$RD/js"
-          GHTOK="${{ secrets.GITHUB_TOKEN }}"
+          # Prefer fine-grained/PAT secret for code search quota (GITHUB_* secret names are reserved)
+          GHTOK="${{ secrets.BBCI_GH_TOKEN }}"
+          if [ -z "$GHTOK" ]; then GHTOK="${{ secrets.WORKFLOW_PAT }}"; fi
+          if [ -z "$GHTOK" ]; then GHTOK="${{ secrets.GITHUB_TOKEN }}"; fi
           python3 scripts/run_github_exposure_slice.py \
             --results-dir "$RD" \
             --target "$TARGET" \
