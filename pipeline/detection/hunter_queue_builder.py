@@ -48,7 +48,7 @@ import re
 PRIORITY_ORDER = {"HIGH_SIGNAL": 0, "CONFIRMED": 0, "IDOR-CANDIDATE": 1, "LEAD": 2, "INTERESTING": 3, "RESEARCH_CONTEXT": 5}
 # Within same priority_class, prefer research-dense engines over low-value noise.
 ENGINE_TIER = {
-    "ssrf-v1": 0,
+    "ssrf-v1": 8,  # demote differential SSRF below disclosure-style engines
     "access-control": 0,
     "open-redirect": 0,
     "linkfinder_api": 1,

@@ -78,7 +78,8 @@ def build(rd: Path) -> dict[str, Any]:
             if SENS.search(u):
                 items.append(
                     {
-                        "kind": "archive_sensitive_url",
+                        "kind": "archive_live_probe",
+        "archive_sensitive_url",
                         "source": rel,
                         "value": u[:300],
                         "why": "Tips: historical/sensitive path pattern — probe live manually",
@@ -104,6 +105,31 @@ def build(rd: Path) -> dict[str, Any]:
             )
             if sum(1 for i in items if i["kind"] == "derived_probe") >= 25:
                 break
+    # Archive sensitive live probes (Tips mile)
+    for row in _jsonl(rd / "info_disclosure" / "archive_sensitive_probes.jsonl", 40):
+        disp = str(row.get("disposition") or "")
+        if disp in ("CONTENT_LEAD", "AUTH_OR_FORBIDDEN"):
+            items.append(
+                {
+                    "kind": "archive_live_probe",
+                    "source": "archive_sensitive_probes",
+                    "value": f"{row.get('url')} [{row.get('status')}/{disp}]",
+                    "why": f"snippet={(row.get('snippet') or '')[:120]} — LEAD, verify manually",
+                }
+            )
+            if sum(1 for i in items if i["kind"] == "archive_live_probe") >= 25:
+                break
+    arch = _load(rd / "info_disclosure" / "archive_sensitive_summary.json") or {}
+    if arch.get("leads") is not None:
+        items.append(
+            {
+                "kind": "archive_live_probe",
+                "source": "archive_sensitive_summary",
+                "value": f"leads={arch.get('leads')} probed={arch.get('probed')}",
+                "why": "Tips archive→live summary",
+            }
+        )
+
     if der.get("map_hits"):
         items.append(
             {

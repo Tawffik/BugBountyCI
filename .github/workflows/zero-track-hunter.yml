@@ -4963,6 +4963,10 @@ jobs:
 
           python3 scripts/nuclei_track_summary.py --results-dir "results/${{ env.TIMESTAMP }}" || true
           python3 scripts/write_pipeline_exports.py "results/${{ env.TIMESTAMP }}" || true
+          # Tips mile: archive sensitive URLs → bounded live probe (before Easy-Wins rollup)
+          if [ -f scripts/run_archive_sensitive_probe.py ]; then
+            python3 scripts/run_archive_sensitive_probe.py --results-dir "results/${{ env.TIMESTAMP }}" --budget 40 || true
+          fi
           # RRP + Quality Gate + Delta (aggregation only; scripts no-op soft if thin meta)
           if [ -f scripts/run_rrp_triage_bundle.sh ]; then
             bash scripts/run_rrp_triage_bundle.sh "results/${{ env.TIMESTAMP }}" "${{ env.TARGET }}" || true

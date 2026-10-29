@@ -1,4 +1,12 @@
 ---
+## 2026-10-29 — Finish promised Tips mile + ranking
+
+- archive_sensitive_probe: filter passive URLs → live probe → snippet
+- Easy-Wins consumes archive_live_probe
+- Hunter ENGINE_TIER: ssrf-v1 demoted so differentials do not dominate
+- Cloud summary: clues_not_vulnerabilities operator label
+---
+---
 ## 2026-10-29 — Easy-Wins + Smart Dork Board
 
 - triage/EASY_WINS.md from existing artifacts (Tips lane first)
