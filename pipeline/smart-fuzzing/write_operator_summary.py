@@ -50,6 +50,8 @@ def main():
         "interesting_n": _count_lines(os.path.join(sf, "interesting.txt")),
         "pipeline_state": outcome.get("pipeline_state") or phase.get("detail"),
         "phase_status": phase.get("status"),
+        "body_samples": (_load(os.path.join(sf, "body_samples_summary.json")) or {}).get("sampled"),
+        "fallback_used": bool((_load(os.path.join(sf, "fallback_status.json")) or {}).get("used")),
         "note": "Intigriti-aligned rollup: custom wordlist health, not vulnerability claims.",
     }
     os.makedirs(sf, exist_ok=True)
