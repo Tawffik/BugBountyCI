@@ -177,3 +177,6 @@ if type write_phase_status >/dev/null 2>&1; then
 fi
 
 exit 0
+
+# Operator summary for QUALITY_GATE / Easy-Wins
+python3 "$PY_DIR/write_operator_summary.py" "$RD" 2>/dev/null || true

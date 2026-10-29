@@ -78,8 +78,7 @@ def build(rd: Path) -> dict[str, Any]:
             if SENS.search(u):
                 items.append(
                     {
-                        "kind": "archive_live_probe",
-        "archive_sensitive_url",
+                        "kind": "archive_sensitive_url",
                         "source": rel,
                         "value": u[:300],
                         "why": "Tips: historical/sensitive path pattern — probe live manually",
@@ -177,6 +176,33 @@ def build(rd: Path) -> dict[str, Any]:
             }
         )
 
+    # Smart fuzz rollup
+    sf = _load(rd / "smart-fuzzing" / "operator_summary.json") or {}
+    if sf:
+        items.append(
+            {
+                "kind": "smart_fuzz_health",
+                "source": "smart-fuzzing/operator_summary.json",
+                "value": (
+                    f"wordlist={sf.get('wordlist_n')} wolf={sf.get('wolf_status')}/"
+                    f"{sf.get('wolf_lines')} interesting={sf.get('interesting_n')}"
+                ),
+                "why": f"hosts={sf.get('hosts_count')} src={sf.get('hosts_source')} state={sf.get('pipeline_state')}",
+            }
+        )
+    it_lines = _lines(rd / "smart-fuzzing" / "interesting.txt", 40)
+    for line in it_lines[:15]:
+        if line.startswith("#"):
+            continue
+        items.append(
+            {
+                "kind": "smart_fuzz_interesting",
+                "source": "smart-fuzzing/interesting.txt",
+                "value": line[:250],
+                "why": "Content-discovery signal — not a confirmed vulnerability",
+            }
+        )
+
     # Secrets high
     sh = _lines(rd / "js" / "secrets_high.txt", 30)
     for s in sh[:15]:
@@ -225,7 +251,10 @@ def render_md(report: dict[str, Any]) -> str:
         "github_exposure",
         "derived_probe",
         "source_maps",
+        "archive_live_probe",
         "archive_sensitive_url",
+        "smart_fuzz_interesting",
+        "smart_fuzz_health",
         "js_secret_candidate",
         "cloud_clue",
         "dork_board",

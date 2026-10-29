@@ -119,6 +119,38 @@ def build(rd: Path) -> dict[str, Any]:
     overall_eh = str(eh.get("overall") or "")
     funnel = str(fg.get("verdict") or "UNKNOWN")
 
+    # Smart fuzzing operator rollup
+    sf_sum = _load(rd / "smart-fuzzing" / "operator_summary.json") or {}
+    if sf_sum:
+        findings.append(
+            {
+                "severity": "info",
+                "code": "smart_fuzz_rollup",
+                "detail": (
+                    f"wordlist={sf_sum.get('wordlist_n')} wolf={sf_sum.get('wolf_status')}/"
+                    f"{sf_sum.get('wolf_lines')} hosts={sf_sum.get('hosts_count')} "
+                    f"src={sf_sum.get('hosts_source')} interesting={sf_sum.get('interesting_n')} "
+                    f"state={sf_sum.get('pipeline_state')}"
+                ),
+            }
+        )
+        if sf_sum.get("wolf_status") in ("WOLF_UNAVAILABLE", "WOLF_EMPTY"):
+            findings.append(
+                {
+                    "severity": "medium",
+                    "code": "smart_fuzz_wolf_weak",
+                    "detail": f"{sf_sum.get('wolf_status')}: tech wordlist layer thin (Intigriti company+tech+generic)",
+                }
+            )
+        if (sf_sum.get("wordlist_n") or 0) < 30:
+            findings.append(
+                {
+                    "severity": "medium",
+                    "code": "smart_fuzz_thin_wordlist",
+                    "detail": f"wordlist_n={sf_sum.get('wordlist_n')} — custom list may be too small for discovery",
+                }
+            )
+
     # Verdict
     if blocks_clean:
         verdict = "BLOCKED"
@@ -186,6 +218,7 @@ def render_md(report: dict[str, Any]) -> str:
         "- ERROR ≠ EMPTY · PARTIAL ≠ CLEAN",
         "- Passive SOURCE_FAILED/EMPTY ≠ target clean",
         "- Provider RATE_LIMIT ≠ no exposure",
+        "- Smart fuzz thin/wolf weak ≠ target has no paths",
         "- This gate does not confirm vulnerabilities",
         "",
         "## Next",

@@ -36,7 +36,7 @@ import argparse
 import json
 import os
 
-MODE_CAPS = {"light": 100, "normal": 300, "aggressive": 800}
+MODE_CAPS = {"light": 120, "normal": 450, "aggressive": 900}
 VERB_HINTS = ["export", "download", "status", "delete", "update", "create", "list"]
 # Real bug found reviewing a live run's actual target_wordlist.txt: Wolf
 # contributed 220/300 (73%) of the final wordlist while vocabulary.json
@@ -54,9 +54,9 @@ VERB_HINTS = ["export", "download", "status", "delete", "update", "create", "lis
 # target's own evidence) > Wolf (generic, supplementary only) - so no
 # single source can crowd out the other two regardless of how many
 # candidates it happens to produce.
-STRUCTURAL_SHARE = {"light": 30, "normal": 80, "aggressive": 200}
-VOCAB_SHARE = {"light": 40, "normal": 120, "aggressive": 350}
-WOLF_SHARE = {"light": 30, "normal": 100, "aggressive": 250}
+STRUCTURAL_SHARE = {"light": 30, "normal": 100, "aggressive": 220}
+VOCAB_SHARE = {"light": 50, "normal": 180, "aggressive": 380}
+WOLF_SHARE = {"light": 35, "normal": 120, "aggressive": 280}
 
 def _load_previous_strategy_outcome():
     """Compact historical note from Diff Mode snapshot if present.
