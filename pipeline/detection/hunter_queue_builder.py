@@ -89,7 +89,7 @@ def demote_unconfirmed_ssrf(entry: dict) -> dict:
             entry["classification"] = "LEAD"
             entry["priority_class"] = "LEAD"
             entry["classification_note"] = "demoted_ssrf_high_signal_without_oob"
-            entry["reason"] = (reason + "; demoted HIGH_SIGNAL→LEAD (no OOB_CONFIRMED)").strip("; ")
+            entry["reason"] = (reason + "; kept LEAD (no OOB callback verified)").strip("; ")
     return entry
 
 def _load_oob_confirmed_labels(results_dir):
@@ -123,7 +123,7 @@ def _annotate_oob_status(reason, details, confirmed_labels):
         "OOB probe fired (not confirmed)",
     )
     if "OOB_NOT_SEEN" not in reason:
-        reason = reason + f"; OOB_NOT_SEEN label={label} (differential-only until oob_findings matches)"
+        reason = reason + f"; OOB callback not observed (label={label}) — LEAD only"
     return reason
 
 
@@ -259,7 +259,7 @@ def load_smart_403_findings(results_dir, limit=25):
                     "target": row.get("request_url") or row.get("target") or "?",
                     "reason": (
                         f"smart_403 {row.get('technique')} tech={row.get('tech_profile')} "
-                        f"{row.get('reason')}; NEVER CONFIRMED — human replay required"
+                        f"{row.get('reason')}; LEAD only — human replay required"
                     ),
                     "stable": None,
                 })

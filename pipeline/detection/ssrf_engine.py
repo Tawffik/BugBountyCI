@@ -306,9 +306,8 @@ class SSRFEngine(DetectionEngine):
         detect_evidence.details["oob_probe_fired"] = True
         detect_evidence.details["oob_confirmed"] = False  # OOB Check step may flip later
         detect_evidence.reason += (
-            f"; OOB probe FIRED (label={label}) on shared interactsh session — "
-            f"NOT confirmed until ai_agent/oob_findings.txt lists this label after "
-            f"'OOB Check' (empty oob_findings = differential-only, not OOB-confirmed)"
+            f"; OOB probe sent (label={label}) — callback not verified in this stage; "
+            f"classification stays LEAD until OOB Check records the label in oob_findings"
         )
         return detect_evidence
 
@@ -341,8 +340,8 @@ class SSRFEngine(DetectionEngine):
             # runs produced large non-NOISE SSRF counts that are not confirmed vulns.
             evidence.classification = "LEAD"
             evidence.reason += (
-                "; stable across 2 replays — remains LEAD (differential only; "
-                "HIGH_SIGNAL requires OOB_CONFIRMED in oob_findings)"
+                "; stable across 2 replays — LEAD only "
+                "(response differential; no OOB callback verified)"
             )
         else:
             evidence.reason += "; unstable across replay — NOT promoted, confidence lowered"

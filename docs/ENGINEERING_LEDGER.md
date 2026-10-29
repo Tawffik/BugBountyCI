@@ -1,4 +1,9 @@
 ---
+## 2026-10-29 — Post #185-187 claim language fix
+
+SSRF/hunter operator prose no longer implies HIGH_SIGNAL without OOB.
+---
+---
 ## 2026-10-29 — Evidence Graph surface + Opportunity board (Notion 3+6)
 
 Continues smart-workflow layer without new scanners:
