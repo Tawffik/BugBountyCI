@@ -1,4 +1,12 @@
 ---
+## 2026-10-29 — Easy-Wins + Smart Dork Board
+
+- triage/EASY_WINS.md from existing artifacts (Tips lane first)
+- triage/SMART_DORK_BOARD.md: Google/Bing/DDG/GitHub UI/GitLab/Docker Hub URLs (no scrape)
+- Expanded github_exposure + dorking registries: k8s, gitlab-ci, docker, jenkins
+- Why dorking felt empty: API RATE_LIMIT; board always emits operator links
+---
+---
 ## 2026-10-29 — Post #185-187 claim language fix
 
 SSRF/hunter operator prose no longer implies HIGH_SIGNAL without OOB.

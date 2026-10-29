@@ -1,14 +1,108 @@
 {
   "schema": "bugbountyci.dorking_query_registry.v1",
-  "source": "Playbook §2 + RRP-4 minimal",
-  "note": "Optional workflow only — not default Hunter feed.",
+  "source": "Playbook + Tips dork families + RRP-4",
+  "note": "GitHub API queries for optional/smart dorking. Search-engine URLs are emitted by build_smart_dork_board (no scrape).",
+  "default_max_queries": 10,
   "queries": [
-    {"query_id": "dk-env", "family": "disclosure_indicators", "providers": ["github"], "template": "\"{target}\" filename:.env", "hypothesis": "Env file + domain on GitHub"},
-    {"query_id": "dk-openapi", "family": "api_definitions", "providers": ["github"], "template": "\"{target}\" openapi OR swagger", "hypothesis": "API docs lead"},
-    {"query_id": "dk-workflows", "family": "build_deploy", "providers": ["github"], "template": "\"{target}\" path:.github/workflows", "hypothesis": "CI workflow mention"},
-    {"query_id": "dk-aws", "family": "disclosure_indicators", "providers": ["github"], "template": "\"{target}\" AWS_SECRET_ACCESS_KEY", "hypothesis": "AWS secret name co-occurrence"},
-    {"query_id": "dk-private-key", "family": "disclosure_indicators", "providers": ["github"], "template": "\"{target}\" \"BEGIN PRIVATE KEY\"", "hypothesis": "Private key block co-occurrence (redact)"},
-    {"query_id": "dk-docker", "family": "build_deploy", "providers": ["github"], "template": "\"{target}\" filename:docker-compose.yml", "hypothesis": "Compose file mention"},
-    {"query_id": "dk-staging", "family": "environment", "providers": ["github"], "template": "\"{target}\" staging api", "hypothesis": "Staging API strings"}
+    {
+      "query_id": "dk-env",
+      "family": "disclosure",
+      "providers": [
+        "github"
+      ],
+      "template": "\"{target}\" filename:.env",
+      "hypothesis": "Env file",
+      "priority": 1
+    },
+    {
+      "query_id": "dk-aws",
+      "family": "disclosure",
+      "providers": [
+        "github"
+      ],
+      "template": "\"{target}\" AWS_SECRET_ACCESS_KEY",
+      "hypothesis": "AWS secret name",
+      "priority": 1
+    },
+    {
+      "query_id": "dk-workflows",
+      "family": "cicd",
+      "providers": [
+        "github"
+      ],
+      "template": "\"{target}\" path:.github/workflows",
+      "hypothesis": "GHA workflows",
+      "priority": 1
+    },
+    {
+      "query_id": "dk-gitlab-ci",
+      "family": "cicd",
+      "providers": [
+        "github"
+      ],
+      "template": "\"{target}\" filename:.gitlab-ci.yml",
+      "hypothesis": "GitLab CI on GitHub mirrors",
+      "priority": 1
+    },
+    {
+      "query_id": "dk-docker",
+      "family": "cicd",
+      "providers": [
+        "github"
+      ],
+      "template": "\"{target}\" filename:docker-compose.yml",
+      "hypothesis": "Compose",
+      "priority": 1
+    },
+    {
+      "query_id": "dk-kube",
+      "family": "cicd",
+      "providers": [
+        "github"
+      ],
+      "template": "\"{target}\" filename:kubeconfig OR \"kind: Secret\"",
+      "hypothesis": "K8s",
+      "priority": 1
+    },
+    {
+      "query_id": "dk-openapi",
+      "family": "api",
+      "providers": [
+        "github"
+      ],
+      "template": "\"{target}\" openapi OR swagger",
+      "hypothesis": "API docs",
+      "priority": 1
+    },
+    {
+      "query_id": "dk-jenkins",
+      "family": "cicd",
+      "providers": [
+        "github"
+      ],
+      "template": "\"{target}\" filename:Jenkinsfile",
+      "hypothesis": "Jenkins",
+      "priority": 2
+    },
+    {
+      "query_id": "dk-private-key",
+      "family": "disclosure",
+      "providers": [
+        "github"
+      ],
+      "template": "\"{target}\" \"BEGIN PRIVATE KEY\"",
+      "hypothesis": "PEM",
+      "priority": 2
+    },
+    {
+      "query_id": "dk-staging",
+      "family": "environment",
+      "providers": [
+        "github"
+      ],
+      "template": "\"{target}\" staging api",
+      "hypothesis": "Staging",
+      "priority": 2
+    }
   ]
 }

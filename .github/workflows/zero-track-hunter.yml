@@ -4962,7 +4962,7 @@ jobs:
           python3 scripts/write_pipeline_exports.py "results/${{ env.TIMESTAMP }}" || true
           # RRP + Quality Gate + Delta (aggregation only; scripts no-op soft if thin meta)
           if [ -f scripts/run_rrp_triage_bundle.sh ]; then
-            bash scripts/run_rrp_triage_bundle.sh "results/${{ env.TIMESTAMP }}" || true
+            bash scripts/run_rrp_triage_bundle.sh "results/${{ env.TIMESTAMP }}" "${{ env.TARGET }}" || true
             echo "QUALITY_GATE=$(test -f results/${{ env.TIMESTAMP }}/triage/QUALITY_GATE.md && echo yes || echo no)"
             echo "GATE_0=$(test -f results/${{ env.TIMESTAMP }}/triage/GATE_0.md && echo yes || echo no)"
             echo "DELTA=$(test -f results/${{ env.TIMESTAMP }}/triage/DELTA.md && echo yes || echo no)"
