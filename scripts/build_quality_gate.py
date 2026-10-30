@@ -116,6 +116,64 @@ def build(rd: Path) -> dict[str, Any]:
             }
         )
 
+
+    # Disclosure / dork / data-exposure family rollup (operator honesty)
+    def _n_jsonl(path: Path) -> int:
+        if not path.is_file():
+            return 0
+        try:
+            return sum(1 for ln in path.read_text(encoding="utf-8", errors="replace").splitlines() if ln.strip())
+        except OSError:
+            return 0
+
+    gh_sum = _load(rd / "github_exposure" / "summary.json") or {}
+    arch = _load(rd / "info_disclosure" / "archive_sensitive_summary.json") or {}
+    der = _load(rd / "info_disclosure" / "derived_probes_summary.json") or {}
+    id_phase = phases.get("information_disclosure") or {}
+    arch_phase = phases.get("archive_sensitive_probe") or {}
+    sm_n = 0
+    smp = rd / "source_maps" / "found.txt"
+    if smp.is_file():
+        try:
+            sm_n = sum(1 for ln in smp.read_text(encoding="utf-8", errors="replace").splitlines() if ln.strip())
+        except OSError:
+            sm_n = 0
+    probe_n = _n_jsonl(rd / "info_disclosure" / "probe_results.jsonl")
+    derived_n = int(der.get("count") or der.get("probed") or der.get("total") or _n_jsonl(rd / "info_disclosure" / "derived_probes.jsonl"))
+    arch_n = int(arch.get("probed") or arch.get("count") or 0)
+    arch_leads = int(arch.get("leads") or 0)
+    if not arch_n and arch_phase:
+        # detail may carry numbers
+        pass
+    gh_status = str(gh_sum.get("overall") or gh_sum.get("status") or (phases.get("github_exposure_slice") or {}).get("status") or "UNKNOWN")
+    findings.append(
+        {
+            "severity": "info",
+            "code": "disclosure_family_rollup",
+            "detail": (
+                f"info_probes={probe_n} derived={derived_n} source_maps={sm_n} "
+                f"archive_probed={arch_n} archive_leads={arch_leads} "
+                f"github={gh_status} info_phase={id_phase.get('status') or 'n/a'}"
+            ),
+        }
+    )
+    if gh_status.upper() in ("RATE_LIMIT", "ERROR") or "rate" in gh_status.lower():
+        findings.append(
+            {
+                "severity": "medium",
+                "code": "disclosure_github_provider",
+                "detail": f"GitHub exposure status={gh_status} — empty candidates ≠ no public exposure",
+            }
+        )
+    if probe_n == 0 and derived_n == 0 and arch_n == 0 and sm_n == 0:
+        findings.append(
+            {
+                "severity": "info",
+                "code": "disclosure_family_empty",
+                "detail": "No disclosure-family probe rows yet — check ENABLE flags, URL harvest, and timing (archive early vs export)",
+            }
+        )
+
     overall_eh = str(eh.get("overall") or "")
     funnel = str(fg.get("verdict") or "UNKNOWN")
 
@@ -223,9 +281,9 @@ def render_md(report: dict[str, Any]) -> str:
         "",
         "## Next",
         "",
-        "1. `triage/GATE_0.md`",
-        "2. `triage/DELTA.md` (if present)",
-        "3. `triage/DISCLOSURE_DESK.md` / Hunter",
+        "1. `triage/DISCLOSURE_DESK.md` + `triage/EASY_WINS.md`",
+        "2. `triage/GATE_0.md` / `triage/DELTA.md`",
+        "3. `triage/SMART_DORK_BOARD.md` then Hunter",
         "",
     ]
     return "\n".join(lines)

@@ -1404,6 +1404,21 @@ jobs:
             echo '{"phase":"gate_urls","status":"ok","detail":"urls='"$U"'","ts":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'"}' > "$RD/meta/phases/gate_urls.json"
           fi
 
+      - name: "📦 Archive sensitive probe (early — Tips mile after URLs)"
+        continue-on-error: true
+        timeout-minutes: 8
+        run: |
+          # Run once early so derived/info-disc/Easy-Wins consumers in mid-run
+          # can see archive leads; export step may refresh with a higher budget.
+          RD="results/${{ env.TIMESTAMP }}"
+          mkdir -p "$RD/info_disclosure" "$RD/meta/phases" "$RD/logs"
+          if [ -f scripts/run_archive_sensitive_probe.py ]; then
+            python3 scripts/run_archive_sensitive_probe.py --results-dir "$RD" --budget 25 \
+              2>>"$RD/logs/archive_sensitive_early.log" || echo "⚠️ early archive probe soft-failed"
+          else
+            echo "ℹ️ run_archive_sensitive_probe.py missing — skip early archive probe"
+          fi
+
       - name: "📦 JavaScript Analysis"
         continue-on-error: true
         timeout-minutes: 20
@@ -4966,6 +4981,7 @@ jobs:
           python3 scripts/write_pipeline_exports.py "results/${{ env.TIMESTAMP }}" || true
           # Tips mile: archive sensitive URLs → bounded live probe (before Easy-Wins rollup)
           if [ -f scripts/run_archive_sensitive_probe.py ]; then
+            # Refresh with higher budget (early pass used 25 after URL collection).
             python3 scripts/run_archive_sensitive_probe.py --results-dir "results/${{ env.TIMESTAMP }}" --budget 40 || true
           fi
           # RRP + Quality Gate + Delta (aggregation only; scripts no-op soft if thin meta)

@@ -1,4 +1,11 @@
 ---
+## 2026-10-30 — Disclosure family: early archive + GATE rollup
+
+- Archive sensitive probe after URL QG (budget 25); export refresh budget 40
+- QUALITY_GATE disclosure_family_rollup (probes/derived/maps/archive/github)
+- Next steps prioritize DISCLOSURE_DESK + EASY_WINS
+---
+---
 ## 2026-10-29 — Audit: easy_wins syntax corruption
 
 - Fixed broken dict kind in build_easy_wins (smart_fuzz_interesting)
