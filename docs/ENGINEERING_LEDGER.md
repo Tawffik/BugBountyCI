@@ -1,3 +1,28 @@
+## 2026-10-30 — URL/ASN priority feeds + disclosure/dork wiring (#98–#100)
+
+**main tip after merges:** `6cb13b3` (PR **#100** on top of #98/#99).
+
+### Done (code)
+| PR | Change |
+| --- | --- |
+| **#98** | Wider URL timeouts/limits; `url_priority_filter.py` → `priority_{high,params,api,inventory}` + `meta/url_filter_stats.json`; `all.txt` retained; URL Collection step 100m |
+| **#99** | `asn_priority_select.py` (live-adjacent /24 first, default promote cap 300); port_scan uses priority list; feeds archive/PI/wordlist/target_profile/vocabulary/cloud from priority layers |
+| **#100** | Info-disclosure hosts 10→25, probe cap 80, soft budget 1500s, more backup/config paths; `probe_priority_disclosure_urls.py`; archive SENS expanded; `run_dorking_optional.py` invoked after GitHub slice |
+
+### Contracts held
+SI→Hunter OFF · bulk Nuclei NOT_RUN · no auto-CONFIRMED · ERROR≠EMPTY · RATE_LIMIT≠clean · soft-fail on new steps · inventory files not truncated for vanity
+
+### Still open (ops)
+1. Authorized run on tip `6cb13b3+` → Desk / Easy-Wins / `url_filter_stats` / `asn_priority_stats` / `priority_disclosure_summary` / `dorking/summary.json`
+2. Repo secret **`BBCI_GH_TOKEN`** (code search) required for non-ERROR GitHub/dork results
+3. Notion Fix Control was behind at #96 tip — reconcile to this SHA after live verify
+4. Full `docs/dorking_engine.py` remains non-default (Passive Intelligence blueprint)
+
+### Non-goals
+Raise caps for vanity counts · restore bulk Nuclei · dork hit → Hunter · treat SPA/403 as CONFIRMED
+
+---
+
 ---
 ## 2026-10-30 — Notion + README reconciliation
 

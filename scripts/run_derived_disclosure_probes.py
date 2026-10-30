@@ -77,6 +77,7 @@ def candidates_from_js(rd: Path, cap: int) -> list[tuple[str, str]]:
 def candidates_from_paths(rd: Path, cap: int) -> list[tuple[str, str]]:
     """Backup siblings for absolute http(s) endpoints/paths with host."""
     raw: list[str] = []
+    raw += _lines(rd / "urls" / "priority_high.txt", limit=2500)
     raw += _lines(rd / "js" / "endpoints.txt", limit=1500)
     # live hosts as prefix for relative paths
     hosts = []
