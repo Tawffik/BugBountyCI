@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Optional dorking runner with provider-status contracts (Phase 4).
+"""Optional GitHub code-search dorking from config/dorking_query_registry.json.
 
-NOT invoked by default Zero Track hunter. Used by dorking-optional.yml only.
-Does not feed Hunter automatically.
+Uses BBCI_GH_TOKEN / token arg. Provider status contract (Blueprint):
+  NOT_CONFIGURED | ERROR | RATE_LIMIT | COMPLETED_ZERO | COMPLETED_WITH_CANDIDATES | PARTIAL
+
+Never promotes to CONFIRMED. Soft-fail friendly.
 """
 from __future__ import annotations
 
@@ -20,7 +22,8 @@ API = "https://api.github.com/search/code"
 
 
 def load_registry(path: Path) -> list[dict[str, Any]]:
-    return list(json.loads(path.read_text(encoding="utf-8")).get("queries") or [])
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return list(data.get("queries") or [])
 
 
 def github_search(token: str, query: str, per_page: int = 5) -> tuple[str, list[dict], str]:
@@ -36,14 +39,18 @@ def github_search(token: str, query: str, per_page: int = 5) -> tuple[str, list[
         with urllib.request.urlopen(req, timeout=25) as resp:
             body = json.loads(resp.read().decode("utf-8", errors="replace"))
             items = body.get("items") or []
+            total = body.get("total_count", 0)
             st = "COMPLETED_WITH_CANDIDATES" if items else "COMPLETED_ZERO"
-            return st, items, f"total={body.get('total_count', 0)}"
+            return st, items, f"total={total}"
     except urllib.error.HTTPError as e:
-        if e.code == 403:
-            return "RATE_LIMIT", [], "403"
+        retry = e.headers.get("Retry-After") if e.headers else None
+        if e.code in (403, 429):
+            return "RATE_LIMIT", [], f"http_{e.code} retry_after={retry}"
         if e.code == 401:
-            return "ERROR", [], "401"
-        return "ERROR", [], str(e.code)
+            return "ERROR", [], "http_401"
+        if e.code == 422:
+            return "ERROR", [], "http_422_query"
+        return "ERROR", [], f"http_{e.code}"
     except Exception as e:
         return "ERROR", [], type(e).__name__
 
@@ -58,75 +65,120 @@ def main() -> int:
         default=str(Path(__file__).resolve().parents[1] / "config" / "dorking_query_registry.json"),
     )
     ap.add_argument("--max-per-query", type=int, default=5)
+    ap.add_argument("--sleep-sec", type=float, default=2.0, help="Delay between queries (rate limit hygiene)")
     args = ap.parse_args()
     out = Path(args.output)
     out.mkdir(parents=True, exist_ok=True)
+    rd_meta = out.parent / "meta" / "phases" if out.name == "dorking" else out / "meta" / "phases"
+    # Prefer results_dir/meta when output is .../dorking
+    results_dir = out.parent if out.name == "dorking" else out
+    phases = results_dir / "meta" / "phases"
+    phases.mkdir(parents=True, exist_ok=True)
 
     if not args.token:
         summary = {
             "schema": "bugbountyci.dorking_run_summary.v1",
             "provider_status": "NOT_CONFIGURED",
-            "note": "No token — dorking not run",
+            "note": "No token — dorking not run. Set BBCI_GH_TOKEN / WORKFLOW_PAT.",
         }
         (out / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
+        (phases / "dorking_optional.json").write_text(
+            json.dumps({"phase": "dorking_optional", "status": "NOT_CONFIGURED", "detail": "no token"}, indent=2)
+            + "\n"
+        )
         print(json.dumps(summary))
         return 0
 
-    queries = load_registry(Path(args.registry))
+    reg_path = Path(args.registry)
+    queries = load_registry(reg_path)
+    try:
+        max_q = int(json.loads(reg_path.read_text(encoding="utf-8")).get("default_max_queries") or 12)
+    except Exception:
+        max_q = 12
+    max_q = int(os.environ.get("DORKING_MAX_QUERIES") or max_q)
+    queries = [q for q in queries if "github" in (q.get("providers") or ["github"])]
+    queries = sorted(queries, key=lambda q: int(q.get("priority") or 99))[: max(1, max_q)]
+
     executions = []
     candidates = []
-    for q in queries:
-        if "github" not in (q.get("providers") or ["github"]):
-            continue
+    statuses: list[str] = []
+    for i, q in enumerate(queries):
+        if i and args.sleep_sec > 0:
+            time.sleep(args.sleep_sec)
+        qid = q.get("query_id") or "unknown"
         query = (q.get("template") or "").replace("{target}", args.target)
-        status, items, detail = github_search(args.token, query, args.max_per_query)
-        executions.append({
-            "query_id": q.get("query_id"),
+        status, items, detail = github_search(args.token, query, per_page=args.max_per_query)
+        statuses.append(status)
+        rec = {
+            "query_id": qid,
+            "family": q.get("family"),
             "hypothesis": q.get("hypothesis"),
             "query": query,
             "provider_status": status,
             "detail": detail,
             "raw_items": len(items),
-        })
+        }
+        executions.append(rec)
         for it in items:
-            html = it.get("html_url") or ""
-            if args.target.lower() not in (html + str(it.get("repository", {}))).lower():
-                continue
-            candidates.append({
-                "query_id": q.get("query_id"),
-                "html_url": html,
-                "repo": (it.get("repository") or {}).get("full_name"),
-                "path": it.get("path"),
-                "classification": "LEAD",
-                "never_confirmed": True,
-                "never_auto_hunter": True,
-            })
-        time.sleep(1.2)
+            html_url = it.get("html_url") or ""
+            repo = (it.get("repository") or {}).get("full_name") or ""
+            path = it.get("path") or ""
+            candidates.append(
+                {
+                    "schema": "bugbountyci.dorking_candidate.v1",
+                    "query_id": qid,
+                    "family": q.get("family"),
+                    "hypothesis": q.get("hypothesis"),
+                    "html_url": html_url,
+                    "repository": repo,
+                    "path": path,
+                    "disposition": "LEAD",
+                    "note": "Passive GitHub code search — not CONFIRMED; scope/ownership review required",
+                }
+            )
+        if status == "RATE_LIMIT":
+            # stop further queries to avoid hammering
+            break
 
-    statuses = [e["provider_status"] for e in executions]
-    if any(s == "COMPLETED_WITH_CANDIDATES" for s in statuses):
-        overall = "COMPLETED_WITH_CANDIDATES"
-    elif statuses and all(s == "COMPLETED_ZERO" for s in statuses):
-        overall = "COMPLETED_ZERO"
-    elif any(s == "RATE_LIMIT" for s in statuses):
+    if "RATE_LIMIT" in statuses and candidates:
+        overall = "PARTIAL"
+    elif "RATE_LIMIT" in statuses and not candidates:
         overall = "RATE_LIMIT"
+    elif all(s == "COMPLETED_ZERO" for s in statuses) and statuses:
+        overall = "COMPLETED_ZERO"
+    elif any(s == "COMPLETED_WITH_CANDIDATES" for s in statuses):
+        overall = "COMPLETED_WITH_CANDIDATES"
+    elif any(s == "ERROR" for s in statuses):
+        overall = "ERROR"
     else:
-        overall = "ERROR" if statuses else "NOT_RUN"
+        overall = statuses[0] if statuses else "NOT_RUN"
 
     summary = {
         "schema": "bugbountyci.dorking_run_summary.v1",
         "target": args.target,
         "provider_status": overall,
+        "queries_planned": len(queries),
         "queries_run": len(executions),
         "candidates": len(candidates),
-        "executions": executions,
-        "note": "Optional workflow only — results are LEADs, not Hunter auto-feed",
+        "note": "Registry from Notion Manual (domain-scoped). LEAD only.",
     }
+    (out / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
+    (out / "executions.json").write_text(json.dumps(executions, indent=2) + "\n")
     with (out / "candidates.jsonl").open("w", encoding="utf-8") as fh:
         for c in candidates:
-            fh.write(json.dumps(c) + "\n")
-    (out / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
-    print(json.dumps({"ok": True, "provider_status": overall, "candidates": len(candidates)}))
+            fh.write(json.dumps(c, ensure_ascii=False) + "\n")
+    (phases / "dorking_optional.json").write_text(
+        json.dumps(
+            {
+                "phase": "dorking_optional",
+                "status": overall,
+                "detail": f"queries={len(executions)} candidates={len(candidates)}",
+            },
+            indent=2,
+        )
+        + "\n"
+    )
+    print(json.dumps(summary))
     return 0
 
 
