@@ -21,7 +21,8 @@ RD="results/$TIMESTAMP"
 # room without hitting the job-level step timeout instead.
 LIVE_COUNT=$(wc -l < "$RD/live/live.txt" 2>/dev/null || echo 0)
 TIMEOUT_SCALE=1
-[ "${LIVE_COUNT:-0}" -gt 1000 ] 2>/dev/null && TIMEOUT_SCALE=2
+[ "${LIVE_COUNT:-0}" -gt 200 ] 2>/dev/null && TIMEOUT_SCALE=2
+[ "${LIVE_COUNT:-0}" -gt 1000 ] 2>/dev/null && TIMEOUT_SCALE=3
 scale_timeout() { echo $(( $1 * TIMEOUT_SCALE )); }
 echo "ℹ️ URL Collection timeout scale: x${TIMEOUT_SCALE} (live hosts=${LIVE_COUNT:-0})"
 
@@ -56,10 +57,10 @@ echo "🔍 Wayback..."
 # isn't enough (124 = timeout killed it) versus a genuine clean-but-
 # empty completion.
 # GHA runs bash -e: timeout exit 124 would abort the whole step.
-timeout $(scale_timeout 300) bash -c 'echo "$TARGET" | waybackurls' > "$RD/urls/wayback.txt" 2>>"$RD/logs/wayback.log" || wb_exit=$?
+timeout $(scale_timeout 480) bash -c 'echo "$TARGET" | waybackurls' > "$RD/urls/wayback.txt" 2>>"$RD/logs/wayback.log" || wb_exit=$?
 wb_exit=${wb_exit:-0}
 if [ "$wb_exit" -eq 124 ]; then
-  echo "⚠️ waybackurls killed by 300s timeout (partial/empty possible)" | tee -a "$RD/logs/wayback.log"
+  echo "⚠️ waybackurls killed by 480s timeout (partial/empty possible)" | tee -a "$RD/logs/wayback.log"
 fi
 # Diagnostic: confirmed via httpx that this runner's outbound network is
 # fine in general, but public archive APIs (unlike the target) are a
@@ -77,8 +78,8 @@ if [ ! -s "$RD/urls/wayback.txt" ]; then
   echo "HTTP_STATUS:${cdx_code}" | tee -a "$RD/meta/archive_cdx_diag.txt"
   # Strategy A: text fl=original (retry once on 503)
   for attempt in 1 2; do
-    curl -sL --max-time 90 \
-      "https://web.archive.org/cdx/search/cdx?url=$TARGET/*&output=text&fl=original&collapse=urlkey&limit=5000" \
+    curl -sL --max-time 180 \
+      "https://web.archive.org/cdx/search/cdx?url=$TARGET/*&output=text&fl=original&collapse=urlkey&limit=25000" \
       2>>"$RD/logs/wayback.log" | grep -Eo 'https?://[^[:space:]"]+' | sort -u > "$RD/urls/wayback.txt" || true
     [ -s "$RD/urls/wayback.txt" ] && break
     echo "ℹ️ CDX attempt $attempt empty - sleep 5s and retry..."
@@ -87,8 +88,8 @@ if [ ! -s "$RD/urls/wayback.txt" ]; then
   # Strategy B: JSON parse
   if [ ! -s "$RD/urls/wayback.txt" ]; then
     echo "ℹ️ CDX text empty - trying JSON CDX parse..."
-    curl -sL --max-time 90 -o /tmp/cdx.json \
-      "https://web.archive.org/cdx/search/cdx?url=$TARGET/*&output=json&fl=original&collapse=urlkey&limit=5000" \
+    curl -sL --max-time 180 -o /tmp/cdx.json \
+      "https://web.archive.org/cdx/search/cdx?url=$TARGET/*&output=json&fl=original&collapse=urlkey&limit=25000" \
       2>>"$RD/logs/wayback.log" || true
     if [ -s /tmp/cdx.json ]; then
       jq -r '.[1:][]? | if type=="array" then .[0] else . end' /tmp/cdx.json 2>/dev/null \
@@ -99,7 +100,7 @@ if [ ! -s "$RD/urls/wayback.txt" ]; then
   if [ ! -s "$RD/urls/wayback.txt" ]; then
     for host in "$TARGET" "www.$TARGET"; do
       curl -sL --max-time 45 \
-        "https://web.archive.org/cdx/search/cdx?url=${host}/*&output=text&fl=original&collapse=urlkey&limit=2000" \
+        "https://web.archive.org/cdx/search/cdx?url=${host}/*&output=text&fl=original&collapse=urlkey&limit=8000" \
         2>>"$RD/logs/wayback.log" | grep -Eo 'https?://[^[:space:]"]+' >> "$RD/urls/wayback.txt" || true
     done
     sort -u -o "$RD/urls/wayback.txt" "$RD/urls/wayback.txt" 2>/dev/null || true
@@ -136,14 +137,14 @@ GAUCFG
   echo "ℹ️ wrote $HOME/.gau.toml (default providers)" | tee -a "$RD/logs/gau.log"
 fi
 # bash -e: must absorb timeout 124 or step dies before katana/urlscan/merge
-GAU_T1=$(scale_timeout 360)
+GAU_T1=$(scale_timeout 480)
 timeout "$GAU_T1" gau "$TARGET" --subs --providers wayback,commoncrawl,otx,urlscan --o "$RD/urls/gau.txt" 2>>"$RD/logs/gau.log" || gau_exit=$?
 gau_exit=${gau_exit:-0}
 if [ "$gau_exit" -eq 124 ]; then
   echo "⚠️ gau killed by timeout (${GAU_T1}s) - continuing with other URL sources" | tee -a "$RD/logs/gau.log"
 fi
 if [ ! -s "$RD/urls/gau.txt" ]; then
-  GAU_T2=$(scale_timeout 120)
+  GAU_T2=$(scale_timeout 240)
   echo "ℹ️ gau --subs empty - retrying without --subs (${GAU_T2}s)..." | tee -a "$RD/logs/gau.log"
   timeout "$GAU_T2" gau "$TARGET" --providers wayback,commoncrawl,otx,urlscan --o "$RD/urls/gau.txt" 2>>"$RD/logs/gau.log" || gau_exit2=$?
   gau_exit2=${gau_exit2:-0}
@@ -177,8 +178,8 @@ if command -v waymore >/dev/null 2>&1; then
   # Keys are OPTIONAL — waymore routinely yields hundreds of thousands without
   # URLSCAN/VT (#175). #176 zero yield was provider/network flakiness
   # (CommonCrawl ERR in log), not "requires keys". Always retry once if empty.
-  WM_T1=$(scale_timeout 240)
-  WM_T2=$(scale_timeout 300)
+  WM_T1=$(scale_timeout 360)
+  WM_T2=$(scale_timeout 420)
   echo "ℹ️ waymore attempt 1 (timeout=${WM_T1}s, no keys required)..." | tee -a "$RD/logs/waymore.log"
   set +e
   timeout "$WM_T1" waymore -i "$TARGET" -mode U -oU "$RD/urls/waymore.txt" -p 2 -r 2 2>>"$RD/logs/waymore.log"
@@ -213,11 +214,11 @@ KATANA_LIST="$RD/live/hostname_targets.txt"; [ -s "$KATANA_LIST" ] || KATANA_LIS
   echo "https://onlinedoctor.$TARGET"
   echo "https://photo.$TARGET"
 } | awk 'NF && !seen[$0]++' > /tmp/katana_in.txt
-[ -s /tmp/katana_in.txt ] && timeout $(scale_timeout 360) proxychains4 -q katana -list /tmp/katana_in.txt -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}" -silent -depth 3 -jc -jsl -kf all -d 4 -o "$RD/urls/katana.txt" 2>>"$RD/logs/katana.log" || true
+[ -s /tmp/katana_in.txt ] && timeout $(scale_timeout 480) proxychains4 -q katana -list /tmp/katana_in.txt -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}" -silent -depth 3 -jc -jsl -kf all -d 4 -o "$RD/urls/katana.txt" 2>>"$RD/logs/katana.log" || true
 katana_n=$(wc -l < "$RD/urls/katana.txt" 2>/dev/null || echo 0)
 if [ "${katana_n:-0}" -lt 50 ] && [ -s /tmp/katana_in.txt ]; then
   echo "⚠️ katana via Tor weak ($katana_n URLs) — DIRECT retry on crawl seeds..."
-  timeout $(scale_timeout 300) katana -list /tmp/katana_in.txt -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}" -silent -depth 3 -jc -jsl -kf all -d 4 -o /tmp/katana_direct.txt 2>>"$RD/logs/katana.log" || true
+  timeout $(scale_timeout 420) katana -list /tmp/katana_in.txt -H "User-Agent: $SCAN_USER_AGENT" "${AUTH_ARGS[@]}" -silent -depth 3 -jc -jsl -kf all -d 4 -o /tmp/katana_direct.txt 2>>"$RD/logs/katana.log" || true
   cat /tmp/katana_direct.txt 2>/dev/null >> "$RD/urls/katana.txt" || true
   sort -u "$RD/urls/katana.txt" -o "$RD/urls/katana.txt" 2>/dev/null || true
 fi
@@ -272,10 +273,10 @@ echo "ℹ️ urlscan.io URLs: $(wc -l < "$RD/urls/urlscan.txt" 2>/dev/null || ec
 echo "🔍 CDX JS-focused harvest..."
 : > "$RD/urls/wayback_js.txt"
 curl -sL --max-time 90 \
-  "https://web.archive.org/cdx/search/cdx?url=$TARGET/*&output=text&fl=original&collapse=urlkey&filter=mimetype:application/javascript&limit=3000" \
+  "https://web.archive.org/cdx/search/cdx?url=$TARGET/*&output=text&fl=original&collapse=urlkey&filter=mimetype:application/javascript&limit=10000" \
   2>>"$RD/logs/wayback.log" | grep -Eo 'https?://[^[:space:]"]+' >> "$RD/urls/wayback_js.txt" || true
 curl -sL --max-time 90 \
-  "https://web.archive.org/cdx/search/cdx?url=$TARGET/*.js*&output=text&fl=original&collapse=urlkey&limit=3000" \
+  "https://web.archive.org/cdx/search/cdx?url=$TARGET/*.js*&output=text&fl=original&collapse=urlkey&limit=10000" \
   2>>"$RD/logs/wayback.log" | grep -Eo 'https?://[^[:space:]"]+' >> "$RD/urls/wayback_js.txt" || true
 sort -u -o "$RD/urls/wayback_js.txt" "$RD/urls/wayback_js.txt" 2>/dev/null || true
 echo "ℹ️ CDX JS URLs: $(wc -l < "$RD/urls/wayback_js.txt" 2>/dev/null || echo 0)"
@@ -433,6 +434,14 @@ if [ -s "$RD/urls/all.txt" ]; then
   done
   echo "📁 Classified: js=$(wc -l < "$RD/urls/js_urls.txt" 2>/dev/null || echo 0) api=$(wc -l < "$RD/urls/api_urls.txt" 2>/dev/null || echo 0) admin=$(wc -l < "$RD/urls/admin_panels.txt" 2>/dev/null || echo 0) login=$(wc -l < "$RD/urls/login_flows.txt" 2>/dev/null || echo 0) sensitive=$(wc -l < "$RD/urls/sensitive_files.txt" 2>/dev/null || echo 0) params=$(wc -l < "$RD/urls/params.txt" 2>/dev/null || echo 0)"
 fi
+# Wide-collect priority filter (keep important paths; does not shrink all.txt)
+if [ -s "$RD/urls/all.txt" ] || [ -s "$RD/urls/wayback.txt" ]; then
+  python3 scripts/url_priority_filter.py "$RD" 2>>"$RD/logs/url_priority_filter.log" || \
+    echo "⚠️ url_priority_filter soft-failed" | tee -a "$RD/logs/url_priority_filter.log"
+else
+  echo "ℹ️ skip url_priority_filter (no URL inputs)"
+fi
+
 echo "📊 URL source breakdown: wayback=$(wc -l < "$RD/urls/wayback.txt" 2>/dev/null || echo 0) js_cdx=$(wc -l < "$RD/urls/wayback_js.txt" 2>/dev/null || echo 0) otx=$(wc -l < "$RD/urls/otx.txt" 2>/dev/null || echo 0) urlscan=$(wc -l < "$RD/urls/urlscan.txt" 2>/dev/null || echo 0) katana=$(wc -l < "$RD/urls/katana.txt" 2>/dev/null || echo 0) html=$(wc -l < "$RD/urls/html_extract.txt" 2>/dev/null || echo 0) all=$(wc -l < "$RD/urls/all.txt" 2>/dev/null || echo 0)"
 
 # --- Non-IP: record per-source health (operator honesty; not IP remediation) ---
