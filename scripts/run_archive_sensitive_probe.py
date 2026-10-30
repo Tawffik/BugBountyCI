@@ -15,8 +15,10 @@ from pathlib import Path
 from typing import Any
 
 SENS = re.compile(
-    r"(\.env($|\?)|\.git|/backup|\.bak($|\?)|\.sql($|\?)|\.map($|\?)|"
+    r"(\.env($|\?|\.)|\.git|/backup|\.bak($|\?)|\.sql($|\?)|\.map($|\?)|"
     r"swagger|openapi|api-docs|docker-compose|kubeconfig|"
+    r"web\.config|phpinfo|\.aws/credentials|config\.(json|yml|php)|"
+    r"secrets\.(json|yml)|/\.htaccess|"
     r"\.gitlab-ci|Jenkinsfile|/metrics|/debug/pprof)",
     re.I,
 )

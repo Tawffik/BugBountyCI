@@ -2059,15 +2059,15 @@ jobs:
                   continue
               seen.add(host)
               out.append(f"https://{host}")
-              if len(out) >= 10:
+              if len(out) >= 25:
                   break
           open(dst, "w").write("\n".join(out) + ("\n" if out else ""))
-          print(f"info-disclosure targets={len(out)} (unique https hostnames, cap 10)")
+          print(f"info-disclosure targets={len(out)} (unique https hostnames, cap 25)")
           PY
           echo "ℹ️ Info-disclosure targets: $(wc -l < "$INPUT" | tr -d ' ')"
 
           # Soft deadline: leave margin under GHA timeout-minutes
-          SOFT_LIMIT=1200
+          SOFT_LIMIT=1500
           start_sec=$SECONDS
           budget_ok() { [ $((SECONDS - start_sec)) -lt "$SOFT_LIMIT" ]; }
 
@@ -2089,7 +2089,7 @@ jobs:
           : > /tmp/info_disc_extra_paths.txt
           python3 scripts/info_disclosure_extra_paths.py "$RD/live/tech.json" /tmp/info_disc_extra_paths.txt 2>/dev/null || true
 
-          PROBE_CAP=48
+          PROBE_CAP=80
           probe_count=0
           record_probe() {
             local u="$1" pth="$2" st="$3" bf="$4" fam="$5"
@@ -2118,7 +2118,7 @@ jobs:
 
           : > "$RD/info_disclosure/backup_files.txt"
           # Reduced matrix: high-signal extensions only (was 9×5×N hosts → timeout)
-          for path in "/backup.zip" "/backup.sql" "/dump.sql" "/db.sql" "/database.sql" "/.env.bak" "/index.bak" "/backup.tar.gz"; do
+          for path in "/backup.zip" "/backup.sql" "/dump.sql" "/db.sql" "/database.sql" "/.env.bak" "/index.bak" "/backup.tar.gz" "/www.zip" "/site.zip" "/data.sql" "/.env.old" "/config.php.bak" "/app.sql"; do
             budget_ok || break
             while IFS= read -r host; do
               [ -z "$host" ] && continue
@@ -2139,7 +2139,7 @@ jobs:
           done
 
           : > "$RD/info_disclosure/config_files.txt"
-          for path in "/.env" "/.env.local" "/.env.production" "/.env.staging" "/.env.development" "/config.json" "/secrets.json" "/config/secrets.yml" "/web.config" "/phpinfo.php" "/server-status" "/.aws/credentials" "/metrics" "/-/healthy" "/-/ready" "/debug/pprof/" "/humans.txt" $(tr "\n" " " < /tmp/info_disc_extra_paths.txt 2>/dev/null); do
+          for path in "/.env" "/.env.local" "/.env.production" "/.env.staging" "/.env.development" "/.env.backup" "/config.json" "/secrets.json" "/config/secrets.yml" "/web.config" "/phpinfo.php" "/server-status" "/.aws/credentials" "/metrics" "/-/healthy" "/-/ready" "/debug/pprof/" "/humans.txt" "/actuator/env" "/.git/HEAD" $(tr "\n" " " < /tmp/info_disc_extra_paths.txt 2>/dev/null); do
             budget_ok || break
             while IFS= read -r host; do
               [ -z "$host" ] && continue
@@ -2202,6 +2202,11 @@ jobs:
             > "$RD/meta/phases/information_disclosure.json"
           echo "✅ Info-disclosure phase=${status} ${detail}"
           echo "✅ Git: ${git_n} | Backups: ${bak_n} | Configs: ${cfg_n} | Dirs: ${dir_n} | Errors: ${err_n} | Probes: ${probe_n}"
+          # Priority-URL disclosure probes (feeds from url_priority_filter layers)
+          if [ -f scripts/probe_priority_disclosure_urls.py ]; then
+            python3 scripts/probe_priority_disclosure_urls.py --results-dir "$RD" --budget 40 \
+              2>>"$RD/logs/priority_disclosure.log" || echo "⚠️ priority disclosure probe soft-failed"
+          fi
           # P1a: stage-derived .map / backup-sibling probes (budget-capped, never CONFIRMED)
           python3 scripts/run_derived_disclosure_probes.py --results-dir "$RD" --target "${{ env.TARGET }}" 2>>"$RD/logs/derived_disclosure.log" || echo "⚠️ derived disclosure probes soft-failed"
 
@@ -2415,6 +2420,16 @@ jobs:
               --summary "$RD/meta/github_recon_filter_summary.json" \
               --limit 80 || true
           fi
+
+          # Optional multi-query dorking (registry) — same token; writes dorking/
+          if [ -f scripts/run_dorking_optional.py ]; then
+            python3 scripts/run_dorking_optional.py \
+              --target "$TARGET" \
+              --output "$RD/dorking" \
+              --token "$GHTOK" \
+              2>>"$RD/logs/dorking_optional.log" || echo "⚠️ dorking_optional soft-failed"
+          fi
+
           kept_n=$(wc -l < "$RD/js/github_recon.txt" 2>/dev/null | tr -d ' ' || echo 0)
           if [ -n "$GHTOK" ]; then
             if [ "${kept_n:-0}" -gt 0 ]; then
