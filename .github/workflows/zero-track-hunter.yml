@@ -1384,7 +1384,7 @@ jobs:
 
       - name: "📜 URL Collection"
         continue-on-error: true
-        timeout-minutes: 70
+        timeout-minutes: 100
         run: bash scripts/url_collection.sh
 
       - name: "🚦 Quality Gate — URL surface"
