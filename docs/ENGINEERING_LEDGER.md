@@ -1,4 +1,10 @@
 ---
+## 2026-10-30 — Notion + README reconciliation
+
+- Notion Fix Control Center + Master Architecture updated to main `057a8d9` / PRs #82–#96
+- README capabilities/SHA/RRP/disclosure family aligned with tip
+---
+---
 ## 2026-10-30 — Disclosure family: early archive + GATE rollup
 
 - Archive sensitive probe after URL QG (budget 25); export refresh budget 40

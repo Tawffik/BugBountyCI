@@ -6,7 +6,7 @@ This repository is a **CI system**: phased discovery, bounded active checks, hon
 It is **not** an autonomous AI agent that “finds and confirms bugs by itself.” Optional AI steps exist only as soft helpers; the core product is deterministic tooling + ranking + review queues.
 
 > **Project memory:** [`docs/ENGINEERING_LEDGER.md`](./docs/ENGINEERING_LEDGER.md) — goals, bug history, merges, and open gaps. Chat sessions do not persist; the ledger does.  
-> **Ops status (Notion):** Fix Control Center (synced with recent PRs #66–#72).
+> **Ops status (Notion):** Fix Control Center synced **2026-10-30** (main tip through PR **#96**). See Notion Fix Control Center + `docs/ENGINEERING_LEDGER.md`.
 
 [![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-Zero%20Track-2088FF?logo=githubactions&logoColor=white)](https://github.com/Tawffik/BugBountyCI/actions)
 [![Workflow](https://img.shields.io/badge/Pipeline-~75%20named%20steps-success)](./.github/workflows/zero-track-hunter.yml)
@@ -66,7 +66,7 @@ Optional multi-provider **AI Agent** steps may run when API keys exist; they are
 
 ---
 
-## Current system capabilities (accurate as of main `e1f710a+`)
+## Current system capabilities (accurate as of main `057a8d9+` / PR #96)
 
 ### Discovery and gates
 - Passive/active subdomain sources, resolve, live probe, ports  
@@ -81,10 +81,14 @@ Optional multi-provider **AI Agent** steps may run when API keys exist; they are
 
 ### Information disclosure family
 - Path probes (git / backup / config / listing / errors) with body-aware classification where wired  
+- **Derived probes** (e.g. `.map` / backup suffixes from URL harvest)  
+- **Archive sensitive probe** early after URL collection (budget 25) + export refresh (40)  
+- **Disclosure Desk** + **Easy-Wins** + **Smart Dork Board** via RRP triage bundle  
+- **QUALITY_GATE** `disclosure_family_rollup` (probes / derived / maps / archive / github status)  
 - **Historical** host+path pivot + bounded validation  
 - Representation differential (observational)  
-- **Cloud Exposure V1:** provider clues (e.g. 403 on guessed buckets) — **never auto-confirmed**  
-- Path hits often **empty on hardened targets** = EMPTY_VALID, not necessarily a dead stage  
+- **Cloud Exposure V1:** provider clues — **never auto-confirmed**  
+- Path hits often **empty on hardened targets** = EMPTY_VALID, not a dead stage; GitHub **RATE_LIMIT ≠ no exposure**  
 
 ### Detection engines
 | Engine | Intent |
@@ -93,11 +97,13 @@ Optional multi-provider **AI Agent** steps may run when API keys exist; they are
 | SSRF V1 | No OOB ⇒ not HIGH_SIGNAL/CONFIRMED |
 | Open Redirect V1 | Candidates / evidence honesty |
 | **Smart 403** | Bounded adaptive bypass techniques (Notion-informed); **LEAD only** |
+| **Smart Fuzz V1** | Target wordlist (vocab+wolf+seeds); hostname-first; operator_summary; body samples — **signal not vuln** |
 | Hunter queue | Unified ranked markdown for humans |
 
 ### Operator RRP
-- `triage/GATE_0.md`  
-- `triage/SECRETS_REVIEW.md`  
+- `triage/GATE_0.md` · `triage/QUALITY_GATE.md` · `triage/DELTA.md`  
+- `triage/DISCLOSURE_DESK.md` · `triage/EASY_WINS.md` · `triage/SMART_DORK_BOARD.md`  
+- `triage/SECRETS_REVIEW.md` · exposure / opportunity boards when produced  
 - `triage/EXPOSURE_QUEUE.md`  
 - `triage/triage_summary.json` — **`auto_confirmed: 0`** by policy  
 - `detection/hunter_queue.md`  
@@ -193,7 +199,7 @@ Only run against **in-scope, authorized** assets.
 **Done recently:** conservative triage, Smart 403 + RD fix, Cloud Exposure V1, hunter queue integrity, JS endpoints path, health/SARIF honesty, ASN visibility in GATE_0.
 
 **Next (see ledger / Fix Control Center / [`docs/INFO_DISCLOSURE_EXECUTION_PLAN.md`](./docs/INFO_DISCLOSURE_EXECUTION_PLAN.md) · [`docs/PLAYBOOK_ZERO_TRACK_INTEGRATION.md`](./docs/PLAYBOOK_ZERO_TRACK_INTEGRATION.md)):**
-1. One light run verifying post-#69/#70/#72 artifacts on current main  
+1. One **normal** (or light) authorized run on tip **#96+** → Desk + Easy-Wins + QUALITY_GATE `disclosure_family_rollup` + smart-fuzz `operator_summary`  
 2. **Disclosure Desk** — single operator markdown aggregating ID/exposure family outputs  
 3. Stage-derived path probes (e.g. `.map` from JS inventory) under budget  
 4. Bounded GitHub passive query slice with provider status honesty  
