@@ -2431,16 +2431,29 @@ jobs:
           fi
 
           kept_n=$(wc -l < "$RD/js/github_recon.txt" 2>/dev/null | tr -d ' ' || echo 0)
+          # Honest phase: do not map RATE_LIMIT/ERROR → EMPTY_VALID (old false-clean bug)
           if [ -n "$GHTOK" ]; then
-            if [ "${kept_n:-0}" -gt 0 ]; then
-              printf '%s\n' "{\"phase\":\"github_recon\",\"status\":\"OK\",\"detail\":\"unified_slice kept=${kept_n}\"}" > "$RD/meta/phases/github_recon.json"
-            else
-              printf '%s\n' "{\"phase\":\"github_recon\",\"status\":\"EMPTY_VALID\",\"detail\":\"unified_slice zero kept\"}" > "$RD/meta/phases/github_recon.json"
+            _ps=""
+            if [ -f "$RD/github_exposure/summary.json" ]; then
+              _ps=$(python3 -c "import json;print(json.load(open('$RD/github_exposure/summary.json')).get('provider_status',''))" 2>/dev/null || true)
             fi
-            echo "✅ GitHub recon (unified slice) kept: ${kept_n}"
+            _st=""
+            if [ -f "$RD/meta/phases/github_exposure_slice.json" ]; then
+              _st=$(python3 -c "import json;print(json.load(open('$RD/meta/phases/github_exposure_slice.json')).get('status',''))" 2>/dev/null || true)
+            fi
+            if [ "$_st" = "rate_limit" ] || [ "$_ps" = "RATE_LIMIT" ]; then
+              printf '%s\n' "{\"phase\":\"github_recon\",\"status\":\"RATE_LIMIT\",\"detail\":\"kept=${kept_n}\"}" > "$RD/meta/phases/github_recon.json"
+            elif [ "$_ps" = "ERROR" ] || [ "$_st" = "error" ]; then
+              printf '%s\n' "{\"phase\":\"github_recon\",\"status\":\"ERROR\",\"detail\":\"kept=${kept_n}\"}" > "$RD/meta/phases/github_recon.json"
+            elif [ "${kept_n:-0}" -gt 0 ]; then
+              printf '%s\n' "{\"phase\":\"github_recon\",\"status\":\"OK\",\"detail\":\"kept=${kept_n}\"}" > "$RD/meta/phases/github_recon.json"
+            else
+              printf '%s\n' "{\"phase\":\"github_recon\",\"status\":\"EMPTY_VALID\",\"detail\":\"zero kept provider=${_ps:-unknown}\"}" > "$RD/meta/phases/github_recon.json"
+            fi
+            echo "✅ GitHub recon kept=${kept_n} provider=${_ps:-n/a} slice=${_st:-n/a}"
           else
-            echo "⚠️ GITHUB_TOKEN not available — github_recon NOT_CONFIGURED"
-            echo '{"phase":"github_recon","status":"NOT_CONFIGURED","detail":"GITHUB_TOKEN missing"}' > "$RD/meta/phases/github_recon.json"
+            echo "⚠️ No BBCI_GH_TOKEN/WORKFLOW_PAT/GITHUB_TOKEN — github_recon NOT_CONFIGURED"
+            echo '{"phase":"github_recon","status":"NOT_CONFIGURED","detail":"token missing"}' > "$RD/meta/phases/github_recon.json"
           fi
 
           echo "🔍 Virtual host discovery on shared IPs (Host + SNI via --resolve)..."
