@@ -1,8 +1,8 @@
 {
   "schema": "bugbountyci.dorking_query_registry.v1",
-  "source": "Playbook + Tips dork families + RRP-4",
-  "note": "GitHub API queries for optional/smart dorking. Search-engine URLs are emitted by build_smart_dork_board (no scrape).",
-  "default_max_queries": 10,
+  "source": "Notion GitHub Dorking Manual + Playbook Tips + Passive Intelligence Blueprint (domain-scoped only)",
+  "note": "No org:TARGET unless org is verified separately. Leads only \u2014 never CONFIRMED. Prefer BBCI_GH_TOKEN. default_max_queries caps API cost; priority=1 runs first.",
+  "default_max_queries": 12,
   "queries": [
     {
       "query_id": "dk-env",
@@ -11,7 +11,17 @@
         "github"
       ],
       "template": "\"{target}\" filename:.env",
-      "hypothesis": "Env file",
+      "hypothesis": "Env file near target domain",
+      "priority": 1
+    },
+    {
+      "query_id": "dk-env-prod",
+      "family": "disclosure",
+      "providers": [
+        "github"
+      ],
+      "template": "\"{target}\" filename:.env.production",
+      "hypothesis": "Production env file",
       "priority": 1
     },
     {
@@ -21,28 +31,58 @@
         "github"
       ],
       "template": "\"{target}\" AWS_SECRET_ACCESS_KEY",
-      "hypothesis": "AWS secret name",
+      "hypothesis": "AWS secret name + domain",
       "priority": 1
     },
     {
-      "query_id": "dk-workflows",
-      "family": "cicd",
+      "query_id": "dk-aws-id",
+      "family": "disclosure",
       "providers": [
         "github"
       ],
-      "template": "\"{target}\" path:.github/workflows",
-      "hypothesis": "GHA workflows",
+      "template": "\"{target}\" AWS_ACCESS_KEY_ID",
+      "hypothesis": "AWS key id + domain",
       "priority": 1
     },
     {
-      "query_id": "dk-gitlab-ci",
-      "family": "cicd",
+      "query_id": "dk-pem",
+      "family": "disclosure",
       "providers": [
         "github"
       ],
-      "template": "\"{target}\" filename:.gitlab-ci.yml",
-      "hypothesis": "GitLab CI on GitHub mirrors",
+      "template": "\"{target}\" \"BEGIN PRIVATE KEY\"",
+      "hypothesis": "PEM near domain",
       "priority": 1
+    },
+    {
+      "query_id": "dk-db-url",
+      "family": "disclosure",
+      "providers": [
+        "github"
+      ],
+      "template": "\"{target}\" DATABASE_URL",
+      "hypothesis": "DB URL",
+      "priority": 1
+    },
+    {
+      "query_id": "dk-client-secret",
+      "family": "disclosure",
+      "providers": [
+        "github"
+      ],
+      "template": "\"{target}\" client_secret",
+      "hypothesis": "OAuth client_secret",
+      "priority": 1
+    },
+    {
+      "query_id": "dk-bearer",
+      "family": "disclosure",
+      "providers": [
+        "github"
+      ],
+      "template": "\"{target}\" \"Authorization: Bearer\"",
+      "hypothesis": "Bearer header in code",
+      "priority": 2
     },
     {
       "query_id": "dk-docker",
@@ -55,24 +95,74 @@
       "priority": 1
     },
     {
-      "query_id": "dk-kube",
+      "query_id": "dk-tfvars",
       "family": "cicd",
       "providers": [
         "github"
       ],
-      "template": "\"{target}\" filename:kubeconfig OR \"kind: Secret\"",
-      "hypothesis": "K8s",
+      "template": "\"{target}\" filename:terraform.tfvars",
+      "hypothesis": "Terraform vars",
       "priority": 1
     },
     {
-      "query_id": "dk-openapi",
-      "family": "api",
+      "query_id": "dk-npmrc",
+      "family": "disclosure",
       "providers": [
         "github"
       ],
-      "template": "\"{target}\" openapi OR swagger",
-      "hypothesis": "API docs",
+      "template": "\"{target}\" filename:.npmrc",
+      "hypothesis": "npmrc tokens",
+      "priority": 2
+    },
+    {
+      "query_id": "dk-credentials-json",
+      "family": "disclosure",
+      "providers": [
+        "github"
+      ],
+      "template": "\"{target}\" filename:credentials.json",
+      "hypothesis": "credentials.json",
       "priority": 1
+    },
+    {
+      "query_id": "dk-secrets-yml",
+      "family": "disclosure",
+      "providers": [
+        "github"
+      ],
+      "template": "\"{target}\" filename:secrets.yml",
+      "hypothesis": "secrets.yml",
+      "priority": 2
+    },
+    {
+      "query_id": "dk-workflows",
+      "family": "cicd",
+      "providers": [
+        "github"
+      ],
+      "template": "\"{target}\" path:.github/workflows",
+      "hypothesis": "GHA workflows",
+      "priority": 1
+    },
+    {
+      "query_id": "dk-prt",
+      "family": "cicd",
+      "providers": [
+        "github"
+      ],
+      "template": "\"{target}\" path:.github/workflows pull_request_target",
+      "hypothesis": "PRT workflows (lead only)",
+      "priority": 2
+    },
+    {
+      "query_id": "dk-gitlab-ci",
+      "family": "cicd",
+      "providers": [
+        "github"
+      ],
+      "template": "\"{target}\" filename:.gitlab-ci.yml",
+      "hypothesis": "GitLab CI mirrors",
+      "priority": 2
     },
     {
       "query_id": "dk-jenkins",
@@ -85,13 +175,43 @@
       "priority": 2
     },
     {
-      "query_id": "dk-private-key",
+      "query_id": "dk-kube",
+      "family": "cicd",
+      "providers": [
+        "github"
+      ],
+      "template": "\"{target}\" filename:kubeconfig",
+      "hypothesis": "kubeconfig filename",
+      "priority": 2
+    },
+    {
+      "query_id": "dk-openapi",
+      "family": "api",
+      "providers": [
+        "github"
+      ],
+      "template": "\"{target}\" filename:openapi.json",
+      "hypothesis": "OpenAPI file",
+      "priority": 1
+    },
+    {
+      "query_id": "dk-swagger",
+      "family": "api",
+      "providers": [
+        "github"
+      ],
+      "template": "\"{target}\" filename:swagger.json",
+      "hypothesis": "Swagger file",
+      "priority": 1
+    },
+    {
+      "query_id": "dk-sourcemap",
       "family": "disclosure",
       "providers": [
         "github"
       ],
-      "template": "\"{target}\" \"BEGIN PRIVATE KEY\"",
-      "hypothesis": "PEM",
+      "template": "\"{target}\" sourceMappingURL",
+      "hypothesis": "Source map refs",
       "priority": 2
     },
     {
@@ -101,7 +221,7 @@
         "github"
       ],
       "template": "\"{target}\" staging api",
-      "hypothesis": "Staging",
+      "hypothesis": "Staging API refs",
       "priority": 2
     }
   ]
