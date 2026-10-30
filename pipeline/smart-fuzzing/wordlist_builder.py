@@ -71,7 +71,7 @@ def _load_passive_sensitive_path_seeds(out_dir):
         r"(admin|api|backup|\.env|swagger|openapi|debug|internal|staging|graphql|actuator)",
         re.I,
     )
-    for rel in ("urls/waymore.txt", "urls/gau.txt", "urls/wayback.txt", "urls/all.txt"):
+    for rel in ("urls/priority_high.txt", "urls/sensitive_files.txt", "urls/juicy.txt", "urls/waymore.txt", "urls/gau.txt", "urls/wayback.txt", "urls/all.txt"):
         path = os.path.join(rd, rel)
         if not os.path.isfile(path):
             continue

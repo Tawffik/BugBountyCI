@@ -149,6 +149,7 @@ def harvest_urls(results_dir: str) -> List[Tuple[str, str]]:
     """Return list of (url, source_artifact_ref)."""
     pairs: List[Tuple[str, str]] = []
     files = [
+        ("urls/priority_high.txt", 8000),
         ("urls/all.txt", 8000),
         ("js/endpoints.txt", 2000),
         ("js/urls.txt", 2000),

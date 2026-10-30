@@ -129,6 +129,9 @@ def main():
     admin = read_lines(os.path.join(rd, "js", "admin.txt"))
     js_endpoints = read_lines(os.path.join(rd, "js_deep", "linkfinder_endpoints.txt"))
     urls_all = read_lines(os.path.join(rd, "urls", "all.txt"))
+    urls_pri = read_lines(os.path.join(rd, "urls", "priority_high.txt"))
+    # Prefer priority paths first for tech/path signals without dropping all.txt
+    urls_all = list(dict.fromkeys(urls_pri + urls_all))
     urls_gf = read_lines(os.path.join(rd, "urls", "gf_categorized.txt"))
     params = read_lines(os.path.join(rd, "targeted", "arjun_params.txt"))
 

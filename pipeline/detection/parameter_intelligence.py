@@ -216,6 +216,22 @@ def build(results_dir: str, target_domain: str | None = None) -> dict[str, Any]:
                         _add(store, ep, p, src)
                     store.setdefault(ep, store.get(ep, {}))
 
+    # Priority URL layers (wide-collect filter) — feed params/api before generic noise
+    for fname, src in (
+        ("priority_params.txt", "urls/priority_params"),
+        ("priority_high.txt", "urls/priority_high"),
+        ("priority_api.txt", "urls/priority_api"),
+    ):
+        for line in _read_lines(os.path.join(rd, "urls", fname), limit=30000):
+            for m in URL_RE.findall(line) or ([line] if line.startswith("http") or "?" in line else []):
+                ep = _norm_endpoint(m if m.startswith("http") else line)
+                if not ep and "?" in line:
+                    ep = _norm_endpoint("https://placeholder.local" + (line if line.startswith("/") else "/" + line))
+                if not ep:
+                    continue
+                for prm in _params_from_url(m if "?" in m else line):
+                    _add(store, ep, prm, src)
+
     for line in _read_lines(os.path.join(rd, "urls", "gf_categorized.txt"), limit=20000):
         for m in URL_RE.findall(line):
             ep = _norm_endpoint(m)

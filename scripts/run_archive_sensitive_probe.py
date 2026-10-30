@@ -90,7 +90,7 @@ def main() -> int:
 
     candidates: list[str] = []
     seen: set[str] = set()
-    for rel in ("urls/waymore.txt", "urls/gau.txt", "urls/wayback.txt", "urls/all.txt"):
+    for rel in ("urls/priority_high.txt", "urls/sensitive_files.txt", "urls/juicy.txt", "urls/waymore.txt", "urls/gau.txt", "urls/wayback.txt", "urls/all.txt"):
         for u in _lines(rd / rel, 80000):
             if not SENS.search(u):
                 continue

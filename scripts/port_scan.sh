@@ -62,17 +62,29 @@ if command -v naabu >/dev/null; then
   fi
   # ASN/CIDR ranges are infrastructure-heavy (#162: 28k asn_ips → 28k ports.txt).
   # Cap before naabu; full inventory stays in subdomains/asn_ips.txt.
-  ASN_PORT_IP_CAP="${ASN_PORT_IP_CAP:-200}"
+  # Prefer priority selection over blind head -n (inventory stays full in asn_ips.txt).
+  ASN_PORT_IP_CAP="${ASN_PORT_IP_CAP:-300}"
   if [ -s "$RD/subdomains/asn_ips.txt" ]; then
     grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' "$RD/subdomains/asn_ips.txt" 2>/dev/null                 | sort -u > /tmp/asn_port_ips_all.txt || true
-    head -n "$ASN_PORT_IP_CAP" /tmp/asn_port_ips_all.txt >> /tmp/port_scan_ips.txt || true
-    _asn_all=$(wc -l < /tmp/asn_port_ips_all.txt 2>/dev/null | tr -d ' ' || echo 0)
-    if [ "${_asn_all:-0}" -gt "$ASN_PORT_IP_CAP" ] 2>/dev/null; then
-      _asn_promoted=$ASN_PORT_IP_CAP
-    else
-      _asn_promoted=${_asn_all:-0}
+    if [ -f scripts/asn_priority_select.py ]; then
+      python3 scripts/asn_priority_select.py --results-dir "$RD" --cap "$ASN_PORT_IP_CAP" \
+        2>>"$RD/logs/asn_priority.log" || echo "⚠️ asn_priority_select soft-failed" | tee -a "$RD/logs/asn_priority.log"
     fi
-    echo "ℹ️ ASN IPs for port scan: available ${_asn_all} → promoted ${_asn_promoted} (cap ${ASN_PORT_IP_CAP}; full list remains in subdomains/asn_ips.txt)"
+    if [ -s "$RD/subdomains/asn_ips_priority.txt" ]; then
+      cat "$RD/subdomains/asn_ips_priority.txt" >> /tmp/port_scan_ips.txt || true
+    else
+      head -n "$ASN_PORT_IP_CAP" /tmp/asn_port_ips_all.txt >> /tmp/port_scan_ips.txt || true
+    fi
+    _asn_all=$(wc -l < /tmp/asn_port_ips_all.txt 2>/dev/null | tr -d ' ' || echo 0)
+    _asn_promoted=$(wc -l < "$RD/subdomains/asn_ips_priority.txt" 2>/dev/null | tr -d ' ' || echo 0)
+    if [ "${_asn_promoted:-0}" -eq 0 ]; then
+      if [ "${_asn_all:-0}" -gt "$ASN_PORT_IP_CAP" ] 2>/dev/null; then
+        _asn_promoted=$ASN_PORT_IP_CAP
+      else
+        _asn_promoted=${_asn_all:-0}
+      fi
+    fi
+    echo "ℹ️ ASN IPs for port scan: available ${_asn_all} → promoted ${_asn_promoted} (cap ${ASN_PORT_IP_CAP}; priority filter; full list in subdomains/asn_ips.txt)"
     mkdir -p "$RD/meta"
     printf '{"asn_ips_available":%s,"asn_ips_promoted":%s,"asn_port_ip_cap":%s}
 '       "${_asn_all:-0}" "${_asn_promoted:-0}" "$ASN_PORT_IP_CAP" > /tmp/cap_asn.json 2>/dev/null || true
@@ -123,7 +135,7 @@ if command -v naabu >/dev/null; then
     _nb_trunc=false
     [ -f /tmp/cap_naabu.json ] && grep -q '"truncated":true' /tmp/cap_naabu.json && _nb_trunc=true
     printf '{"asn_ips_available":%s,"asn_ips_promoted":%s,"asn_port_ip_cap":%s,"port_scan_ips_before_cap":%s,"naabu_ip_cap":%s,"naabu_truncated":%s,"ip_live_cap":%s}
-'       "${_asn_a:-0}" "${_asn_p:-0}" "${ASN_PORT_IP_CAP:-200}" "${_nb_before}" "${NAABU_IP_CAP:-500}" "${_nb_trunc}" "${IP_LIVE_CAP:-200}"       > "$RD/meta/resource_caps.json" 2>/dev/null || true
+'       "${_asn_a:-0}" "${_asn_p:-0}" "${ASN_PORT_IP_CAP:-300}" "${_nb_before}" "${NAABU_IP_CAP:-500}" "${_nb_trunc}" "${IP_LIVE_CAP:-200}"       > "$RD/meta/resource_caps.json" 2>/dev/null || true
   fi
   PORT_INPUT="$INPUT"
   if [ -s /tmp/port_scan_ips.txt ]; then

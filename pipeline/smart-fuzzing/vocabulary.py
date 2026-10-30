@@ -99,6 +99,8 @@ def main():
         add(vocab, tokenize(line), "js")
 
     urls_all = read_lines(os.path.join(rd, "urls", "all.txt"))
+    for _extra in ("priority_high.txt", "priority_params.txt", "params.txt"):
+        urls_all = list(dict.fromkeys(urls_all + read_lines(os.path.join(rd, "urls", _extra))))
     urls_gf = read_lines(os.path.join(rd, "urls", "gf_categorized.txt"))
     for line in urls_all + urls_gf:
         add(vocab, tokenize(line), "url")
